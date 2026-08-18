@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"path/filepath"
 )
 
@@ -19,9 +20,9 @@ type AdapterClient struct {
 	adapter_api_url string
 }
 
-func NewAdapterClient(adapter_api_url string) *AdapterClient {
+func NewAdapterClient() *AdapterClient {
 	return &AdapterClient{
-		adapter_api_url,
+		getAdapterApiUrl(),
 	}
 }
 
@@ -70,9 +71,13 @@ func (a *AdapterClient) Convert(document io.Reader, filename string, contentType
 	return &buffer, nil
 }
 
-// func getAdapterApiUrl() string {
-// 	value := os.Getenv("ADAPTER_API_URL")
-// 	if value == "" {
-// 		return
-// 	}
-// }
+func getAdapterApiUrl() string {
+	const ADAPTER_API = "http://127.0.0.1:8000/api/v1/adapt/segment"
+
+	value := os.Getenv("ADAPTER_API_URL")
+	if value == "" {
+		return ADAPTER_API
+	}
+
+	return value
+}
