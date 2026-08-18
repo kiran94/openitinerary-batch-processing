@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type Adapter interface {
@@ -58,7 +59,11 @@ func (a *AdapterClient) Convert(document io.Reader, filename string, contentType
 		return nil, err
 	}
 
-	response, err := http.Post(a.adapter_api_url, writer.FormDataContentType(), writerBuffer)
+	client := http.Client{
+		Timeout: time.Duration(60) * time.Second,
+	}
+
+	response, err := client.Post(a.adapter_api_url, writer.FormDataContentType(), writerBuffer)
 	if err != nil {
 		return nil, err
 	}
