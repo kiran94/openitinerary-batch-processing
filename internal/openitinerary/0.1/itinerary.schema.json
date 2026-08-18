@@ -1,0 +1,3013 @@
+{
+    "$defs": {
+        "AccommodationSegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "accommodation",
+                    "default": "accommodation",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "place": {
+                    "description": "information about where the accommodation is location",
+                    "discriminator": {
+                        "mapping": {
+                            "airport": "#/$defs/AirportPlace",
+                            "location": "#/$defs/GenericPlace",
+                            "train_station": "#/$defs/TrainStation"
+                        },
+                        "propertyName": "type"
+                    },
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/GenericPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/AirportPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/TrainStation"
+                        }
+                    ],
+                    "title": "Place"
+                },
+                "unit_type": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The booked accommodation unit or space type, as named by the provider, such as 'Deluxe Double or Twin Room with River View', 'Entire two-bedroom apartment', or 'Bed in a 6-bed mixed dormitory'."
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "place"
+            ],
+            "title": "AccommodationSegment",
+            "type": "object"
+        },
+        "ActivitySegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "activity",
+                    "default": "activity",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "place": {
+                    "description": "The activity venue.",
+                    "discriminator": {
+                        "mapping": {
+                            "airport": "#/$defs/AirportPlace",
+                            "location": "#/$defs/GenericPlace",
+                            "train_station": "#/$defs/TrainStation"
+                        },
+                        "propertyName": "type"
+                    },
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/GenericPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/AirportPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/TrainStation"
+                        }
+                    ],
+                    "title": "Place"
+                },
+                "activity_type": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ActivityType"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "place"
+            ],
+            "title": "ActivitySegment",
+            "type": "object"
+        },
+        "ActivityType": {
+            "enum": [
+                "attraction",
+                "event",
+                "class",
+                "wellness",
+                "dining",
+                "show",
+                "other"
+            ],
+            "title": "ActivityType",
+            "type": "string"
+        },
+        "AirportPlace": {
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "The name of the place"
+                },
+                "country": {
+                    "pattern": "^\\w{2}$",
+                    "title": "Country",
+                    "type": "string"
+                },
+                "timezone": {
+                    "enum": [
+                        "Africa/Abidjan",
+                        "Africa/Accra",
+                        "Africa/Addis_Ababa",
+                        "Africa/Algiers",
+                        "Africa/Asmara",
+                        "Africa/Asmera",
+                        "Africa/Bamako",
+                        "Africa/Bangui",
+                        "Africa/Banjul",
+                        "Africa/Bissau",
+                        "Africa/Blantyre",
+                        "Africa/Brazzaville",
+                        "Africa/Bujumbura",
+                        "Africa/Cairo",
+                        "Africa/Casablanca",
+                        "Africa/Ceuta",
+                        "Africa/Conakry",
+                        "Africa/Dakar",
+                        "Africa/Dar_es_Salaam",
+                        "Africa/Djibouti",
+                        "Africa/Douala",
+                        "Africa/El_Aaiun",
+                        "Africa/Freetown",
+                        "Africa/Gaborone",
+                        "Africa/Harare",
+                        "Africa/Johannesburg",
+                        "Africa/Juba",
+                        "Africa/Kampala",
+                        "Africa/Khartoum",
+                        "Africa/Kigali",
+                        "Africa/Kinshasa",
+                        "Africa/Lagos",
+                        "Africa/Libreville",
+                        "Africa/Lome",
+                        "Africa/Luanda",
+                        "Africa/Lubumbashi",
+                        "Africa/Lusaka",
+                        "Africa/Malabo",
+                        "Africa/Maputo",
+                        "Africa/Maseru",
+                        "Africa/Mbabane",
+                        "Africa/Mogadishu",
+                        "Africa/Monrovia",
+                        "Africa/Nairobi",
+                        "Africa/Ndjamena",
+                        "Africa/Niamey",
+                        "Africa/Nouakchott",
+                        "Africa/Ouagadougou",
+                        "Africa/Porto-Novo",
+                        "Africa/Sao_Tome",
+                        "Africa/Timbuktu",
+                        "Africa/Tripoli",
+                        "Africa/Tunis",
+                        "Africa/Windhoek",
+                        "America/Adak",
+                        "America/Anchorage",
+                        "America/Anguilla",
+                        "America/Antigua",
+                        "America/Araguaina",
+                        "America/Argentina/Buenos_Aires",
+                        "America/Argentina/Catamarca",
+                        "America/Argentina/ComodRivadavia",
+                        "America/Argentina/Cordoba",
+                        "America/Argentina/Jujuy",
+                        "America/Argentina/La_Rioja",
+                        "America/Argentina/Mendoza",
+                        "America/Argentina/Rio_Gallegos",
+                        "America/Argentina/Salta",
+                        "America/Argentina/San_Juan",
+                        "America/Argentina/San_Luis",
+                        "America/Argentina/Tucuman",
+                        "America/Argentina/Ushuaia",
+                        "America/Aruba",
+                        "America/Asuncion",
+                        "America/Atikokan",
+                        "America/Atka",
+                        "America/Bahia",
+                        "America/Bahia_Banderas",
+                        "America/Barbados",
+                        "America/Belem",
+                        "America/Belize",
+                        "America/Blanc-Sablon",
+                        "America/Boa_Vista",
+                        "America/Bogota",
+                        "America/Boise",
+                        "America/Buenos_Aires",
+                        "America/Cambridge_Bay",
+                        "America/Campo_Grande",
+                        "America/Cancun",
+                        "America/Caracas",
+                        "America/Catamarca",
+                        "America/Cayenne",
+                        "America/Cayman",
+                        "America/Chicago",
+                        "America/Chihuahua",
+                        "America/Ciudad_Juarez",
+                        "America/Coral_Harbour",
+                        "America/Cordoba",
+                        "America/Costa_Rica",
+                        "America/Coyhaique",
+                        "America/Creston",
+                        "America/Cuiaba",
+                        "America/Curacao",
+                        "America/Danmarkshavn",
+                        "America/Dawson",
+                        "America/Dawson_Creek",
+                        "America/Denver",
+                        "America/Detroit",
+                        "America/Dominica",
+                        "America/Edmonton",
+                        "America/Eirunepe",
+                        "America/El_Salvador",
+                        "America/Ensenada",
+                        "America/Fort_Nelson",
+                        "America/Fort_Wayne",
+                        "America/Fortaleza",
+                        "America/Glace_Bay",
+                        "America/Godthab",
+                        "America/Goose_Bay",
+                        "America/Grand_Turk",
+                        "America/Grenada",
+                        "America/Guadeloupe",
+                        "America/Guatemala",
+                        "America/Guayaquil",
+                        "America/Guyana",
+                        "America/Halifax",
+                        "America/Havana",
+                        "America/Hermosillo",
+                        "America/Indiana/Indianapolis",
+                        "America/Indiana/Knox",
+                        "America/Indiana/Marengo",
+                        "America/Indiana/Petersburg",
+                        "America/Indiana/Tell_City",
+                        "America/Indiana/Vevay",
+                        "America/Indiana/Vincennes",
+                        "America/Indiana/Winamac",
+                        "America/Indianapolis",
+                        "America/Inuvik",
+                        "America/Iqaluit",
+                        "America/Jamaica",
+                        "America/Jujuy",
+                        "America/Juneau",
+                        "America/Kentucky/Louisville",
+                        "America/Kentucky/Monticello",
+                        "America/Knox_IN",
+                        "America/Kralendijk",
+                        "America/La_Paz",
+                        "America/Lima",
+                        "America/Los_Angeles",
+                        "America/Louisville",
+                        "America/Lower_Princes",
+                        "America/Maceio",
+                        "America/Managua",
+                        "America/Manaus",
+                        "America/Marigot",
+                        "America/Martinique",
+                        "America/Matamoros",
+                        "America/Mazatlan",
+                        "America/Mendoza",
+                        "America/Menominee",
+                        "America/Merida",
+                        "America/Metlakatla",
+                        "America/Mexico_City",
+                        "America/Miquelon",
+                        "America/Moncton",
+                        "America/Monterrey",
+                        "America/Montevideo",
+                        "America/Montreal",
+                        "America/Montserrat",
+                        "America/Nassau",
+                        "America/New_York",
+                        "America/Nipigon",
+                        "America/Nome",
+                        "America/Noronha",
+                        "America/North_Dakota/Beulah",
+                        "America/North_Dakota/Center",
+                        "America/North_Dakota/New_Salem",
+                        "America/Nuuk",
+                        "America/Ojinaga",
+                        "America/Panama",
+                        "America/Pangnirtung",
+                        "America/Paramaribo",
+                        "America/Phoenix",
+                        "America/Port-au-Prince",
+                        "America/Port_of_Spain",
+                        "America/Porto_Acre",
+                        "America/Porto_Velho",
+                        "America/Puerto_Rico",
+                        "America/Punta_Arenas",
+                        "America/Rainy_River",
+                        "America/Rankin_Inlet",
+                        "America/Recife",
+                        "America/Regina",
+                        "America/Resolute",
+                        "America/Rio_Branco",
+                        "America/Rosario",
+                        "America/Santa_Isabel",
+                        "America/Santarem",
+                        "America/Santiago",
+                        "America/Santo_Domingo",
+                        "America/Sao_Paulo",
+                        "America/Scoresbysund",
+                        "America/Shiprock",
+                        "America/Sitka",
+                        "America/St_Barthelemy",
+                        "America/St_Johns",
+                        "America/St_Kitts",
+                        "America/St_Lucia",
+                        "America/St_Thomas",
+                        "America/St_Vincent",
+                        "America/Swift_Current",
+                        "America/Tegucigalpa",
+                        "America/Thule",
+                        "America/Thunder_Bay",
+                        "America/Tijuana",
+                        "America/Toronto",
+                        "America/Tortola",
+                        "America/Vancouver",
+                        "America/Virgin",
+                        "America/Whitehorse",
+                        "America/Winnipeg",
+                        "America/Yakutat",
+                        "America/Yellowknife",
+                        "Antarctica/Casey",
+                        "Antarctica/Davis",
+                        "Antarctica/DumontDUrville",
+                        "Antarctica/Macquarie",
+                        "Antarctica/Mawson",
+                        "Antarctica/McMurdo",
+                        "Antarctica/Palmer",
+                        "Antarctica/Rothera",
+                        "Antarctica/South_Pole",
+                        "Antarctica/Syowa",
+                        "Antarctica/Troll",
+                        "Antarctica/Vostok",
+                        "Arctic/Longyearbyen",
+                        "Asia/Aden",
+                        "Asia/Almaty",
+                        "Asia/Amman",
+                        "Asia/Anadyr",
+                        "Asia/Aqtau",
+                        "Asia/Aqtobe",
+                        "Asia/Ashgabat",
+                        "Asia/Ashkhabad",
+                        "Asia/Atyrau",
+                        "Asia/Baghdad",
+                        "Asia/Bahrain",
+                        "Asia/Baku",
+                        "Asia/Bangkok",
+                        "Asia/Barnaul",
+                        "Asia/Beirut",
+                        "Asia/Bishkek",
+                        "Asia/Brunei",
+                        "Asia/Calcutta",
+                        "Asia/Chita",
+                        "Asia/Choibalsan",
+                        "Asia/Chongqing",
+                        "Asia/Chungking",
+                        "Asia/Colombo",
+                        "Asia/Dacca",
+                        "Asia/Damascus",
+                        "Asia/Dhaka",
+                        "Asia/Dili",
+                        "Asia/Dubai",
+                        "Asia/Dushanbe",
+                        "Asia/Famagusta",
+                        "Asia/Gaza",
+                        "Asia/Harbin",
+                        "Asia/Hebron",
+                        "Asia/Ho_Chi_Minh",
+                        "Asia/Hong_Kong",
+                        "Asia/Hovd",
+                        "Asia/Irkutsk",
+                        "Asia/Istanbul",
+                        "Asia/Jakarta",
+                        "Asia/Jayapura",
+                        "Asia/Jerusalem",
+                        "Asia/Kabul",
+                        "Asia/Kamchatka",
+                        "Asia/Karachi",
+                        "Asia/Kashgar",
+                        "Asia/Kathmandu",
+                        "Asia/Katmandu",
+                        "Asia/Khandyga",
+                        "Asia/Kolkata",
+                        "Asia/Krasnoyarsk",
+                        "Asia/Kuala_Lumpur",
+                        "Asia/Kuching",
+                        "Asia/Kuwait",
+                        "Asia/Macao",
+                        "Asia/Macau",
+                        "Asia/Magadan",
+                        "Asia/Makassar",
+                        "Asia/Manila",
+                        "Asia/Muscat",
+                        "Asia/Nicosia",
+                        "Asia/Novokuznetsk",
+                        "Asia/Novosibirsk",
+                        "Asia/Omsk",
+                        "Asia/Oral",
+                        "Asia/Phnom_Penh",
+                        "Asia/Pontianak",
+                        "Asia/Pyongyang",
+                        "Asia/Qatar",
+                        "Asia/Qostanay",
+                        "Asia/Qyzylorda",
+                        "Asia/Rangoon",
+                        "Asia/Riyadh",
+                        "Asia/Saigon",
+                        "Asia/Sakhalin",
+                        "Asia/Samarkand",
+                        "Asia/Seoul",
+                        "Asia/Shanghai",
+                        "Asia/Singapore",
+                        "Asia/Srednekolymsk",
+                        "Asia/Taipei",
+                        "Asia/Tashkent",
+                        "Asia/Tbilisi",
+                        "Asia/Tehran",
+                        "Asia/Tel_Aviv",
+                        "Asia/Thimbu",
+                        "Asia/Thimphu",
+                        "Asia/Tokyo",
+                        "Asia/Tomsk",
+                        "Asia/Ujung_Pandang",
+                        "Asia/Ulaanbaatar",
+                        "Asia/Ulan_Bator",
+                        "Asia/Urumqi",
+                        "Asia/Ust-Nera",
+                        "Asia/Vientiane",
+                        "Asia/Vladivostok",
+                        "Asia/Yakutsk",
+                        "Asia/Yangon",
+                        "Asia/Yekaterinburg",
+                        "Asia/Yerevan",
+                        "Atlantic/Azores",
+                        "Atlantic/Bermuda",
+                        "Atlantic/Canary",
+                        "Atlantic/Cape_Verde",
+                        "Atlantic/Faeroe",
+                        "Atlantic/Faroe",
+                        "Atlantic/Jan_Mayen",
+                        "Atlantic/Madeira",
+                        "Atlantic/Reykjavik",
+                        "Atlantic/South_Georgia",
+                        "Atlantic/St_Helena",
+                        "Atlantic/Stanley",
+                        "Australia/ACT",
+                        "Australia/Adelaide",
+                        "Australia/Brisbane",
+                        "Australia/Broken_Hill",
+                        "Australia/Canberra",
+                        "Australia/Currie",
+                        "Australia/Darwin",
+                        "Australia/Eucla",
+                        "Australia/Hobart",
+                        "Australia/LHI",
+                        "Australia/Lindeman",
+                        "Australia/Lord_Howe",
+                        "Australia/Melbourne",
+                        "Australia/NSW",
+                        "Australia/North",
+                        "Australia/Perth",
+                        "Australia/Queensland",
+                        "Australia/South",
+                        "Australia/Sydney",
+                        "Australia/Tasmania",
+                        "Australia/Victoria",
+                        "Australia/West",
+                        "Australia/Yancowinna",
+                        "Brazil/Acre",
+                        "Brazil/DeNoronha",
+                        "Brazil/East",
+                        "Brazil/West",
+                        "CET",
+                        "CST6CDT",
+                        "Canada/Atlantic",
+                        "Canada/Central",
+                        "Canada/Eastern",
+                        "Canada/Mountain",
+                        "Canada/Newfoundland",
+                        "Canada/Pacific",
+                        "Canada/Saskatchewan",
+                        "Canada/Yukon",
+                        "Chile/Continental",
+                        "Chile/EasterIsland",
+                        "Cuba",
+                        "EET",
+                        "EST",
+                        "EST5EDT",
+                        "Egypt",
+                        "Eire",
+                        "Etc/GMT",
+                        "Etc/GMT+0",
+                        "Etc/GMT+1",
+                        "Etc/GMT+10",
+                        "Etc/GMT+11",
+                        "Etc/GMT+12",
+                        "Etc/GMT+2",
+                        "Etc/GMT+3",
+                        "Etc/GMT+4",
+                        "Etc/GMT+5",
+                        "Etc/GMT+6",
+                        "Etc/GMT+7",
+                        "Etc/GMT+8",
+                        "Etc/GMT+9",
+                        "Etc/GMT-0",
+                        "Etc/GMT-1",
+                        "Etc/GMT-10",
+                        "Etc/GMT-11",
+                        "Etc/GMT-12",
+                        "Etc/GMT-13",
+                        "Etc/GMT-14",
+                        "Etc/GMT-2",
+                        "Etc/GMT-3",
+                        "Etc/GMT-4",
+                        "Etc/GMT-5",
+                        "Etc/GMT-6",
+                        "Etc/GMT-7",
+                        "Etc/GMT-8",
+                        "Etc/GMT-9",
+                        "Etc/GMT0",
+                        "Etc/Greenwich",
+                        "Etc/UCT",
+                        "Etc/UTC",
+                        "Etc/Universal",
+                        "Etc/Zulu",
+                        "Europe/Amsterdam",
+                        "Europe/Andorra",
+                        "Europe/Astrakhan",
+                        "Europe/Athens",
+                        "Europe/Belfast",
+                        "Europe/Belgrade",
+                        "Europe/Berlin",
+                        "Europe/Bratislava",
+                        "Europe/Brussels",
+                        "Europe/Bucharest",
+                        "Europe/Budapest",
+                        "Europe/Busingen",
+                        "Europe/Chisinau",
+                        "Europe/Copenhagen",
+                        "Europe/Dublin",
+                        "Europe/Gibraltar",
+                        "Europe/Guernsey",
+                        "Europe/Helsinki",
+                        "Europe/Isle_of_Man",
+                        "Europe/Istanbul",
+                        "Europe/Jersey",
+                        "Europe/Kaliningrad",
+                        "Europe/Kiev",
+                        "Europe/Kirov",
+                        "Europe/Kyiv",
+                        "Europe/Lisbon",
+                        "Europe/Ljubljana",
+                        "Europe/London",
+                        "Europe/Luxembourg",
+                        "Europe/Madrid",
+                        "Europe/Malta",
+                        "Europe/Mariehamn",
+                        "Europe/Minsk",
+                        "Europe/Monaco",
+                        "Europe/Moscow",
+                        "Europe/Nicosia",
+                        "Europe/Oslo",
+                        "Europe/Paris",
+                        "Europe/Podgorica",
+                        "Europe/Prague",
+                        "Europe/Riga",
+                        "Europe/Rome",
+                        "Europe/Samara",
+                        "Europe/San_Marino",
+                        "Europe/Sarajevo",
+                        "Europe/Saratov",
+                        "Europe/Simferopol",
+                        "Europe/Skopje",
+                        "Europe/Sofia",
+                        "Europe/Stockholm",
+                        "Europe/Tallinn",
+                        "Europe/Tirane",
+                        "Europe/Tiraspol",
+                        "Europe/Ulyanovsk",
+                        "Europe/Uzhgorod",
+                        "Europe/Vaduz",
+                        "Europe/Vatican",
+                        "Europe/Vienna",
+                        "Europe/Vilnius",
+                        "Europe/Volgograd",
+                        "Europe/Warsaw",
+                        "Europe/Zagreb",
+                        "Europe/Zaporozhye",
+                        "Europe/Zurich",
+                        "Factory",
+                        "GB",
+                        "GB-Eire",
+                        "GMT",
+                        "GMT+0",
+                        "GMT-0",
+                        "GMT0",
+                        "Greenwich",
+                        "HST",
+                        "Hongkong",
+                        "Iceland",
+                        "Indian/Antananarivo",
+                        "Indian/Chagos",
+                        "Indian/Christmas",
+                        "Indian/Cocos",
+                        "Indian/Comoro",
+                        "Indian/Kerguelen",
+                        "Indian/Mahe",
+                        "Indian/Maldives",
+                        "Indian/Mauritius",
+                        "Indian/Mayotte",
+                        "Indian/Reunion",
+                        "Iran",
+                        "Israel",
+                        "Jamaica",
+                        "Japan",
+                        "Kwajalein",
+                        "Libya",
+                        "MET",
+                        "MST",
+                        "MST7MDT",
+                        "Mexico/BajaNorte",
+                        "Mexico/BajaSur",
+                        "Mexico/General",
+                        "NZ",
+                        "NZ-CHAT",
+                        "Navajo",
+                        "PRC",
+                        "PST8PDT",
+                        "Pacific/Apia",
+                        "Pacific/Auckland",
+                        "Pacific/Bougainville",
+                        "Pacific/Chatham",
+                        "Pacific/Chuuk",
+                        "Pacific/Easter",
+                        "Pacific/Efate",
+                        "Pacific/Enderbury",
+                        "Pacific/Fakaofo",
+                        "Pacific/Fiji",
+                        "Pacific/Funafuti",
+                        "Pacific/Galapagos",
+                        "Pacific/Gambier",
+                        "Pacific/Guadalcanal",
+                        "Pacific/Guam",
+                        "Pacific/Honolulu",
+                        "Pacific/Johnston",
+                        "Pacific/Kanton",
+                        "Pacific/Kiritimati",
+                        "Pacific/Kosrae",
+                        "Pacific/Kwajalein",
+                        "Pacific/Majuro",
+                        "Pacific/Marquesas",
+                        "Pacific/Midway",
+                        "Pacific/Nauru",
+                        "Pacific/Niue",
+                        "Pacific/Norfolk",
+                        "Pacific/Noumea",
+                        "Pacific/Pago_Pago",
+                        "Pacific/Palau",
+                        "Pacific/Pitcairn",
+                        "Pacific/Pohnpei",
+                        "Pacific/Ponape",
+                        "Pacific/Port_Moresby",
+                        "Pacific/Rarotonga",
+                        "Pacific/Saipan",
+                        "Pacific/Samoa",
+                        "Pacific/Tahiti",
+                        "Pacific/Tarawa",
+                        "Pacific/Tongatapu",
+                        "Pacific/Truk",
+                        "Pacific/Wake",
+                        "Pacific/Wallis",
+                        "Pacific/Yap",
+                        "Poland",
+                        "Portugal",
+                        "ROC",
+                        "ROK",
+                        "Singapore",
+                        "Turkey",
+                        "UCT",
+                        "US/Alaska",
+                        "US/Aleutian",
+                        "US/Arizona",
+                        "US/Central",
+                        "US/East-Indiana",
+                        "US/Eastern",
+                        "US/Hawaii",
+                        "US/Indiana-Starke",
+                        "US/Michigan",
+                        "US/Mountain",
+                        "US/Pacific",
+                        "US/Samoa",
+                        "UTC",
+                        "Universal",
+                        "W-SU",
+                        "WET",
+                        "Zulu"
+                    ],
+                    "minLength": 1,
+                    "title": "Timezone",
+                    "type": "string"
+                },
+                "coordinate": {
+                    "$ref": "#/$defs/Coordinate"
+                },
+                "formatted_address": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The place's formatted postal or street address, as supplied by the provider."
+                },
+                "type": {
+                    "const": "airport",
+                    "default": "airport",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "iata_code": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "title": "Iata Code"
+                },
+                "icao_code": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "title": "Icao Code"
+                }
+            },
+            "required": [
+                "name",
+                "country",
+                "timezone",
+                "coordinate"
+            ],
+            "title": "AirportPlace",
+            "type": "object"
+        },
+        "Booking": {
+            "properties": {
+                "provider": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The intermediary or organization through which the booking was made, such as booking.com, Expedia, GetYourGuide, directly with an airline or any other travel agency/platfo or any other travel agency/platform"
+                },
+                "reference": {
+                    "description": "The booking confirmation/reference code used by the traveller.",
+                    "title": "Reference",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "reference"
+            ],
+            "title": "Booking",
+            "type": "object"
+        },
+        "Coordinate": {
+            "properties": {
+                "latitude": {
+                    "maximum": 90,
+                    "minimum": -90,
+                    "title": "Latitude",
+                    "type": "number"
+                },
+                "longitude": {
+                    "maximum": 180,
+                    "minimum": -180,
+                    "title": "Longitude",
+                    "type": "number"
+                }
+            },
+            "required": [
+                "latitude",
+                "longitude"
+            ],
+            "title": "Coordinate",
+            "type": "object"
+        },
+        "FlightSegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "flight",
+                    "default": "flight",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "start_place": {
+                    "$ref": "#/$defs/AirportPlace",
+                    "description": "Details about the origin airport of the flight"
+                },
+                "end_place": {
+                    "$ref": "#/$defs/AirportPlace",
+                    "description": "Details about the destination airport of the flight"
+                },
+                "flight_number": {
+                    "description": "The well known flight number of this flight. Airline Code + Flight Number e.g PR101",
+                    "title": "Flight Number",
+                    "type": "string"
+                },
+                "pnr": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The airline passenger name record (PNR) or record locator.",
+                    "title": "Pnr"
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "start_place",
+                "end_place",
+                "flight_number"
+            ],
+            "title": "FlightSegment",
+            "type": "object"
+        },
+        "GenericPlace": {
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "The name of the place"
+                },
+                "country": {
+                    "pattern": "^\\w{2}$",
+                    "title": "Country",
+                    "type": "string"
+                },
+                "timezone": {
+                    "enum": [
+                        "Africa/Abidjan",
+                        "Africa/Accra",
+                        "Africa/Addis_Ababa",
+                        "Africa/Algiers",
+                        "Africa/Asmara",
+                        "Africa/Asmera",
+                        "Africa/Bamako",
+                        "Africa/Bangui",
+                        "Africa/Banjul",
+                        "Africa/Bissau",
+                        "Africa/Blantyre",
+                        "Africa/Brazzaville",
+                        "Africa/Bujumbura",
+                        "Africa/Cairo",
+                        "Africa/Casablanca",
+                        "Africa/Ceuta",
+                        "Africa/Conakry",
+                        "Africa/Dakar",
+                        "Africa/Dar_es_Salaam",
+                        "Africa/Djibouti",
+                        "Africa/Douala",
+                        "Africa/El_Aaiun",
+                        "Africa/Freetown",
+                        "Africa/Gaborone",
+                        "Africa/Harare",
+                        "Africa/Johannesburg",
+                        "Africa/Juba",
+                        "Africa/Kampala",
+                        "Africa/Khartoum",
+                        "Africa/Kigali",
+                        "Africa/Kinshasa",
+                        "Africa/Lagos",
+                        "Africa/Libreville",
+                        "Africa/Lome",
+                        "Africa/Luanda",
+                        "Africa/Lubumbashi",
+                        "Africa/Lusaka",
+                        "Africa/Malabo",
+                        "Africa/Maputo",
+                        "Africa/Maseru",
+                        "Africa/Mbabane",
+                        "Africa/Mogadishu",
+                        "Africa/Monrovia",
+                        "Africa/Nairobi",
+                        "Africa/Ndjamena",
+                        "Africa/Niamey",
+                        "Africa/Nouakchott",
+                        "Africa/Ouagadougou",
+                        "Africa/Porto-Novo",
+                        "Africa/Sao_Tome",
+                        "Africa/Timbuktu",
+                        "Africa/Tripoli",
+                        "Africa/Tunis",
+                        "Africa/Windhoek",
+                        "America/Adak",
+                        "America/Anchorage",
+                        "America/Anguilla",
+                        "America/Antigua",
+                        "America/Araguaina",
+                        "America/Argentina/Buenos_Aires",
+                        "America/Argentina/Catamarca",
+                        "America/Argentina/ComodRivadavia",
+                        "America/Argentina/Cordoba",
+                        "America/Argentina/Jujuy",
+                        "America/Argentina/La_Rioja",
+                        "America/Argentina/Mendoza",
+                        "America/Argentina/Rio_Gallegos",
+                        "America/Argentina/Salta",
+                        "America/Argentina/San_Juan",
+                        "America/Argentina/San_Luis",
+                        "America/Argentina/Tucuman",
+                        "America/Argentina/Ushuaia",
+                        "America/Aruba",
+                        "America/Asuncion",
+                        "America/Atikokan",
+                        "America/Atka",
+                        "America/Bahia",
+                        "America/Bahia_Banderas",
+                        "America/Barbados",
+                        "America/Belem",
+                        "America/Belize",
+                        "America/Blanc-Sablon",
+                        "America/Boa_Vista",
+                        "America/Bogota",
+                        "America/Boise",
+                        "America/Buenos_Aires",
+                        "America/Cambridge_Bay",
+                        "America/Campo_Grande",
+                        "America/Cancun",
+                        "America/Caracas",
+                        "America/Catamarca",
+                        "America/Cayenne",
+                        "America/Cayman",
+                        "America/Chicago",
+                        "America/Chihuahua",
+                        "America/Ciudad_Juarez",
+                        "America/Coral_Harbour",
+                        "America/Cordoba",
+                        "America/Costa_Rica",
+                        "America/Coyhaique",
+                        "America/Creston",
+                        "America/Cuiaba",
+                        "America/Curacao",
+                        "America/Danmarkshavn",
+                        "America/Dawson",
+                        "America/Dawson_Creek",
+                        "America/Denver",
+                        "America/Detroit",
+                        "America/Dominica",
+                        "America/Edmonton",
+                        "America/Eirunepe",
+                        "America/El_Salvador",
+                        "America/Ensenada",
+                        "America/Fort_Nelson",
+                        "America/Fort_Wayne",
+                        "America/Fortaleza",
+                        "America/Glace_Bay",
+                        "America/Godthab",
+                        "America/Goose_Bay",
+                        "America/Grand_Turk",
+                        "America/Grenada",
+                        "America/Guadeloupe",
+                        "America/Guatemala",
+                        "America/Guayaquil",
+                        "America/Guyana",
+                        "America/Halifax",
+                        "America/Havana",
+                        "America/Hermosillo",
+                        "America/Indiana/Indianapolis",
+                        "America/Indiana/Knox",
+                        "America/Indiana/Marengo",
+                        "America/Indiana/Petersburg",
+                        "America/Indiana/Tell_City",
+                        "America/Indiana/Vevay",
+                        "America/Indiana/Vincennes",
+                        "America/Indiana/Winamac",
+                        "America/Indianapolis",
+                        "America/Inuvik",
+                        "America/Iqaluit",
+                        "America/Jamaica",
+                        "America/Jujuy",
+                        "America/Juneau",
+                        "America/Kentucky/Louisville",
+                        "America/Kentucky/Monticello",
+                        "America/Knox_IN",
+                        "America/Kralendijk",
+                        "America/La_Paz",
+                        "America/Lima",
+                        "America/Los_Angeles",
+                        "America/Louisville",
+                        "America/Lower_Princes",
+                        "America/Maceio",
+                        "America/Managua",
+                        "America/Manaus",
+                        "America/Marigot",
+                        "America/Martinique",
+                        "America/Matamoros",
+                        "America/Mazatlan",
+                        "America/Mendoza",
+                        "America/Menominee",
+                        "America/Merida",
+                        "America/Metlakatla",
+                        "America/Mexico_City",
+                        "America/Miquelon",
+                        "America/Moncton",
+                        "America/Monterrey",
+                        "America/Montevideo",
+                        "America/Montreal",
+                        "America/Montserrat",
+                        "America/Nassau",
+                        "America/New_York",
+                        "America/Nipigon",
+                        "America/Nome",
+                        "America/Noronha",
+                        "America/North_Dakota/Beulah",
+                        "America/North_Dakota/Center",
+                        "America/North_Dakota/New_Salem",
+                        "America/Nuuk",
+                        "America/Ojinaga",
+                        "America/Panama",
+                        "America/Pangnirtung",
+                        "America/Paramaribo",
+                        "America/Phoenix",
+                        "America/Port-au-Prince",
+                        "America/Port_of_Spain",
+                        "America/Porto_Acre",
+                        "America/Porto_Velho",
+                        "America/Puerto_Rico",
+                        "America/Punta_Arenas",
+                        "America/Rainy_River",
+                        "America/Rankin_Inlet",
+                        "America/Recife",
+                        "America/Regina",
+                        "America/Resolute",
+                        "America/Rio_Branco",
+                        "America/Rosario",
+                        "America/Santa_Isabel",
+                        "America/Santarem",
+                        "America/Santiago",
+                        "America/Santo_Domingo",
+                        "America/Sao_Paulo",
+                        "America/Scoresbysund",
+                        "America/Shiprock",
+                        "America/Sitka",
+                        "America/St_Barthelemy",
+                        "America/St_Johns",
+                        "America/St_Kitts",
+                        "America/St_Lucia",
+                        "America/St_Thomas",
+                        "America/St_Vincent",
+                        "America/Swift_Current",
+                        "America/Tegucigalpa",
+                        "America/Thule",
+                        "America/Thunder_Bay",
+                        "America/Tijuana",
+                        "America/Toronto",
+                        "America/Tortola",
+                        "America/Vancouver",
+                        "America/Virgin",
+                        "America/Whitehorse",
+                        "America/Winnipeg",
+                        "America/Yakutat",
+                        "America/Yellowknife",
+                        "Antarctica/Casey",
+                        "Antarctica/Davis",
+                        "Antarctica/DumontDUrville",
+                        "Antarctica/Macquarie",
+                        "Antarctica/Mawson",
+                        "Antarctica/McMurdo",
+                        "Antarctica/Palmer",
+                        "Antarctica/Rothera",
+                        "Antarctica/South_Pole",
+                        "Antarctica/Syowa",
+                        "Antarctica/Troll",
+                        "Antarctica/Vostok",
+                        "Arctic/Longyearbyen",
+                        "Asia/Aden",
+                        "Asia/Almaty",
+                        "Asia/Amman",
+                        "Asia/Anadyr",
+                        "Asia/Aqtau",
+                        "Asia/Aqtobe",
+                        "Asia/Ashgabat",
+                        "Asia/Ashkhabad",
+                        "Asia/Atyrau",
+                        "Asia/Baghdad",
+                        "Asia/Bahrain",
+                        "Asia/Baku",
+                        "Asia/Bangkok",
+                        "Asia/Barnaul",
+                        "Asia/Beirut",
+                        "Asia/Bishkek",
+                        "Asia/Brunei",
+                        "Asia/Calcutta",
+                        "Asia/Chita",
+                        "Asia/Choibalsan",
+                        "Asia/Chongqing",
+                        "Asia/Chungking",
+                        "Asia/Colombo",
+                        "Asia/Dacca",
+                        "Asia/Damascus",
+                        "Asia/Dhaka",
+                        "Asia/Dili",
+                        "Asia/Dubai",
+                        "Asia/Dushanbe",
+                        "Asia/Famagusta",
+                        "Asia/Gaza",
+                        "Asia/Harbin",
+                        "Asia/Hebron",
+                        "Asia/Ho_Chi_Minh",
+                        "Asia/Hong_Kong",
+                        "Asia/Hovd",
+                        "Asia/Irkutsk",
+                        "Asia/Istanbul",
+                        "Asia/Jakarta",
+                        "Asia/Jayapura",
+                        "Asia/Jerusalem",
+                        "Asia/Kabul",
+                        "Asia/Kamchatka",
+                        "Asia/Karachi",
+                        "Asia/Kashgar",
+                        "Asia/Kathmandu",
+                        "Asia/Katmandu",
+                        "Asia/Khandyga",
+                        "Asia/Kolkata",
+                        "Asia/Krasnoyarsk",
+                        "Asia/Kuala_Lumpur",
+                        "Asia/Kuching",
+                        "Asia/Kuwait",
+                        "Asia/Macao",
+                        "Asia/Macau",
+                        "Asia/Magadan",
+                        "Asia/Makassar",
+                        "Asia/Manila",
+                        "Asia/Muscat",
+                        "Asia/Nicosia",
+                        "Asia/Novokuznetsk",
+                        "Asia/Novosibirsk",
+                        "Asia/Omsk",
+                        "Asia/Oral",
+                        "Asia/Phnom_Penh",
+                        "Asia/Pontianak",
+                        "Asia/Pyongyang",
+                        "Asia/Qatar",
+                        "Asia/Qostanay",
+                        "Asia/Qyzylorda",
+                        "Asia/Rangoon",
+                        "Asia/Riyadh",
+                        "Asia/Saigon",
+                        "Asia/Sakhalin",
+                        "Asia/Samarkand",
+                        "Asia/Seoul",
+                        "Asia/Shanghai",
+                        "Asia/Singapore",
+                        "Asia/Srednekolymsk",
+                        "Asia/Taipei",
+                        "Asia/Tashkent",
+                        "Asia/Tbilisi",
+                        "Asia/Tehran",
+                        "Asia/Tel_Aviv",
+                        "Asia/Thimbu",
+                        "Asia/Thimphu",
+                        "Asia/Tokyo",
+                        "Asia/Tomsk",
+                        "Asia/Ujung_Pandang",
+                        "Asia/Ulaanbaatar",
+                        "Asia/Ulan_Bator",
+                        "Asia/Urumqi",
+                        "Asia/Ust-Nera",
+                        "Asia/Vientiane",
+                        "Asia/Vladivostok",
+                        "Asia/Yakutsk",
+                        "Asia/Yangon",
+                        "Asia/Yekaterinburg",
+                        "Asia/Yerevan",
+                        "Atlantic/Azores",
+                        "Atlantic/Bermuda",
+                        "Atlantic/Canary",
+                        "Atlantic/Cape_Verde",
+                        "Atlantic/Faeroe",
+                        "Atlantic/Faroe",
+                        "Atlantic/Jan_Mayen",
+                        "Atlantic/Madeira",
+                        "Atlantic/Reykjavik",
+                        "Atlantic/South_Georgia",
+                        "Atlantic/St_Helena",
+                        "Atlantic/Stanley",
+                        "Australia/ACT",
+                        "Australia/Adelaide",
+                        "Australia/Brisbane",
+                        "Australia/Broken_Hill",
+                        "Australia/Canberra",
+                        "Australia/Currie",
+                        "Australia/Darwin",
+                        "Australia/Eucla",
+                        "Australia/Hobart",
+                        "Australia/LHI",
+                        "Australia/Lindeman",
+                        "Australia/Lord_Howe",
+                        "Australia/Melbourne",
+                        "Australia/NSW",
+                        "Australia/North",
+                        "Australia/Perth",
+                        "Australia/Queensland",
+                        "Australia/South",
+                        "Australia/Sydney",
+                        "Australia/Tasmania",
+                        "Australia/Victoria",
+                        "Australia/West",
+                        "Australia/Yancowinna",
+                        "Brazil/Acre",
+                        "Brazil/DeNoronha",
+                        "Brazil/East",
+                        "Brazil/West",
+                        "CET",
+                        "CST6CDT",
+                        "Canada/Atlantic",
+                        "Canada/Central",
+                        "Canada/Eastern",
+                        "Canada/Mountain",
+                        "Canada/Newfoundland",
+                        "Canada/Pacific",
+                        "Canada/Saskatchewan",
+                        "Canada/Yukon",
+                        "Chile/Continental",
+                        "Chile/EasterIsland",
+                        "Cuba",
+                        "EET",
+                        "EST",
+                        "EST5EDT",
+                        "Egypt",
+                        "Eire",
+                        "Etc/GMT",
+                        "Etc/GMT+0",
+                        "Etc/GMT+1",
+                        "Etc/GMT+10",
+                        "Etc/GMT+11",
+                        "Etc/GMT+12",
+                        "Etc/GMT+2",
+                        "Etc/GMT+3",
+                        "Etc/GMT+4",
+                        "Etc/GMT+5",
+                        "Etc/GMT+6",
+                        "Etc/GMT+7",
+                        "Etc/GMT+8",
+                        "Etc/GMT+9",
+                        "Etc/GMT-0",
+                        "Etc/GMT-1",
+                        "Etc/GMT-10",
+                        "Etc/GMT-11",
+                        "Etc/GMT-12",
+                        "Etc/GMT-13",
+                        "Etc/GMT-14",
+                        "Etc/GMT-2",
+                        "Etc/GMT-3",
+                        "Etc/GMT-4",
+                        "Etc/GMT-5",
+                        "Etc/GMT-6",
+                        "Etc/GMT-7",
+                        "Etc/GMT-8",
+                        "Etc/GMT-9",
+                        "Etc/GMT0",
+                        "Etc/Greenwich",
+                        "Etc/UCT",
+                        "Etc/UTC",
+                        "Etc/Universal",
+                        "Etc/Zulu",
+                        "Europe/Amsterdam",
+                        "Europe/Andorra",
+                        "Europe/Astrakhan",
+                        "Europe/Athens",
+                        "Europe/Belfast",
+                        "Europe/Belgrade",
+                        "Europe/Berlin",
+                        "Europe/Bratislava",
+                        "Europe/Brussels",
+                        "Europe/Bucharest",
+                        "Europe/Budapest",
+                        "Europe/Busingen",
+                        "Europe/Chisinau",
+                        "Europe/Copenhagen",
+                        "Europe/Dublin",
+                        "Europe/Gibraltar",
+                        "Europe/Guernsey",
+                        "Europe/Helsinki",
+                        "Europe/Isle_of_Man",
+                        "Europe/Istanbul",
+                        "Europe/Jersey",
+                        "Europe/Kaliningrad",
+                        "Europe/Kiev",
+                        "Europe/Kirov",
+                        "Europe/Kyiv",
+                        "Europe/Lisbon",
+                        "Europe/Ljubljana",
+                        "Europe/London",
+                        "Europe/Luxembourg",
+                        "Europe/Madrid",
+                        "Europe/Malta",
+                        "Europe/Mariehamn",
+                        "Europe/Minsk",
+                        "Europe/Monaco",
+                        "Europe/Moscow",
+                        "Europe/Nicosia",
+                        "Europe/Oslo",
+                        "Europe/Paris",
+                        "Europe/Podgorica",
+                        "Europe/Prague",
+                        "Europe/Riga",
+                        "Europe/Rome",
+                        "Europe/Samara",
+                        "Europe/San_Marino",
+                        "Europe/Sarajevo",
+                        "Europe/Saratov",
+                        "Europe/Simferopol",
+                        "Europe/Skopje",
+                        "Europe/Sofia",
+                        "Europe/Stockholm",
+                        "Europe/Tallinn",
+                        "Europe/Tirane",
+                        "Europe/Tiraspol",
+                        "Europe/Ulyanovsk",
+                        "Europe/Uzhgorod",
+                        "Europe/Vaduz",
+                        "Europe/Vatican",
+                        "Europe/Vienna",
+                        "Europe/Vilnius",
+                        "Europe/Volgograd",
+                        "Europe/Warsaw",
+                        "Europe/Zagreb",
+                        "Europe/Zaporozhye",
+                        "Europe/Zurich",
+                        "Factory",
+                        "GB",
+                        "GB-Eire",
+                        "GMT",
+                        "GMT+0",
+                        "GMT-0",
+                        "GMT0",
+                        "Greenwich",
+                        "HST",
+                        "Hongkong",
+                        "Iceland",
+                        "Indian/Antananarivo",
+                        "Indian/Chagos",
+                        "Indian/Christmas",
+                        "Indian/Cocos",
+                        "Indian/Comoro",
+                        "Indian/Kerguelen",
+                        "Indian/Mahe",
+                        "Indian/Maldives",
+                        "Indian/Mauritius",
+                        "Indian/Mayotte",
+                        "Indian/Reunion",
+                        "Iran",
+                        "Israel",
+                        "Jamaica",
+                        "Japan",
+                        "Kwajalein",
+                        "Libya",
+                        "MET",
+                        "MST",
+                        "MST7MDT",
+                        "Mexico/BajaNorte",
+                        "Mexico/BajaSur",
+                        "Mexico/General",
+                        "NZ",
+                        "NZ-CHAT",
+                        "Navajo",
+                        "PRC",
+                        "PST8PDT",
+                        "Pacific/Apia",
+                        "Pacific/Auckland",
+                        "Pacific/Bougainville",
+                        "Pacific/Chatham",
+                        "Pacific/Chuuk",
+                        "Pacific/Easter",
+                        "Pacific/Efate",
+                        "Pacific/Enderbury",
+                        "Pacific/Fakaofo",
+                        "Pacific/Fiji",
+                        "Pacific/Funafuti",
+                        "Pacific/Galapagos",
+                        "Pacific/Gambier",
+                        "Pacific/Guadalcanal",
+                        "Pacific/Guam",
+                        "Pacific/Honolulu",
+                        "Pacific/Johnston",
+                        "Pacific/Kanton",
+                        "Pacific/Kiritimati",
+                        "Pacific/Kosrae",
+                        "Pacific/Kwajalein",
+                        "Pacific/Majuro",
+                        "Pacific/Marquesas",
+                        "Pacific/Midway",
+                        "Pacific/Nauru",
+                        "Pacific/Niue",
+                        "Pacific/Norfolk",
+                        "Pacific/Noumea",
+                        "Pacific/Pago_Pago",
+                        "Pacific/Palau",
+                        "Pacific/Pitcairn",
+                        "Pacific/Pohnpei",
+                        "Pacific/Ponape",
+                        "Pacific/Port_Moresby",
+                        "Pacific/Rarotonga",
+                        "Pacific/Saipan",
+                        "Pacific/Samoa",
+                        "Pacific/Tahiti",
+                        "Pacific/Tarawa",
+                        "Pacific/Tongatapu",
+                        "Pacific/Truk",
+                        "Pacific/Wake",
+                        "Pacific/Wallis",
+                        "Pacific/Yap",
+                        "Poland",
+                        "Portugal",
+                        "ROC",
+                        "ROK",
+                        "Singapore",
+                        "Turkey",
+                        "UCT",
+                        "US/Alaska",
+                        "US/Aleutian",
+                        "US/Arizona",
+                        "US/Central",
+                        "US/East-Indiana",
+                        "US/Eastern",
+                        "US/Hawaii",
+                        "US/Indiana-Starke",
+                        "US/Michigan",
+                        "US/Mountain",
+                        "US/Pacific",
+                        "US/Samoa",
+                        "UTC",
+                        "Universal",
+                        "W-SU",
+                        "WET",
+                        "Zulu"
+                    ],
+                    "minLength": 1,
+                    "title": "Timezone",
+                    "type": "string"
+                },
+                "coordinate": {
+                    "$ref": "#/$defs/Coordinate"
+                },
+                "formatted_address": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The place's formatted postal or street address, as supplied by the provider."
+                },
+                "type": {
+                    "const": "location",
+                    "default": "location",
+                    "title": "Type",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name",
+                "country",
+                "timezone",
+                "coordinate"
+            ],
+            "title": "GenericPlace",
+            "type": "object"
+        },
+        "LocalizedText": {
+            "properties": {
+                "language": {
+                    "pattern": "^\\w{2}$",
+                    "title": "Language",
+                    "type": "string"
+                },
+                "region": {
+                    "anyOf": [
+                        {
+                            "pattern": "^\\w{2}$",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "title": "Region"
+                },
+                "value": {
+                    "minLength": 1,
+                    "title": "Value",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "language",
+                "value"
+            ],
+            "title": "LocalizedText",
+            "type": "object"
+        },
+        "MultilingualText": {
+            "properties": {
+                "values": {
+                    "items": {
+                        "$ref": "#/$defs/LocalizedText"
+                    },
+                    "minItems": 1,
+                    "title": "Values",
+                    "type": "array"
+                }
+            },
+            "required": [
+                "values"
+            ],
+            "title": "MultilingualText",
+            "type": "object"
+        },
+        "Organization": {
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "The name of the Organization"
+                },
+                "website": {
+                    "anyOf": [
+                        {
+                            "format": "uri",
+                            "maxLength": 2083,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The website of the Organization",
+                    "title": "Website"
+                },
+                "phone": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The phone number of the Organization (with country code)",
+                    "title": "Phone"
+                },
+                "email": {
+                    "anyOf": [
+                        {
+                            "format": "email",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The email of the Organization",
+                    "title": "Email"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "Organization",
+            "type": "object"
+        },
+        "TourSegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "tour",
+                    "default": "tour",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "place": {
+                    "description": "The tour meeting, pickup, or starting location.",
+                    "discriminator": {
+                        "mapping": {
+                            "airport": "#/$defs/AirportPlace",
+                            "location": "#/$defs/GenericPlace",
+                            "train_station": "#/$defs/TrainStation"
+                        },
+                        "propertyName": "type"
+                    },
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/GenericPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/AirportPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/TrainStation"
+                        }
+                    ],
+                    "title": "Place"
+                },
+                "stops": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "discriminator": {
+                                    "mapping": {
+                                        "airport": "#/$defs/AirportPlace",
+                                        "location": "#/$defs/GenericPlace",
+                                        "train_station": "#/$defs/TrainStation"
+                                    },
+                                    "propertyName": "type"
+                                },
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/$defs/GenericPlace"
+                                    },
+                                    {
+                                        "$ref": "#/$defs/AirportPlace"
+                                    },
+                                    {
+                                        "$ref": "#/$defs/TrainStation"
+                                    }
+                                ]
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Places visited by the tour, in itinerary order. Pickup and drop-off locations are excluded unless they are genuine itinerary stops.",
+                    "title": "Stops"
+                },
+                "drop_off_place": {
+                    "anyOf": [
+                        {
+                            "discriminator": {
+                                "mapping": {
+                                    "airport": "#/$defs/AirportPlace",
+                                    "location": "#/$defs/GenericPlace",
+                                    "train_station": "#/$defs/TrainStation"
+                                },
+                                "propertyName": "type"
+                            },
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/GenericPlace"
+                                },
+                                {
+                                    "$ref": "#/$defs/AirportPlace"
+                                },
+                                {
+                                    "$ref": "#/$defs/TrainStation"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Where the traveller is dropped off after the tour, if known.",
+                    "title": "Drop Off Place"
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "place"
+            ],
+            "title": "TourSegment",
+            "type": "object"
+        },
+        "TrainSegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "train",
+                    "default": "train",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "start_place": {
+                    "$ref": "#/$defs/TrainStation"
+                },
+                "end_place": {
+                    "$ref": "#/$defs/TrainStation"
+                },
+                "train_number": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "title": "Train Number"
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "start_place",
+                "end_place"
+            ],
+            "title": "TrainSegment",
+            "type": "object"
+        },
+        "TrainStation": {
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "The name of the place"
+                },
+                "country": {
+                    "pattern": "^\\w{2}$",
+                    "title": "Country",
+                    "type": "string"
+                },
+                "timezone": {
+                    "enum": [
+                        "Africa/Abidjan",
+                        "Africa/Accra",
+                        "Africa/Addis_Ababa",
+                        "Africa/Algiers",
+                        "Africa/Asmara",
+                        "Africa/Asmera",
+                        "Africa/Bamako",
+                        "Africa/Bangui",
+                        "Africa/Banjul",
+                        "Africa/Bissau",
+                        "Africa/Blantyre",
+                        "Africa/Brazzaville",
+                        "Africa/Bujumbura",
+                        "Africa/Cairo",
+                        "Africa/Casablanca",
+                        "Africa/Ceuta",
+                        "Africa/Conakry",
+                        "Africa/Dakar",
+                        "Africa/Dar_es_Salaam",
+                        "Africa/Djibouti",
+                        "Africa/Douala",
+                        "Africa/El_Aaiun",
+                        "Africa/Freetown",
+                        "Africa/Gaborone",
+                        "Africa/Harare",
+                        "Africa/Johannesburg",
+                        "Africa/Juba",
+                        "Africa/Kampala",
+                        "Africa/Khartoum",
+                        "Africa/Kigali",
+                        "Africa/Kinshasa",
+                        "Africa/Lagos",
+                        "Africa/Libreville",
+                        "Africa/Lome",
+                        "Africa/Luanda",
+                        "Africa/Lubumbashi",
+                        "Africa/Lusaka",
+                        "Africa/Malabo",
+                        "Africa/Maputo",
+                        "Africa/Maseru",
+                        "Africa/Mbabane",
+                        "Africa/Mogadishu",
+                        "Africa/Monrovia",
+                        "Africa/Nairobi",
+                        "Africa/Ndjamena",
+                        "Africa/Niamey",
+                        "Africa/Nouakchott",
+                        "Africa/Ouagadougou",
+                        "Africa/Porto-Novo",
+                        "Africa/Sao_Tome",
+                        "Africa/Timbuktu",
+                        "Africa/Tripoli",
+                        "Africa/Tunis",
+                        "Africa/Windhoek",
+                        "America/Adak",
+                        "America/Anchorage",
+                        "America/Anguilla",
+                        "America/Antigua",
+                        "America/Araguaina",
+                        "America/Argentina/Buenos_Aires",
+                        "America/Argentina/Catamarca",
+                        "America/Argentina/ComodRivadavia",
+                        "America/Argentina/Cordoba",
+                        "America/Argentina/Jujuy",
+                        "America/Argentina/La_Rioja",
+                        "America/Argentina/Mendoza",
+                        "America/Argentina/Rio_Gallegos",
+                        "America/Argentina/Salta",
+                        "America/Argentina/San_Juan",
+                        "America/Argentina/San_Luis",
+                        "America/Argentina/Tucuman",
+                        "America/Argentina/Ushuaia",
+                        "America/Aruba",
+                        "America/Asuncion",
+                        "America/Atikokan",
+                        "America/Atka",
+                        "America/Bahia",
+                        "America/Bahia_Banderas",
+                        "America/Barbados",
+                        "America/Belem",
+                        "America/Belize",
+                        "America/Blanc-Sablon",
+                        "America/Boa_Vista",
+                        "America/Bogota",
+                        "America/Boise",
+                        "America/Buenos_Aires",
+                        "America/Cambridge_Bay",
+                        "America/Campo_Grande",
+                        "America/Cancun",
+                        "America/Caracas",
+                        "America/Catamarca",
+                        "America/Cayenne",
+                        "America/Cayman",
+                        "America/Chicago",
+                        "America/Chihuahua",
+                        "America/Ciudad_Juarez",
+                        "America/Coral_Harbour",
+                        "America/Cordoba",
+                        "America/Costa_Rica",
+                        "America/Coyhaique",
+                        "America/Creston",
+                        "America/Cuiaba",
+                        "America/Curacao",
+                        "America/Danmarkshavn",
+                        "America/Dawson",
+                        "America/Dawson_Creek",
+                        "America/Denver",
+                        "America/Detroit",
+                        "America/Dominica",
+                        "America/Edmonton",
+                        "America/Eirunepe",
+                        "America/El_Salvador",
+                        "America/Ensenada",
+                        "America/Fort_Nelson",
+                        "America/Fort_Wayne",
+                        "America/Fortaleza",
+                        "America/Glace_Bay",
+                        "America/Godthab",
+                        "America/Goose_Bay",
+                        "America/Grand_Turk",
+                        "America/Grenada",
+                        "America/Guadeloupe",
+                        "America/Guatemala",
+                        "America/Guayaquil",
+                        "America/Guyana",
+                        "America/Halifax",
+                        "America/Havana",
+                        "America/Hermosillo",
+                        "America/Indiana/Indianapolis",
+                        "America/Indiana/Knox",
+                        "America/Indiana/Marengo",
+                        "America/Indiana/Petersburg",
+                        "America/Indiana/Tell_City",
+                        "America/Indiana/Vevay",
+                        "America/Indiana/Vincennes",
+                        "America/Indiana/Winamac",
+                        "America/Indianapolis",
+                        "America/Inuvik",
+                        "America/Iqaluit",
+                        "America/Jamaica",
+                        "America/Jujuy",
+                        "America/Juneau",
+                        "America/Kentucky/Louisville",
+                        "America/Kentucky/Monticello",
+                        "America/Knox_IN",
+                        "America/Kralendijk",
+                        "America/La_Paz",
+                        "America/Lima",
+                        "America/Los_Angeles",
+                        "America/Louisville",
+                        "America/Lower_Princes",
+                        "America/Maceio",
+                        "America/Managua",
+                        "America/Manaus",
+                        "America/Marigot",
+                        "America/Martinique",
+                        "America/Matamoros",
+                        "America/Mazatlan",
+                        "America/Mendoza",
+                        "America/Menominee",
+                        "America/Merida",
+                        "America/Metlakatla",
+                        "America/Mexico_City",
+                        "America/Miquelon",
+                        "America/Moncton",
+                        "America/Monterrey",
+                        "America/Montevideo",
+                        "America/Montreal",
+                        "America/Montserrat",
+                        "America/Nassau",
+                        "America/New_York",
+                        "America/Nipigon",
+                        "America/Nome",
+                        "America/Noronha",
+                        "America/North_Dakota/Beulah",
+                        "America/North_Dakota/Center",
+                        "America/North_Dakota/New_Salem",
+                        "America/Nuuk",
+                        "America/Ojinaga",
+                        "America/Panama",
+                        "America/Pangnirtung",
+                        "America/Paramaribo",
+                        "America/Phoenix",
+                        "America/Port-au-Prince",
+                        "America/Port_of_Spain",
+                        "America/Porto_Acre",
+                        "America/Porto_Velho",
+                        "America/Puerto_Rico",
+                        "America/Punta_Arenas",
+                        "America/Rainy_River",
+                        "America/Rankin_Inlet",
+                        "America/Recife",
+                        "America/Regina",
+                        "America/Resolute",
+                        "America/Rio_Branco",
+                        "America/Rosario",
+                        "America/Santa_Isabel",
+                        "America/Santarem",
+                        "America/Santiago",
+                        "America/Santo_Domingo",
+                        "America/Sao_Paulo",
+                        "America/Scoresbysund",
+                        "America/Shiprock",
+                        "America/Sitka",
+                        "America/St_Barthelemy",
+                        "America/St_Johns",
+                        "America/St_Kitts",
+                        "America/St_Lucia",
+                        "America/St_Thomas",
+                        "America/St_Vincent",
+                        "America/Swift_Current",
+                        "America/Tegucigalpa",
+                        "America/Thule",
+                        "America/Thunder_Bay",
+                        "America/Tijuana",
+                        "America/Toronto",
+                        "America/Tortola",
+                        "America/Vancouver",
+                        "America/Virgin",
+                        "America/Whitehorse",
+                        "America/Winnipeg",
+                        "America/Yakutat",
+                        "America/Yellowknife",
+                        "Antarctica/Casey",
+                        "Antarctica/Davis",
+                        "Antarctica/DumontDUrville",
+                        "Antarctica/Macquarie",
+                        "Antarctica/Mawson",
+                        "Antarctica/McMurdo",
+                        "Antarctica/Palmer",
+                        "Antarctica/Rothera",
+                        "Antarctica/South_Pole",
+                        "Antarctica/Syowa",
+                        "Antarctica/Troll",
+                        "Antarctica/Vostok",
+                        "Arctic/Longyearbyen",
+                        "Asia/Aden",
+                        "Asia/Almaty",
+                        "Asia/Amman",
+                        "Asia/Anadyr",
+                        "Asia/Aqtau",
+                        "Asia/Aqtobe",
+                        "Asia/Ashgabat",
+                        "Asia/Ashkhabad",
+                        "Asia/Atyrau",
+                        "Asia/Baghdad",
+                        "Asia/Bahrain",
+                        "Asia/Baku",
+                        "Asia/Bangkok",
+                        "Asia/Barnaul",
+                        "Asia/Beirut",
+                        "Asia/Bishkek",
+                        "Asia/Brunei",
+                        "Asia/Calcutta",
+                        "Asia/Chita",
+                        "Asia/Choibalsan",
+                        "Asia/Chongqing",
+                        "Asia/Chungking",
+                        "Asia/Colombo",
+                        "Asia/Dacca",
+                        "Asia/Damascus",
+                        "Asia/Dhaka",
+                        "Asia/Dili",
+                        "Asia/Dubai",
+                        "Asia/Dushanbe",
+                        "Asia/Famagusta",
+                        "Asia/Gaza",
+                        "Asia/Harbin",
+                        "Asia/Hebron",
+                        "Asia/Ho_Chi_Minh",
+                        "Asia/Hong_Kong",
+                        "Asia/Hovd",
+                        "Asia/Irkutsk",
+                        "Asia/Istanbul",
+                        "Asia/Jakarta",
+                        "Asia/Jayapura",
+                        "Asia/Jerusalem",
+                        "Asia/Kabul",
+                        "Asia/Kamchatka",
+                        "Asia/Karachi",
+                        "Asia/Kashgar",
+                        "Asia/Kathmandu",
+                        "Asia/Katmandu",
+                        "Asia/Khandyga",
+                        "Asia/Kolkata",
+                        "Asia/Krasnoyarsk",
+                        "Asia/Kuala_Lumpur",
+                        "Asia/Kuching",
+                        "Asia/Kuwait",
+                        "Asia/Macao",
+                        "Asia/Macau",
+                        "Asia/Magadan",
+                        "Asia/Makassar",
+                        "Asia/Manila",
+                        "Asia/Muscat",
+                        "Asia/Nicosia",
+                        "Asia/Novokuznetsk",
+                        "Asia/Novosibirsk",
+                        "Asia/Omsk",
+                        "Asia/Oral",
+                        "Asia/Phnom_Penh",
+                        "Asia/Pontianak",
+                        "Asia/Pyongyang",
+                        "Asia/Qatar",
+                        "Asia/Qostanay",
+                        "Asia/Qyzylorda",
+                        "Asia/Rangoon",
+                        "Asia/Riyadh",
+                        "Asia/Saigon",
+                        "Asia/Sakhalin",
+                        "Asia/Samarkand",
+                        "Asia/Seoul",
+                        "Asia/Shanghai",
+                        "Asia/Singapore",
+                        "Asia/Srednekolymsk",
+                        "Asia/Taipei",
+                        "Asia/Tashkent",
+                        "Asia/Tbilisi",
+                        "Asia/Tehran",
+                        "Asia/Tel_Aviv",
+                        "Asia/Thimbu",
+                        "Asia/Thimphu",
+                        "Asia/Tokyo",
+                        "Asia/Tomsk",
+                        "Asia/Ujung_Pandang",
+                        "Asia/Ulaanbaatar",
+                        "Asia/Ulan_Bator",
+                        "Asia/Urumqi",
+                        "Asia/Ust-Nera",
+                        "Asia/Vientiane",
+                        "Asia/Vladivostok",
+                        "Asia/Yakutsk",
+                        "Asia/Yangon",
+                        "Asia/Yekaterinburg",
+                        "Asia/Yerevan",
+                        "Atlantic/Azores",
+                        "Atlantic/Bermuda",
+                        "Atlantic/Canary",
+                        "Atlantic/Cape_Verde",
+                        "Atlantic/Faeroe",
+                        "Atlantic/Faroe",
+                        "Atlantic/Jan_Mayen",
+                        "Atlantic/Madeira",
+                        "Atlantic/Reykjavik",
+                        "Atlantic/South_Georgia",
+                        "Atlantic/St_Helena",
+                        "Atlantic/Stanley",
+                        "Australia/ACT",
+                        "Australia/Adelaide",
+                        "Australia/Brisbane",
+                        "Australia/Broken_Hill",
+                        "Australia/Canberra",
+                        "Australia/Currie",
+                        "Australia/Darwin",
+                        "Australia/Eucla",
+                        "Australia/Hobart",
+                        "Australia/LHI",
+                        "Australia/Lindeman",
+                        "Australia/Lord_Howe",
+                        "Australia/Melbourne",
+                        "Australia/NSW",
+                        "Australia/North",
+                        "Australia/Perth",
+                        "Australia/Queensland",
+                        "Australia/South",
+                        "Australia/Sydney",
+                        "Australia/Tasmania",
+                        "Australia/Victoria",
+                        "Australia/West",
+                        "Australia/Yancowinna",
+                        "Brazil/Acre",
+                        "Brazil/DeNoronha",
+                        "Brazil/East",
+                        "Brazil/West",
+                        "CET",
+                        "CST6CDT",
+                        "Canada/Atlantic",
+                        "Canada/Central",
+                        "Canada/Eastern",
+                        "Canada/Mountain",
+                        "Canada/Newfoundland",
+                        "Canada/Pacific",
+                        "Canada/Saskatchewan",
+                        "Canada/Yukon",
+                        "Chile/Continental",
+                        "Chile/EasterIsland",
+                        "Cuba",
+                        "EET",
+                        "EST",
+                        "EST5EDT",
+                        "Egypt",
+                        "Eire",
+                        "Etc/GMT",
+                        "Etc/GMT+0",
+                        "Etc/GMT+1",
+                        "Etc/GMT+10",
+                        "Etc/GMT+11",
+                        "Etc/GMT+12",
+                        "Etc/GMT+2",
+                        "Etc/GMT+3",
+                        "Etc/GMT+4",
+                        "Etc/GMT+5",
+                        "Etc/GMT+6",
+                        "Etc/GMT+7",
+                        "Etc/GMT+8",
+                        "Etc/GMT+9",
+                        "Etc/GMT-0",
+                        "Etc/GMT-1",
+                        "Etc/GMT-10",
+                        "Etc/GMT-11",
+                        "Etc/GMT-12",
+                        "Etc/GMT-13",
+                        "Etc/GMT-14",
+                        "Etc/GMT-2",
+                        "Etc/GMT-3",
+                        "Etc/GMT-4",
+                        "Etc/GMT-5",
+                        "Etc/GMT-6",
+                        "Etc/GMT-7",
+                        "Etc/GMT-8",
+                        "Etc/GMT-9",
+                        "Etc/GMT0",
+                        "Etc/Greenwich",
+                        "Etc/UCT",
+                        "Etc/UTC",
+                        "Etc/Universal",
+                        "Etc/Zulu",
+                        "Europe/Amsterdam",
+                        "Europe/Andorra",
+                        "Europe/Astrakhan",
+                        "Europe/Athens",
+                        "Europe/Belfast",
+                        "Europe/Belgrade",
+                        "Europe/Berlin",
+                        "Europe/Bratislava",
+                        "Europe/Brussels",
+                        "Europe/Bucharest",
+                        "Europe/Budapest",
+                        "Europe/Busingen",
+                        "Europe/Chisinau",
+                        "Europe/Copenhagen",
+                        "Europe/Dublin",
+                        "Europe/Gibraltar",
+                        "Europe/Guernsey",
+                        "Europe/Helsinki",
+                        "Europe/Isle_of_Man",
+                        "Europe/Istanbul",
+                        "Europe/Jersey",
+                        "Europe/Kaliningrad",
+                        "Europe/Kiev",
+                        "Europe/Kirov",
+                        "Europe/Kyiv",
+                        "Europe/Lisbon",
+                        "Europe/Ljubljana",
+                        "Europe/London",
+                        "Europe/Luxembourg",
+                        "Europe/Madrid",
+                        "Europe/Malta",
+                        "Europe/Mariehamn",
+                        "Europe/Minsk",
+                        "Europe/Monaco",
+                        "Europe/Moscow",
+                        "Europe/Nicosia",
+                        "Europe/Oslo",
+                        "Europe/Paris",
+                        "Europe/Podgorica",
+                        "Europe/Prague",
+                        "Europe/Riga",
+                        "Europe/Rome",
+                        "Europe/Samara",
+                        "Europe/San_Marino",
+                        "Europe/Sarajevo",
+                        "Europe/Saratov",
+                        "Europe/Simferopol",
+                        "Europe/Skopje",
+                        "Europe/Sofia",
+                        "Europe/Stockholm",
+                        "Europe/Tallinn",
+                        "Europe/Tirane",
+                        "Europe/Tiraspol",
+                        "Europe/Ulyanovsk",
+                        "Europe/Uzhgorod",
+                        "Europe/Vaduz",
+                        "Europe/Vatican",
+                        "Europe/Vienna",
+                        "Europe/Vilnius",
+                        "Europe/Volgograd",
+                        "Europe/Warsaw",
+                        "Europe/Zagreb",
+                        "Europe/Zaporozhye",
+                        "Europe/Zurich",
+                        "Factory",
+                        "GB",
+                        "GB-Eire",
+                        "GMT",
+                        "GMT+0",
+                        "GMT-0",
+                        "GMT0",
+                        "Greenwich",
+                        "HST",
+                        "Hongkong",
+                        "Iceland",
+                        "Indian/Antananarivo",
+                        "Indian/Chagos",
+                        "Indian/Christmas",
+                        "Indian/Cocos",
+                        "Indian/Comoro",
+                        "Indian/Kerguelen",
+                        "Indian/Mahe",
+                        "Indian/Maldives",
+                        "Indian/Mauritius",
+                        "Indian/Mayotte",
+                        "Indian/Reunion",
+                        "Iran",
+                        "Israel",
+                        "Jamaica",
+                        "Japan",
+                        "Kwajalein",
+                        "Libya",
+                        "MET",
+                        "MST",
+                        "MST7MDT",
+                        "Mexico/BajaNorte",
+                        "Mexico/BajaSur",
+                        "Mexico/General",
+                        "NZ",
+                        "NZ-CHAT",
+                        "Navajo",
+                        "PRC",
+                        "PST8PDT",
+                        "Pacific/Apia",
+                        "Pacific/Auckland",
+                        "Pacific/Bougainville",
+                        "Pacific/Chatham",
+                        "Pacific/Chuuk",
+                        "Pacific/Easter",
+                        "Pacific/Efate",
+                        "Pacific/Enderbury",
+                        "Pacific/Fakaofo",
+                        "Pacific/Fiji",
+                        "Pacific/Funafuti",
+                        "Pacific/Galapagos",
+                        "Pacific/Gambier",
+                        "Pacific/Guadalcanal",
+                        "Pacific/Guam",
+                        "Pacific/Honolulu",
+                        "Pacific/Johnston",
+                        "Pacific/Kanton",
+                        "Pacific/Kiritimati",
+                        "Pacific/Kosrae",
+                        "Pacific/Kwajalein",
+                        "Pacific/Majuro",
+                        "Pacific/Marquesas",
+                        "Pacific/Midway",
+                        "Pacific/Nauru",
+                        "Pacific/Niue",
+                        "Pacific/Norfolk",
+                        "Pacific/Noumea",
+                        "Pacific/Pago_Pago",
+                        "Pacific/Palau",
+                        "Pacific/Pitcairn",
+                        "Pacific/Pohnpei",
+                        "Pacific/Ponape",
+                        "Pacific/Port_Moresby",
+                        "Pacific/Rarotonga",
+                        "Pacific/Saipan",
+                        "Pacific/Samoa",
+                        "Pacific/Tahiti",
+                        "Pacific/Tarawa",
+                        "Pacific/Tongatapu",
+                        "Pacific/Truk",
+                        "Pacific/Wake",
+                        "Pacific/Wallis",
+                        "Pacific/Yap",
+                        "Poland",
+                        "Portugal",
+                        "ROC",
+                        "ROK",
+                        "Singapore",
+                        "Turkey",
+                        "UCT",
+                        "US/Alaska",
+                        "US/Aleutian",
+                        "US/Arizona",
+                        "US/Central",
+                        "US/East-Indiana",
+                        "US/Eastern",
+                        "US/Hawaii",
+                        "US/Indiana-Starke",
+                        "US/Michigan",
+                        "US/Mountain",
+                        "US/Pacific",
+                        "US/Samoa",
+                        "UTC",
+                        "Universal",
+                        "W-SU",
+                        "WET",
+                        "Zulu"
+                    ],
+                    "minLength": 1,
+                    "title": "Timezone",
+                    "type": "string"
+                },
+                "coordinate": {
+                    "$ref": "#/$defs/Coordinate"
+                },
+                "formatted_address": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The place's formatted postal or street address, as supplied by the provider."
+                },
+                "type": {
+                    "const": "train_station",
+                    "default": "train_station",
+                    "title": "Type",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name",
+                "country",
+                "timezone",
+                "coordinate"
+            ],
+            "title": "TrainStation",
+            "type": "object"
+        },
+        "TransferMode": {
+            "enum": [
+                "taxi",
+                "private_car",
+                "ride_hail",
+                "shuttle"
+            ],
+            "title": "TransferMode",
+            "type": "string"
+        },
+        "TransferSegment": {
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "Globally unique identifier for the segment.",
+                    "format": "uuid",
+                    "title": "Id",
+                    "type": "string"
+                },
+                "type": {
+                    "const": "transfer",
+                    "default": "transfer",
+                    "title": "Type",
+                    "type": "string"
+                },
+                "title": {
+                    "$ref": "#/$defs/MultilingualText",
+                    "description": "Summary title of the segment."
+                },
+                "description": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/MultilingualText"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Additional description about the Segment"
+                },
+                "start_time_utc": {
+                    "description": "The start datetime of the segment, expressed in UTC",
+                    "format": "date-time",
+                    "title": "Start Time Utc",
+                    "type": "string"
+                },
+                "end_time_utc": {
+                    "anyOf": [
+                        {
+                            "format": "date-time",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The end datetime of the segment (if known), expressed in UTC",
+                    "title": "End Time Utc"
+                },
+                "operator": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Organization"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "The organization operating or providing the service."
+                },
+                "booking": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Booking"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "booking information about the segment."
+                },
+                "start_place": {
+                    "discriminator": {
+                        "mapping": {
+                            "airport": "#/$defs/AirportPlace",
+                            "location": "#/$defs/GenericPlace",
+                            "train_station": "#/$defs/TrainStation"
+                        },
+                        "propertyName": "type"
+                    },
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/GenericPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/AirportPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/TrainStation"
+                        }
+                    ],
+                    "title": "Start Place"
+                },
+                "end_place": {
+                    "discriminator": {
+                        "mapping": {
+                            "airport": "#/$defs/AirportPlace",
+                            "location": "#/$defs/GenericPlace",
+                            "train_station": "#/$defs/TrainStation"
+                        },
+                        "propertyName": "type"
+                    },
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/GenericPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/AirportPlace"
+                        },
+                        {
+                            "$ref": "#/$defs/TrainStation"
+                        }
+                    ],
+                    "title": "End Place"
+                },
+                "transfer_mode": {
+                    "$ref": "#/$defs/TransferMode",
+                    "description": "How the pre-booked road transfer is provided."
+                }
+            },
+            "required": [
+                "id",
+                "title",
+                "start_time_utc",
+                "start_place",
+                "end_place",
+                "transfer_mode"
+            ],
+            "title": "TransferSegment",
+            "type": "object"
+        }
+    },
+    "properties": {
+        "schema_version": {
+            "default": "0.1.0",
+            "description": "The schema version of open itinerary being used.",
+            "title": "Schema Version",
+            "type": "string"
+        },
+        "id": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Unique identifier for the Itinerary",
+            "title": "Id"
+        },
+        "title": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Title of the Itinerary",
+            "title": "Title"
+        },
+        "segments": {
+            "description": "A collection of travel activities. Segments should represent a coherent sequence and should normally be ordered by start_time_utc.",
+            "items": {
+                "discriminator": {
+                    "mapping": {
+                        "accommodation": "#/$defs/AccommodationSegment",
+                        "activity": "#/$defs/ActivitySegment",
+                        "flight": "#/$defs/FlightSegment",
+                        "tour": "#/$defs/TourSegment",
+                        "train": "#/$defs/TrainSegment",
+                        "transfer": "#/$defs/TransferSegment"
+                    },
+                    "propertyName": "type"
+                },
+                "oneOf": [
+                    {
+                        "$ref": "#/$defs/FlightSegment"
+                    },
+                    {
+                        "$ref": "#/$defs/TrainSegment"
+                    },
+                    {
+                        "$ref": "#/$defs/AccommodationSegment"
+                    },
+                    {
+                        "$ref": "#/$defs/TransferSegment"
+                    },
+                    {
+                        "$ref": "#/$defs/ActivitySegment"
+                    },
+                    {
+                        "$ref": "#/$defs/TourSegment"
+                    }
+                ]
+            },
+            "title": "Segments",
+            "type": "array"
+        },
+        "created_at": {
+            "anyOf": [
+                {
+                    "format": "date-time",
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "default": null,
+            "title": "Created At"
+        },
+        "updated_at": {
+            "anyOf": [
+                {
+                    "format": "date-time",
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "default": null,
+            "title": "Updated At"
+        }
+    },
+    "required": [
+        "id",
+        "title",
+        "segments"
+    ],
+    "title": "Itinerary",
+    "type": "object"
+}
