@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
 )
@@ -17,7 +19,10 @@ func main() {
 	}
 	defer file.Close()
 
-	var client clients.Adapter = clients.NewAdapterClient()
+	http := &http.Client{
+		Timeout: time.Duration(60) * time.Second,
+	}
+	var client clients.Adapter = clients.NewAdapterClient(http)
 
 	converted, err := client.Convert(file, filepath.Base(path), "application/pdf")
 	if err != nil {

@@ -11,7 +11,6 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 type Adapter interface {
@@ -20,11 +19,13 @@ type Adapter interface {
 
 type AdapterClient struct {
 	adapter_api_url string
+	http            *http.Client
 }
 
-func NewAdapterClient() Adapter {
+func NewAdapterClient(http *http.Client) Adapter {
 	return &AdapterClient{
-		getAdapterApiUrl(),
+		adapter_api_url: getAdapterApiUrl(),
+		http:            http,
 	}
 }
 
@@ -52,18 +53,14 @@ func (a *AdapterClient) Convert(document io.Reader, filename string, contentType
 	}
 
 	if _, err := io.Copy(part, document); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := writer.Close(); err != nil {
 		return nil, err
 	}
 
-	client := http.Client{
-		Timeout: time.Duration(60) * time.Second,
-	}
-
-	response, err := client.Post(a.adapter_api_url, writer.FormDataContentType(), writerBuffer)
+	response, err := a.http.Post(a.adapter_api_url, writer.FormDataContentType(), writerBuffer)
 	if err != nil {
 		return nil, err
 	}
