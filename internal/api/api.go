@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -62,6 +63,10 @@ func (a *AdapterClient) Convert(document io.Reader, filename string, contentType
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+	}
 
 	buffer, err := io.ReadAll(response.Body)
 	if err != nil {
