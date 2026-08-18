@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal/api"
+	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	}
 	defer file.Close()
 
-	var client api.Adapter = api.NewAdapterClient()
+	var client clients.Adapter = clients.NewAdapterClient()
 
 	converted, err := client.Convert(file, filepath.Base(path), "application/pdf")
 	if err != nil {

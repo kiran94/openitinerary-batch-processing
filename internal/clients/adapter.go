@@ -1,4 +1,4 @@
-package api
+package clients
 
 import (
 	"bytes"
@@ -22,7 +22,7 @@ type AdapterClient struct {
 	adapter_api_url string
 }
 
-func NewAdapterClient() *AdapterClient {
+func NewAdapterClient() Adapter {
 	return &AdapterClient{
 		getAdapterApiUrl(),
 	}
