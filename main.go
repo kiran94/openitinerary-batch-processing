@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 func main() {
 	path := "/Users/kiran/Documents/projects/open_itinerary/data/example_documents/Hotel_Brisbane.pdf"
+	ctx := context.Background()
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -24,7 +26,7 @@ func main() {
 	}
 	var client clients.Adapter = clients.NewAdapterClient(http)
 
-	converted, err := client.Convert(file, filepath.Base(path), "application/pdf")
+	converted, err := client.Convert(ctx, file, filepath.Base(path), "application/pdf")
 	if err != nil {
 		panic(err)
 	}

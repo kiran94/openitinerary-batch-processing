@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ import (
 )
 
 type Adapter interface {
-	Convert(document io.Reader, filename string, contentType string) (*[]byte, error)
+	Convert(ctx context.Context, document io.Reader, filename string, contentType string) (*[]byte, error)
 }
 
 type AdapterClient struct {
@@ -29,7 +30,7 @@ func NewAdapterClient(http *http.Client) Adapter {
 	}
 }
 
-func (a *AdapterClient) Convert(document io.Reader, filename string, contentType string) (*[]byte, error) {
+func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (*[]byte, error) {
 	if document == nil {
 		return nil, errors.New("document was nil")
 	}

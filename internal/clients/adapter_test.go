@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,7 +36,7 @@ func TestNewAdapterClient(t *testing.T) {
 func TestConvertNilDocument(t *testing.T) {
 	adapter := newAdapterTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
 
-	_, err := adapter.Convert(nil, "filename", "contentType")
+	_, err := adapter.Convert(context.Background(), nil, "filename", "contentType")
 	assert.Error(t, err, "document was nil")
 }
 
@@ -49,7 +50,7 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 	})
 
 	mockDocument := strings.NewReader("mock")
-	_, err := adapter.Convert(mockDocument, "filename", "contentType")
+	_, err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType")
 	assert.Error(t, err)
 }
 
@@ -80,6 +81,7 @@ func TestConvertStatusCodeOk(t *testing.T) {
 	})
 
 	result, err := adapter.Convert(
+		context.Background(),
 		strings.NewReader("PDF contents"),
 		"example.pdf",
 		"application/pdf",
