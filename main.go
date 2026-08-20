@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,15 +32,24 @@ func main() {
 	reader, writer := io.Pipe()
 	defer reader.Close()
 
+	// Since the conversion runs within a Go routine
+	// we use this channel to inspect the error
+	// after the conversion is done back on the main thread.
+	convertDone := make(chan error)
 	go func() {
 		err = client.Convert(ctx, file, filepath.Base(path), "application/pdf", writer)
-		if err != nil {
-			panic(err)
-		}
+		convertDone <- err
 	}()
 
 	converted := &bytes.Buffer{}
-	if _, err := io.Copy(converted, reader); err != nil {
+
+	copyErr := func() error {
+		_, err := io.Copy(converted, reader)
+		return err
+	}()
+
+	convertError := <-convertDone
+	if err := errors.Join(convertError, copyErr); err != nil {
 		panic(err)
 	}
 
