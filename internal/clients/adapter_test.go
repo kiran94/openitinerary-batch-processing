@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -19,6 +20,16 @@ type failingDocumentReader struct{}
 
 func (failingDocumentReader) Read([]byte) (int, error) {
 	return 0, errDocumentRead
+}
+
+type trackingWriteCloser struct {
+	bytes.Buffer
+	closed bool
+}
+
+func (w *trackingWriteCloser) Close() error {
+	w.closed = true
+	return nil
 }
 
 func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
@@ -46,7 +57,7 @@ func TestNewAdapterClient(t *testing.T) {
 func TestConvertNilDocument(t *testing.T) {
 	adapter := newAdapterTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
 
-	_, err := adapter.Convert(context.Background(), nil, "filename", "contentType")
+	err := adapter.Convert(context.Background(), nil, "filename", "contentType", &trackingWriteCloser{})
 	assert.Error(t, err, "document was nil")
 }
 
@@ -60,7 +71,7 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 	})
 
 	mockDocument := strings.NewReader("mock")
-	_, err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType")
+	err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType", &trackingWriteCloser{})
 	assert.Error(t, err)
 }
 
@@ -91,16 +102,19 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	result, err := adapter.Convert(
+	result := &trackingWriteCloser{}
+	err := adapter.Convert(
 		context.Background(),
 		strings.NewReader("PDF contents"),
 		"example.pdf",
 		"application/pdf",
+		result,
 	)
 
 	require.NoError(t, err)
 
-	assert.JSONEq(t, `[{"type":"flight"}]`, string(*result))
+	assert.JSONEq(t, `[{"type":"flight"}]`, result.String())
+	assert.True(t, result.closed)
 }
 
 func TestConvertDocumentReadError(t *testing.T) {
@@ -112,13 +126,15 @@ func TestConvertDocumentReadError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	result, err := adapter.Convert(
+	result := &trackingWriteCloser{}
+	err := adapter.Convert(
 		context.Background(),
 		failingDocumentReader{},
 		"example.pdf",
 		"application/pdf",
+		result,
 	)
 
-	require.Nil(t, result)
 	require.ErrorIs(t, err, errDocumentRead)
+	assert.True(t, result.closed)
 }

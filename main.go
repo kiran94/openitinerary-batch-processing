@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,10 +28,20 @@ func main() {
 	}
 	var client clients.Adapter = clients.NewAdapterClient(http)
 
-	converted, err := client.Convert(ctx, file, filepath.Base(path), "application/pdf")
-	if err != nil {
+	reader, writer := io.Pipe()
+	defer reader.Close()
+
+	go func() {
+		err = client.Convert(ctx, file, filepath.Base(path), "application/pdf", writer)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	converted := &bytes.Buffer{}
+	if _, err := io.Copy(converted, reader); err != nil {
 		panic(err)
 	}
 
-	fmt.Println(string(*converted))
+	fmt.Println(converted.String())
 }
