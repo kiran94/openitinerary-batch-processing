@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -30,14 +29,75 @@ func NewAdapterClient(http *http.Client) Adapter {
 	}
 }
 
+// Convert uploads a document as a multipart form and returns the response body.
+// It uses an io.Pipe so one goroutine can write the multipart upload while the
+// HTTP client reads and sends it. This avoids loading the whole document into
+// memory. Closing the pipe writer tells the HTTP client that the upload is
+// complete, or passes along an error if reading the document fails.
+//
+// document reader → multipart writer → io.Pipe → HTTP client → Adapter API
 func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (*[]byte, error) {
 	if document == nil {
 		return nil, errors.New("document was nil")
 	}
 
-	writerBuffer := &bytes.Buffer{}
+	readerBuffer, writerBuffer := io.Pipe()
 	writer := multipart.NewWriter(writerBuffer)
 
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.adapter_api_url, readerBuffer)
+	if err != nil {
+		_ = readerBuffer.Close()
+		_ = writerBuffer.Close()
+		return nil, err
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Start to write the document to the writer in a Go routine.
+	uploadDone := make(chan error, 1)
+	go func() {
+		uploadErr := writeMultipart(writer, document, filename, contentType)
+
+		writerBuffer.CloseWithError(uploadErr)
+		uploadDone <- uploadErr
+	}()
+
+	response, requestErr := a.http.Do(request)
+
+	// Ensure the producer is released if the server or transport stops
+	// consuming the request body before the upload completes.
+	_ = readerBuffer.Close()
+	uploadErr := <-uploadDone
+
+	if requestErr != nil {
+		if response != nil {
+			_ = response.Body.Close()
+		}
+
+		if uploadErr != nil && !errors.Is(uploadErr, io.ErrClosedPipe) {
+			return nil, uploadErr
+		}
+
+		return nil, requestErr
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+	}
+
+	if uploadErr != nil {
+		return nil, uploadErr
+	}
+
+	buffer, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &buffer, nil
+}
+
+func writeMultipart(writer *multipart.Writer, document io.Reader, filename string, contentType string) error {
 	headers := make(textproto.MIMEHeader)
 	headers.Set("Content-Disposition", mime.FormatMediaType(
 		"form-data",
@@ -50,33 +110,15 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 
 	part, err := writer.CreatePart(headers)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if _, err := io.Copy(part, document); err != nil {
-		return nil, err
+		return err
 	}
 
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-
-	response, err := a.http.Post(a.adapter_api_url, writer.FormDataContentType(), writerBuffer)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
-	}
-
-	buffer, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return &buffer, nil
+	// Closes the Multipart document, ready for upload
+	return writer.Close()
 }
 
 func getAdapterApiUrl() string {

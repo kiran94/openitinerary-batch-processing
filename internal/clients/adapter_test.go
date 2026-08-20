@@ -2,6 +2,8 @@ package clients
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errDocumentRead = errors.New("document read failed")
+
+type failingDocumentReader struct{}
+
+func (failingDocumentReader) Read([]byte) (int, error) {
+	return 0, errDocumentRead
+}
 
 func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 	t.Helper()
@@ -61,6 +71,7 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		r *http.Request,
 	) {
 		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, int64(-1), r.ContentLength)
 
 		file, header, err := r.FormFile("file")
 		require.NoError(t, err)
@@ -90,4 +101,24 @@ func TestConvertStatusCodeOk(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.JSONEq(t, `[{"type":"flight"}]`, string(*result))
+}
+
+func TestConvertDocumentReadError(t *testing.T) {
+	adapter := newAdapterTestClient(t, func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	result, err := adapter.Convert(
+		context.Background(),
+		failingDocumentReader{},
+		"example.pdf",
+		"application/pdf",
+	)
+
+	require.Nil(t, result)
+	require.ErrorIs(t, err, errDocumentRead)
 }
