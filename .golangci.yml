@@ -9,6 +9,14 @@ linters:
     - staticcheck
     - testifylint
     - unused
+  settings:
+    errcheck:
+      # defer these just to make ignoring the err explicit makes the
+      # code less readable
+      exclude-functions:
+        - (io.Closer).Close
+        - (*io.PipeReader).Close
+        - (*os.File).Close
 
 formatters:
   enable:
