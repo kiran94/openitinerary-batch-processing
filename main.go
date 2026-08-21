@@ -27,7 +27,7 @@ func main() {
 	http := &http.Client{
 		Timeout: time.Duration(60) * time.Second,
 	}
-	var client clients.Adapter = clients.NewAdapterClient(http)
+	client := clients.NewAdapterClient(http)
 
 	reader, writer := io.Pipe()
 	defer reader.Close()

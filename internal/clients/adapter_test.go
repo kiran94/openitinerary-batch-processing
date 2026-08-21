@@ -88,9 +88,7 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		defer func() {
-			_ = file.Close()
-		}()
+		defer file.Close()
 
 		assert.Equal(t, "example.pdf", header.Filename)
 		assert.Equal(
