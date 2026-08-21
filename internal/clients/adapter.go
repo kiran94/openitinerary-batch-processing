@@ -83,7 +83,9 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 
 		return requestErr
 	}
-	defer response.Body.Close()
+	defer func() {
+		err = errors.Join(err, response.Body.Close())
+	}()
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
