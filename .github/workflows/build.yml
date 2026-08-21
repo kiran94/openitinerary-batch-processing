@@ -1,0 +1,29 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Setup Go
+              uses: actions/setup-go@v7
+
+            - name: Install Tools
+              run: make install_tools
+
+            - name: Build
+              run: make build
+
+            - name: Test
+              run: make test
