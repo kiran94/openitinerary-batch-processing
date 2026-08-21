@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
+	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 )
 
 func main() {
@@ -41,17 +41,14 @@ func main() {
 		convertDone <- err
 	}()
 
-	converted := &bytes.Buffer{}
+	destinationFile := "test.json"
+	destination := storage.NewLocalStorage(destinationFile)
+	fmt.Printf("Writing data to %v \n", destinationFile)
 
-	copyErr := func() error {
-		_, err := io.Copy(converted, reader)
-		return err
-	}()
-
+	copyErr := destination.Write(reader)
 	convertError := <-convertDone
+
 	if err := errors.Join(convertError, copyErr); err != nil {
 		panic(err)
 	}
-
-	fmt.Println(converted.String())
 }
