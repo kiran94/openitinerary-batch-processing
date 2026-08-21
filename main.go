@@ -46,6 +46,9 @@ func main() {
 	fmt.Printf("Writing data to %v \n", destinationFile)
 
 	copyErr := destination.Write(reader)
+	if copyErr != nil {
+		_ = reader.Close()
+	}
 	convertError := <-convertDone
 
 	if err := errors.Join(convertError, copyErr); err != nil {
