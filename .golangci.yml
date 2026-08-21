@@ -1,0 +1,24 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - testifylint
+    - unused
+  settings:
+    errcheck:
+      # defer these just to make ignoring the err explicit makes the
+      # code less readable
+      exclude-functions:
+        - (io.Closer).Close
+        - (*io.PipeReader).Close
+        - (*os.File).Close
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

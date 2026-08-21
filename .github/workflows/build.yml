@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install tools
+        run: make install_tools
+
+      - name: Check formatting
+        run: make format_check
+
+      - name: Lint
+        run: make lint
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+      - name: Check vulnerabilities
+        run: make vuln

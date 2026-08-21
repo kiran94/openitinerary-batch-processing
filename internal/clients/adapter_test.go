@@ -85,7 +85,9 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		assert.Equal(t, int64(-1), r.ContentLength)
 
 		file, header, err := r.FormFile("file")
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		defer file.Close()
 
 		assert.Equal(t, "example.pdf", header.Filename)
@@ -99,7 +101,7 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 
 		_, err = w.Write([]byte(`[{"type":"flight"}]`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	})
 
 	result := &trackingWriteCloser{}
