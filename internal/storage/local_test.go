@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -41,7 +42,6 @@ func (r *failingReadCloser) Close() error {
 func TestNewLocalStorage(t *testing.T) {
 	storage := NewLocalStorage("test.json")
 
-	assert.Equal(t, "test.json", storage.file)
 	assert.NotNil(t, storage.createFile)
 }
 
@@ -54,12 +54,45 @@ func TestLocalStorageWrite(t *testing.T) {
 		return destination, nil
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.NoError(t, err)
 	assert.Equal(t, "test.json", createdFile)
 	assert.Equal(t, "itinerary", destination.String())
 	assert.True(t, destination.closed)
+}
+
+func TestLocalStorageWriteReusesStorageForDifferentOutputs(t *testing.T) {
+	destinations := make(map[string]*trackingWriteCloser)
+	storage := NewLocalStorage("")
+	storage.createFile = func(name string) (io.WriteCloser, error) {
+		destination := &trackingWriteCloser{}
+		destinations[name] = destination
+		return destination, nil
+	}
+
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("first itinerary")),
+		"first.json",
+	)
+	require.NoError(t, err)
+
+	err = storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("second itinerary")),
+		"second.json",
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "first itinerary", destinations["first.json"].String())
+	assert.True(t, destinations["first.json"].closed)
+	assert.Equal(t, "second itinerary", destinations["second.json"].String())
+	assert.True(t, destinations["second.json"].closed)
 }
 
 func TestLocalStorageWriteCreateError(t *testing.T) {
@@ -69,7 +102,11 @@ func TestLocalStorageWriteCreateError(t *testing.T) {
 		return nil, createErr
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.ErrorIs(t, err, createErr)
 }
@@ -83,7 +120,7 @@ func TestLocalStorageWriteCopyErrorClosesDestination(t *testing.T) {
 		return destination, nil
 	}
 
-	err := storage.Write(reader)
+	err := storage.Write(context.Background(), reader, "test.json")
 
 	require.ErrorIs(t, err, copyErr)
 	assert.True(t, destination.closed)
@@ -98,7 +135,11 @@ func TestLocalStorageWriteCloseError(t *testing.T) {
 		return destination, nil
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.ErrorIs(t, err, closeErr)
 	assert.True(t, destination.closed)
@@ -108,7 +149,11 @@ func TestLocalStorageWriteCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.json")
 	storage := NewLocalStorage(path)
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		path,
+	)
 	require.NoError(t, err)
 
 	contents, err := os.ReadFile(path)
