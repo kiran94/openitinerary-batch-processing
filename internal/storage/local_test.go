@@ -40,14 +40,14 @@ func (r *failingReadCloser) Close() error {
 }
 
 func TestNewLocalStorage(t *testing.T) {
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 
 	assert.NotNil(t, storage.createFile)
 }
 
 func TestLocalStorageWrite(t *testing.T) {
 	destination := &trackingWriteCloser{}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	var createdFile string
 	storage.createFile = func(name string) (io.WriteCloser, error) {
 		createdFile = name
@@ -68,7 +68,7 @@ func TestLocalStorageWrite(t *testing.T) {
 
 func TestLocalStorageWriteReusesStorageForDifferentOutputs(t *testing.T) {
 	destinations := make(map[string]*trackingWriteCloser)
-	storage := NewLocalStorage("")
+	storage := NewLocalStorage()
 	storage.createFile = func(name string) (io.WriteCloser, error) {
 		destination := &trackingWriteCloser{}
 		destinations[name] = destination
@@ -97,7 +97,7 @@ func TestLocalStorageWriteReusesStorageForDifferentOutputs(t *testing.T) {
 
 func TestLocalStorageWriteCreateError(t *testing.T) {
 	createErr := errors.New("create failed")
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return nil, createErr
 	}
@@ -115,7 +115,7 @@ func TestLocalStorageWriteCopyErrorClosesDestination(t *testing.T) {
 	copyErr := errors.New("copy failed")
 	destination := &trackingWriteCloser{}
 	reader := &failingReadCloser{err: copyErr}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return destination, nil
 	}
@@ -130,7 +130,7 @@ func TestLocalStorageWriteCopyErrorClosesDestination(t *testing.T) {
 func TestLocalStorageWriteCloseError(t *testing.T) {
 	closeErr := errors.New("close failed")
 	destination := &trackingWriteCloser{closeErr: closeErr}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return destination, nil
 	}
@@ -147,7 +147,7 @@ func TestLocalStorageWriteCloseError(t *testing.T) {
 
 func TestLocalStorageWriteCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.json")
-	storage := NewLocalStorage(path)
+	storage := NewLocalStorage()
 
 	err := storage.Write(
 		context.Background(),

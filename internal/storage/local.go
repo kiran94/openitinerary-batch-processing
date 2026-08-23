@@ -11,7 +11,7 @@ type LocalStorage struct {
 	createFile func(name string) (io.WriteCloser, error)
 }
 
-func NewLocalStorage(file string) *LocalStorage {
+func NewLocalStorage() *LocalStorage {
 	return &LocalStorage{
 		createFile: createLocalFile,
 	}
