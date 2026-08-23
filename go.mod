@@ -3,7 +3,6 @@ module github.com/kiran94/openitinerary-batch-processing
 go 1.26.6
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.43.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.38
 	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.3.15
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.3
@@ -11,6 +10,7 @@ require (
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.43.7 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.37 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.38 // indirect
@@ -26,5 +26,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7 // indirect
 	github.com/aws/smithy-go v1.27.8 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
