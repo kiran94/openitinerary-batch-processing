@@ -1,0 +1,43 @@
+package storage
+
+import (
+	"os"
+	"path"
+)
+
+func GetAWSS3Bucket() string {
+	return GetEnvOrDefault("OIBP_BUCKET", "thebucketofkiran456")
+}
+
+func GetAWSS3Path() string {
+	return GetEnvOrDefault("OIBP_BUCKET_PREFIX", "openitinerary")
+}
+
+func GetEnvOrDefault(envVarName, defaultValue string) string {
+	value := os.Getenv(envVarName)
+	if value == "" {
+		value = defaultValue
+	}
+
+	return value
+}
+
+type StorageConfiguration struct {
+	bucket     string
+	bucketPath string
+}
+
+func NewStorageConfiguration() StorageConfiguration {
+	return StorageConfiguration{
+		bucket:     GetAWSS3Bucket(),
+		bucketPath: GetAWSS3Path(),
+	}
+}
+
+func (sc *StorageConfiguration) GetDocumentPath(jobId string) string {
+	return "s3://" + path.Join(sc.bucket, sc.bucketPath, "documents", jobId)
+}
+
+func (sc *StorageConfiguration) GetOutputPath(jobId string) string {
+	return "s3://" + path.Join(sc.bucket, sc.bucketPath, "outputs", jobId)
+}
