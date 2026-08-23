@@ -34,7 +34,7 @@ func TestJobServiceCreate(t *testing.T) {
 	jobService := NewJobService(&mockDatabase)
 	err := jobService.Create(ticket)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	mockDatabase.AssertExpectations(t)
 }
 
