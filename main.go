@@ -41,11 +41,14 @@ func main() {
 		convertDone <- err
 	}()
 
-	destinationFile := "test.json"
-	destination := storage.NewLocalStorage(destinationFile)
+	destinationFile := "s3://thebucketofkiran456/openitinerary/output.json"
+	destination, err := storage.NewAWSS3Storage(ctx)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("Writing data to %v \n", destinationFile)
 
-	copyErr := destination.Write(reader)
+	copyErr := destination.Write(ctx, reader, destinationFile)
 	if copyErr != nil {
 		_ = reader.Close()
 	}
