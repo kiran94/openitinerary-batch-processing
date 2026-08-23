@@ -1,19 +1,18 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 )
 
 type LocalStorage struct {
-	file       string
 	createFile func(name string) (io.WriteCloser, error)
 }
 
-func NewLocalStorage(file string) *LocalStorage {
+func NewLocalStorage() *LocalStorage {
 	return &LocalStorage{
-		file:       file,
 		createFile: createLocalFile,
 	}
 }
@@ -22,8 +21,8 @@ func createLocalFile(name string) (io.WriteCloser, error) {
 	return os.Create(name)
 }
 
-func (l LocalStorage) Write(reader io.ReadCloser) (err error) {
-	f, err := l.createFile(l.file)
+func (l LocalStorage) Write(ctx context.Context, reader io.ReadCloser, output string) (err error) {
+	f, err := l.createFile(output)
 	if err != nil {
 		return err
 	}

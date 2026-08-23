@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -39,22 +40,25 @@ func (r *failingReadCloser) Close() error {
 }
 
 func TestNewLocalStorage(t *testing.T) {
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 
-	assert.Equal(t, "test.json", storage.file)
 	assert.NotNil(t, storage.createFile)
 }
 
 func TestLocalStorageWrite(t *testing.T) {
 	destination := &trackingWriteCloser{}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	var createdFile string
 	storage.createFile = func(name string) (io.WriteCloser, error) {
 		createdFile = name
 		return destination, nil
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.NoError(t, err)
 	assert.Equal(t, "test.json", createdFile)
@@ -62,14 +66,47 @@ func TestLocalStorageWrite(t *testing.T) {
 	assert.True(t, destination.closed)
 }
 
+func TestLocalStorageWriteReusesStorageForDifferentOutputs(t *testing.T) {
+	destinations := make(map[string]*trackingWriteCloser)
+	storage := NewLocalStorage()
+	storage.createFile = func(name string) (io.WriteCloser, error) {
+		destination := &trackingWriteCloser{}
+		destinations[name] = destination
+		return destination, nil
+	}
+
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("first itinerary")),
+		"first.json",
+	)
+	require.NoError(t, err)
+
+	err = storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("second itinerary")),
+		"second.json",
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "first itinerary", destinations["first.json"].String())
+	assert.True(t, destinations["first.json"].closed)
+	assert.Equal(t, "second itinerary", destinations["second.json"].String())
+	assert.True(t, destinations["second.json"].closed)
+}
+
 func TestLocalStorageWriteCreateError(t *testing.T) {
 	createErr := errors.New("create failed")
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return nil, createErr
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.ErrorIs(t, err, createErr)
 }
@@ -78,12 +115,12 @@ func TestLocalStorageWriteCopyErrorClosesDestination(t *testing.T) {
 	copyErr := errors.New("copy failed")
 	destination := &trackingWriteCloser{}
 	reader := &failingReadCloser{err: copyErr}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return destination, nil
 	}
 
-	err := storage.Write(reader)
+	err := storage.Write(context.Background(), reader, "test.json")
 
 	require.ErrorIs(t, err, copyErr)
 	assert.True(t, destination.closed)
@@ -93,12 +130,16 @@ func TestLocalStorageWriteCopyErrorClosesDestination(t *testing.T) {
 func TestLocalStorageWriteCloseError(t *testing.T) {
 	closeErr := errors.New("close failed")
 	destination := &trackingWriteCloser{closeErr: closeErr}
-	storage := NewLocalStorage("test.json")
+	storage := NewLocalStorage()
 	storage.createFile = func(string) (io.WriteCloser, error) {
 		return destination, nil
 	}
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		"test.json",
+	)
 
 	require.ErrorIs(t, err, closeErr)
 	assert.True(t, destination.closed)
@@ -106,9 +147,13 @@ func TestLocalStorageWriteCloseError(t *testing.T) {
 
 func TestLocalStorageWriteCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.json")
-	storage := NewLocalStorage(path)
+	storage := NewLocalStorage()
 
-	err := storage.Write(io.NopCloser(strings.NewReader("itinerary")))
+	err := storage.Write(
+		context.Background(),
+		io.NopCloser(strings.NewReader("itinerary")),
+		path,
+	)
 	require.NoError(t, err)
 
 	contents, err := os.ReadFile(path)

@@ -1,7 +1,10 @@
 package storage
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 type Storage interface {
-	Write(w io.ReadCloser) error
+	Write(ctx context.Context, w io.ReadCloser, output string) error
 }
