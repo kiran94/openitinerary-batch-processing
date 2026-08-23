@@ -37,7 +37,7 @@ func TestAWSS3StorageWriteInvalidS3Address(t *testing.T) {
 			ctx := t.Context()
 
 			storage, err := NewAWSS3Storage(ctx)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			data := io.NopCloser(strings.NewReader("hello test"))
 			writeErr := storage.Write(ctx, data, test.input)
