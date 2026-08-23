@@ -9,7 +9,9 @@ import (
 func TestNewTicket(t *testing.T) {
 	documentPath := "document_path"
 
-	ticket := NewTicket(documentPath)
+	ticket := NewTicket()
+	ticket.DocumentPath = documentPath
+
 	assert.NotNil(t, ticket.ID)
 	assert.Equal(t, documentPath, ticket.DocumentPath)
 	assert.Equal(t, Queued, ticket.Status)

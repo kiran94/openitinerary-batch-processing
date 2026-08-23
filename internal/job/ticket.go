@@ -7,12 +7,12 @@ import (
 )
 
 type Ticket struct {
-	ID           uuid.UUID
-	DocumentPath string
-	Status       TicketStatus `gorm:"type:varchar(16);default:'queued';not null"`
+	ID           uuid.UUID    `json:"id"`
+	DocumentPath string       `json:"document_path"`
+	Status       TicketStatus `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type TicketStatus string
@@ -24,10 +24,10 @@ const (
 	Failed     TicketStatus = "failed"
 )
 
-func NewTicket(documentPath string) *Ticket {
+func NewTicket() *Ticket {
 	return &Ticket{
 		ID:           uuid.New(),
-		DocumentPath: documentPath,
+		DocumentPath: "",
 		Status:       Queued,
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),

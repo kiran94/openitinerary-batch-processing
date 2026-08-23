@@ -26,7 +26,7 @@ func TestNewJobService(t *testing.T) {
 }
 
 func TestJobServiceCreate(t *testing.T) {
-	ticket := NewTicket("dummy")
+	ticket := NewTicket()
 
 	mockDatabase := MockDatabase{}
 	mockDatabase.On("Create", ticket).Return(&gorm.DB{})
@@ -39,7 +39,7 @@ func TestJobServiceCreate(t *testing.T) {
 }
 
 func TestJobServiceCreateError(t *testing.T) {
-	ticket := NewTicket("dummy")
+	ticket := NewTicket()
 	simulatedErr := errors.New("simulated")
 
 	mockDatabase := MockDatabase{}
