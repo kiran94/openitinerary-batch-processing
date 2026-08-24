@@ -75,6 +75,20 @@ func TestJobServiceGetError(t *testing.T) {
 	assert.Nil(t, ticket)
 }
 
+func TestJobServiceGetRecordNotFound(t *testing.T) {
+	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
+
+	m := MockDatabase{}
+	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{RowsAffected: 0})
+
+	job := NewJobService(&m)
+	ticket, err := job.Get(id)
+
+	m.AssertExpectations(t)
+	assert.Equal(t, ErrRecordNotFound, err)
+	assert.Nil(t, ticket)
+}
+
 func TestJobServiceGet(t *testing.T) {
 	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
 
@@ -85,7 +99,7 @@ func TestJobServiceGet(t *testing.T) {
 	m.On("Find", mock.AnythingOfType("*job.Ticket"), []string{id.String()}).Run(func(args mock.Arguments) {
 		ticket := args.Get(0).(*Ticket)
 		*ticket = *expectedTicket
-	}).Return(&gorm.DB{})
+	}).Return(&gorm.DB{RowsAffected: 1})
 
 	job := NewJobService(&m)
 	ticket, err := job.Get(id)

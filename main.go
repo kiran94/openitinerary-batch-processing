@@ -183,7 +183,11 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	ticket, err := s.job.Get(ticketIdParsed)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketId), http.StatusNotFound)
+		if errors.Is(err, job.ErrRecordNotFound) {
+			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketId), http.StatusNotFound)
+		} else {
+			obscureError(w, ticketIdParsed, err, "status")
+		}
 		return
 	}
 

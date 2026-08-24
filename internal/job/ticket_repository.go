@@ -1,6 +1,8 @@
 package job
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -31,10 +33,18 @@ func (r *JobService) Create(ticket *Ticket) error {
 	return nil
 }
 
+var ErrRecordNotFound = errors.New("record not found")
+
 func (r *JobService) Get(id uuid.UUID) (*Ticket, error) {
-	ticket := NewTicket()
-	if result := r.db.Find(ticket, []string{id.String()}); result.Error != nil {
+	ticket := &Ticket{}
+
+	result := r.db.Find(ticket, []string{id.String()})
+	if result.Error != nil {
 		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, ErrRecordNotFound
 	}
 
 	return ticket, nil
