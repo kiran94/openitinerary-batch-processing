@@ -27,12 +27,11 @@ func main() {
 	}
 
 	service := ServiceV1{
-		config:        internal.ApplicationConfig{},
-		db:            db,
-		job:           job.NewJobService(db),
-		queue:         queue.NewInMemoryQueue(),
-		storage:       s3,
-		storageConfig: storage.NewStorageConfiguration(),
+		config:  internal.ApplicationConfig{},
+		db:      db,
+		job:     job.NewJobService(db),
+		queue:   queue.NewInMemoryQueue(),
+		storage: s3,
 	}
 
 	mux := http.NewServeMux()
@@ -55,12 +54,11 @@ func main() {
 }
 
 type ServiceV1 struct {
-	config        internal.Config
-	db            job.Database
-	job           job.JobCreator
-	queue         queue.BatchQueue
-	storage       storage.Storage
-	storageConfig storage.StorageConfiguration
+	config  internal.Config
+	db      job.Database
+	job     job.JobCreator
+	queue   queue.BatchQueue
+	storage storage.Storage
 }
 
 // @Summary      Submit a document for processing
@@ -130,7 +128,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ticket := job.NewTicket()
-	ticket.DocumentPath = s.storageConfig.GetDocumentPath(ticket.ID.String(), fileType)
+	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), fileType)
 	ticket.ContentType = contentType
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
