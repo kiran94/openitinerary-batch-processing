@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
+	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
@@ -36,8 +39,19 @@ func main() {
 	mux.HandleFunc("POST /api/v1/submit", service.submit)
 
 	const Port = ":8080"
+	server := &http.Server{
+		Addr:         Port,
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+
 	log.Printf("listening on port: '%v' \n", Port)
-	fmt.Println(http.ListenAndServe(Port, mux))
+	err = server.ListenAndServe()
+	if err != nil {
+		panic(err)
+	}
 }
 
 type ServiceV1 struct {
