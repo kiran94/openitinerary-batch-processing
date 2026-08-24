@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
@@ -36,6 +37,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/submit", service.submit)
+	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
 
 	const Port = ":8080"
 	server := &http.Server{
@@ -165,9 +167,31 @@ func obscureError(w http.ResponseWriter, ticket *job.Ticket, err error) {
 	http.Error(w, "failed to submit job", http.StatusInternalServerError)
 }
 
-// func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
+func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
-// }
+	ticketId := r.PathValue("id")
+	if ticketId == "" {
+		http.Error(w, "id parameter must be provided", http.StatusBadRequest)
+		return
+	}
+
+	ticketIdParsed, err := uuid.Parse(ticketId)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("provided id was not a valid guid. Got: '%v'", ticketId), http.StatusBadRequest)
+		return
+	}
+
+	ticket, err := s.job.Get(ticketIdParsed)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketId), http.StatusNotFound)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(&ticket); err != nil {
+		obscureError(w, ticket, err)
+		return
+	}
+}
 
 // func main() {
 
