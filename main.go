@@ -112,6 +112,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Content-Type must be provided", http.StatusBadRequest)
 		return
 	}
+	contentType, _, err = mime.ParseMediaType(contentType)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
 
 	var fileType string
 	switch contentType {
@@ -122,7 +127,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	case "message/rfc822":
 		fileType = "eml"
 	default:
-		http.Error(w, fmt.Sprintf("unsupported file format: %v", contentType), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("unsupported file format: %v", contentType), http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -131,26 +136,37 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket.ContentType = contentType
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		obscureError(w, ticket, err)
 		return
 	}
 
 	if err := s.job.Create(ticket); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		obscureError(w, ticket, err)
 		return
 	}
 
 	if err := s.queue.Enqueue(ticket); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		obscureError(w, ticket, err)
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(ticket); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	responseBody, err := json.Marshal(ticket)
+	if err != nil {
+		obscureError(w, ticket, err)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+
+	if _, err := w.Write(responseBody); err != nil {
+		log.Printf("failed to write response ticket_id=%s: %v", ticket.ID, err)
+	}
+}
+
+func obscureError(w http.ResponseWriter, ticket *job.Ticket, err error) {
+	log.Printf("failed to submit job ticket_id=%s: %v", ticket.ID, err)
+	http.Error(w, "failed to submit job", http.StatusInternalServerError)
 }
 
 // func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
