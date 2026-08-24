@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
@@ -36,6 +37,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/submit", service.submit)
+	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
 
 	const Port = ":8080"
 	server := &http.Server{
@@ -132,23 +134,23 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket.ContentType = contentType
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	if err := s.job.Create(ticket); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	if err := s.queue.Enqueue(ticket); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
@@ -160,14 +162,52 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func obscureError(w http.ResponseWriter, ticket *job.Ticket, err error) {
-	log.Printf("failed to submit job ticket_id=%s: %v", ticket.ID, err)
-	http.Error(w, "failed to submit job", http.StatusInternalServerError)
+func obscureError[T fmt.Stringer](w http.ResponseWriter, obj T, err error, errorSource string) {
+	log.Printf("failed to perform operation '%v', object: '%v', err: '%v'", errorSource, obj, err)
+	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
 }
 
-// func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
+// status retrieves the current processing state of a ticket.
+// @Summary      Get ticket status
+// @Description  Retrieve the current processing state of a ticket by its UUID.
+// @Tags         batch
+// @Produce      json,plain
+// @Param        id  path      string      true  "Ticket UUID"
+// @Success      200 {object}  job.Ticket
+// @Failure      400 {string}  string      "Missing or invalid ticket UUID"
+// @Failure      404 {string}  string      "Ticket not found"
+// @Failure      500 {string}  string      "Failed to retrieve ticket status"
+// @Router       /api/v1/status/{id} [get]
+func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
-// }
+	ticketId := r.PathValue("id")
+	if ticketId == "" {
+		http.Error(w, "id parameter must be provided", http.StatusBadRequest)
+		return
+	}
+
+	ticketIdParsed, err := uuid.Parse(ticketId)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("provided id was not a valid guid. Got: '%v'", ticketId), http.StatusBadRequest)
+		return
+	}
+
+	ticket, err := s.job.Get(ticketIdParsed)
+	if err != nil {
+		if errors.Is(err, job.ErrRecordNotFound) {
+			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketId), http.StatusNotFound)
+		} else {
+			obscureError(w, ticketIdParsed, err, "status")
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(&ticket); err != nil {
+		obscureError(w, ticket, err, "status")
+		return
+	}
+}
 
 // func main() {
 
