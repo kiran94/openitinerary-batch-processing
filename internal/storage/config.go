@@ -2,7 +2,7 @@ package storage
 
 import (
 	"os"
-	"path/filepath"
+	"path"
 )
 
 func GetAWSS3Bucket() string {
@@ -38,9 +38,9 @@ func NewStorageConfiguration() StorageConfiguration {
 // s3://<bucket>/<prefix>/jobs/<job-id>/result.json
 
 func (sc *StorageConfiguration) GetDocumentPath(jobId, fileType string) string {
-	return "s3://" + filepath.Join(sc.bucket, sc.bucketPath, "jobs", jobId, "document"+"."+fileType)
+	return "s3://" + path.Join(sc.bucket, sc.bucketPath, "jobs", jobId, "document"+"."+fileType)
 }
 
 func (sc *StorageConfiguration) GetOutputPath(jobId string) string {
-	return "s3://" + filepath.Join(sc.bucket, sc.bucketPath, "jobs", jobId, "result.json")
+	return "s3://" + path.Join(sc.bucket, sc.bucketPath, "jobs", jobId, "result.json")
 }
