@@ -12,8 +12,8 @@ func TestGetDocumentPath(t *testing.T) {
 		"prefix/prefix2",
 	}
 
-	output := sc.GetDocumentPath("jobId")
-	assert.Equal(t, "s3://my_bucket/prefix/prefix2/documents/jobId", output)
+	output := sc.GetDocumentPath("jobId", "pdf")
+	assert.Equal(t, "s3://my_bucket/prefix/prefix2/jobs/jobId/document.pdf", output)
 }
 
 func TestGetOutputPath(t *testing.T) {
@@ -23,5 +23,5 @@ func TestGetOutputPath(t *testing.T) {
 	}
 
 	output := sc.GetOutputPath("jobId")
-	assert.Equal(t, "s3://my_bucket/prefix/prefix2/outputs/jobId", output)
+	assert.Equal(t, "s3://my_bucket/prefix/prefix2/jobs/jobId/result.json", output)
 }
