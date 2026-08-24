@@ -167,6 +167,17 @@ func obscureError[T fmt.Stringer](w http.ResponseWriter, obj T, err error, error
 	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
 }
 
+// status retrieves the current processing state of a ticket.
+// @Summary      Get ticket status
+// @Description  Retrieve the current processing state of a ticket by its UUID.
+// @Tags         batch
+// @Produce      json,plain
+// @Param        id  path      string      true  "Ticket UUID"
+// @Success      200 {object}  job.Ticket
+// @Failure      400 {string}  string      "Missing or invalid ticket UUID"
+// @Failure      404 {string}  string      "Ticket not found"
+// @Failure      500 {string}  string      "Failed to retrieve ticket status"
+// @Router       /api/v1/status/{id} [get]
 func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	ticketId := r.PathValue("id")
