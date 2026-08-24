@@ -8,7 +8,6 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
@@ -28,6 +27,7 @@ func main() {
 	}
 
 	service := ServiceV1{
+		config:        internal.ApplicationConfig{},
 		db:            db,
 		job:           job.NewJobService(db),
 		queue:         queue.NewInMemoryQueue(),
@@ -40,11 +40,11 @@ func main() {
 
 	const Port = ":8080"
 	server := &http.Server{
-		Addr:         Port,
 		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  15 * time.Second,
+		Addr:         service.config.GetPort(),
+		ReadTimeout:  service.config.GetServerReadTimeout(),
+		WriteTimeout: service.config.GetServerWriteTimeout(),
+		IdleTimeout:  service.config.GetServerIdleTimeout(),
 	}
 
 	log.Printf("listening on port: '%v' \n", Port)
@@ -55,6 +55,7 @@ func main() {
 }
 
 type ServiceV1 struct {
+	config        internal.Config
 	db            job.Database
 	job           job.JobCreator
 	queue         queue.BatchQueue
@@ -80,9 +81,9 @@ type ErrorResponse struct {
 func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10MB
+	r.Body = http.MaxBytesReader(w, r.Body, s.config.GetMaximumAllowedRequestSizeMb())
 
-	if err := r.ParseMultipartForm(5 << 20); err != nil { // 5MB
+	if err := r.ParseMultipartForm(s.config.GetMaximumBufferMultipartForm()); err != nil {
 
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
