@@ -72,7 +72,12 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
+	defer func() {
+		err := r.MultipartForm.RemoveAll()
+		if err != nil {
+			log.Println(err.Error())
+		}
+	}()
 
 	file, uploadedFileHeader, err := r.FormFile("file")
 	if err != nil {
