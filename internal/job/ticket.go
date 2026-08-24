@@ -1,6 +1,7 @@
 package job
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,5 +35,8 @@ func NewTicket() *Ticket {
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
 	}
+}
 
+func (t Ticket) String() string {
+	return fmt.Sprintf("ticket: %v", t.ID.String())
 }

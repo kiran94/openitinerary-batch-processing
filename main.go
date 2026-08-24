@@ -134,23 +134,23 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket.ContentType = contentType
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	if err := s.job.Create(ticket); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	if err := s.queue.Enqueue(ticket); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "submit")
 		return
 	}
 
@@ -162,9 +162,9 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func obscureError(w http.ResponseWriter, ticket *job.Ticket, err error) {
-	log.Printf("failed to submit job ticket_id=%s: %v", ticket.ID, err)
-	http.Error(w, "failed to submit job", http.StatusInternalServerError)
+func obscureError[T fmt.Stringer](w http.ResponseWriter, obj T, err error, errorSource string) {
+	log.Printf("failed to perform operation '%v', object: '%v', err: '%v'", errorSource, obj, err)
+	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
 }
 
 func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
@@ -191,8 +191,9 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(&ticket); err != nil {
-		obscureError(w, ticket, err)
+		obscureError(w, ticket, err, "status")
 		return
 	}
 }
