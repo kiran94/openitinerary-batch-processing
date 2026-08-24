@@ -65,7 +65,7 @@ type ServiceV1 struct {
 // @Description  Upload a PDF, HTML, or RFC 822 email document, create and enqueue a processing ticket, and return the accepted ticket.
 // @Tags         batch
 // @Accept       multipart/form-data
-// @Produce      json
+// @Produce      json,plain
 // @Param        file  formData  file  true  "Document to process"
 // @Success      202  {object}  job.Ticket
 // @Failure      400  {string}  string  "Invalid multipart form, missing file, or missing Content-Type"
