@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,12 @@ type MockDatabase struct {
 
 func (m *MockDatabase) Create(value interface{}) (tx *gorm.DB) {
 	args := m.Called(value)
+	return args.Get(0).(*gorm.DB)
+}
+
+func (m *MockDatabase) Find(dest interface{}, conditions ...interface{}) (tx *gorm.DB) {
+	mockArgs := append([]interface{}{dest}, conditions...)
+	args := m.Called(mockArgs...)
 	return args.Get(0).(*gorm.DB)
 }
 
@@ -50,4 +57,39 @@ func TestJobServiceCreateError(t *testing.T) {
 
 	assert.Equal(t, simulatedErr, err)
 	mockDatabase.AssertExpectations(t)
+}
+
+func TestJobServiceGetError(t *testing.T) {
+
+	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	expectedErr := errors.New("record not found")
+
+	m := MockDatabase{}
+	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{Error: expectedErr})
+
+	job := NewJobService(&m)
+	ticket, err := job.Get(id)
+
+	m.AssertExpectations(t)
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, ticket)
+}
+
+func TestJobServiceGet(t *testing.T) {
+	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
+
+	expectedTicket := NewTicket()
+	expectedTicket.DocumentPath = "example.pdf"
+
+	m := MockDatabase{}
+	m.On("Find", mock.AnythingOfType("*job.Ticket"), []string{id.String()}).Run(func(args mock.Arguments) {
+		ticket := args.Get(0).(*Ticket)
+		*ticket = *expectedTicket
+	}).Return(&gorm.DB{})
+
+	job := NewJobService(&m)
+	ticket, err := job.Get(id)
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedTicket, ticket)
 }
