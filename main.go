@@ -83,7 +83,14 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10MB
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil { // 5MB
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body is too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "invalid multipart form", http.StatusBadRequest)
+		}
+
 		return
 	}
 	defer func() {
