@@ -63,20 +63,17 @@ type ServiceV1 struct {
 	storageConfig storage.StorageConfiguration
 }
 
-type ErrorResponse struct {
-	Detail string `json:"detail"`
-}
-
-// @Summary      Submit a Document for Processing
-// @Description  Receive a Document and return a receipt back to the user
+// @Summary      Submit a document for processing
+// @Description  Upload a PDF, HTML, or RFC 822 email document, create and enqueue a processing ticket, and return the accepted ticket.
 // @Tags         batch
 // @Accept       multipart/form-data
 // @Produce      json
 // @Param        file  formData  file  true  "Document to process"
 // @Success      202  {object}  job.Ticket
-// @Failure      400  {object}  ErrorResponse
-// @Failure      415  {object}  ErrorResponse
-// @Failure      500  {object}  ErrorResponse
+// @Failure      400  {string}  string  "Invalid multipart form, missing file, or missing Content-Type"
+// @Failure      413  {string}  string  "Request body exceeds 10 MiB"
+// @Failure      415  {string}  string  "Invalid or unsupported media type"
+// @Failure      500  {string}  string  "Document submission failed"
 // @Router       /api/v1/submit [post]
 func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
