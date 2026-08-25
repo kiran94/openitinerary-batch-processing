@@ -1,4 +1,4 @@
-package internal
+package config
 
 import (
 	"os"
@@ -20,6 +20,8 @@ type Config interface {
 	GetBucketPath() string
 	GetDocumentPath(bucket, bucketPath, jobId, fileType string) string
 	GetOutputPath(bucket, bucketPath, jobId string) string
+
+	GetQueueURL() string
 }
 
 type ApplicationConfig struct{}
@@ -62,6 +64,10 @@ func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType 
 
 func (ac ApplicationConfig) GetOutputPath(bucket, bucketPath, jobId string) string {
 	return "s3://" + path.Join(bucket, bucketPath, "jobs", jobId, "result.json")
+}
+
+func (ac ApplicationConfig) GetQueueURL() string {
+	return GetEnvOrDefault("SQS_QUEUE_URL", "")
 }
 
 func GetEnvOrDefault(envVarName, defaultValue string) string {

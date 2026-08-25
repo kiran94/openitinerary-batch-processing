@@ -1,4 +1,4 @@
-package internal
+package config
 
 import (
 	"testing"
@@ -55,4 +55,13 @@ func TestApplicationConfigGetOutputPath(t *testing.T) {
 	actual := config.GetOutputPath("test-bucket", "prefix/nested", "test-job")
 
 	assert.Equal(t, "s3://test-bucket/prefix/nested/jobs/test-job/result.json", actual)
+}
+
+func TestApplicationConfigGetQueueURL(t *testing.T) {
+	t.Setenv("SQS_QUEUE_URL", "MY_URL")
+
+	ac := ApplicationConfig{}
+	url := ac.GetQueueURL()
+
+	assert.Equal(t, "MY_URL", url)
 }

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kiran94/openitinerary-batch-processing/internal"
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
@@ -479,7 +479,7 @@ func createTestMultipartFormWithoutContentType(t *testing.T) (*bytes.Buffer, str
 // Compile Time Interface Assertions
 // Ensure that each of the mocks implement the interfaces they target.
 var (
-	_ internal.Config  = (*MockConfig)(nil)
+	_ config.Config    = (*MockConfig)(nil)
 	_ job.JobCreator   = (*MockJobCreator)(nil)
 	_ queue.BatchQueue = (*MockBatchQueue)(nil)
 	_ storage.Storage  = (*MockStorage)(nil)
@@ -527,6 +527,10 @@ func (m *MockConfig) GetDocumentPath(bucket, bucketPath, jobID, fileType string)
 
 func (m *MockConfig) GetOutputPath(bucket, bucketPath, jobID string) string {
 	return m.Called(bucket, bucketPath, jobID).String(0)
+}
+
+func (m *MockConfig) GetQueueURL() string {
+	return m.Called().String()
 }
 
 type MockJobCreator struct {

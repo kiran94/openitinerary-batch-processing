@@ -9,14 +9,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/kiran94/openitinerary-batch-processing/internal"
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 )
 
 type ServiceV1 struct {
-	config  internal.Config
+	config  config.Config
 	job     job.JobCreator
 	queue   queue.BatchQueue
 	storage storage.Storage
