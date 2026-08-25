@@ -17,7 +17,7 @@ type BatchQueue interface {
 }
 
 type Queue struct {
-	queue  Queuer
+	Queue  Queuer
 	config config.Config
 }
 
@@ -32,7 +32,7 @@ func NewQueue(ctx context.Context, c config.Config) (BatchQueue, error) {
 	}
 
 	client := sqs.NewFromConfig(con)
-	return &Queue{queue: client, config: c}, nil
+	return &Queue{Queue: client, config: c}, nil
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
@@ -43,7 +43,7 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 	}
 	bufferString := string(buffer)
 
-	result, err := q.queue.SendMessage(ctx, &sqs.SendMessageInput{
+	result, err := q.Queue.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:               new(q.config.GetQueueURL()),
 		MessageGroupId:         new(ticket.ID.String()),
 		MessageDeduplicationId: new(ticket.ID.String()),
