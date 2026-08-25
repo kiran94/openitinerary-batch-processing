@@ -49,11 +49,11 @@ func (ac ApplicationConfig) GetMaximumBufferMultipartForm() int64 {
 }
 
 func (ac ApplicationConfig) GetBucket() string {
-	return GetEnvOrDefault("OIBP_BUCKET", "thebucketofkiran456")
+	return GetEnvOrDefault("OIBP_BUCKET", "openitinerary-batch-processing")
 }
 
 func (ac ApplicationConfig) GetBucketPath() string {
-	return GetEnvOrDefault("OIBP_BUCKET_PREFIX", "openitinerary")
+	return GetEnvOrDefault("OIBP_BUCKET_PREFIX", "")
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {

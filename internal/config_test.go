@@ -28,8 +28,8 @@ func TestApplicationConfigStorageDefaults(t *testing.T) {
 	t.Setenv("OIBP_BUCKET_PREFIX", "")
 	config := ApplicationConfig{}
 
-	assert.Equal(t, "thebucketofkiran456", config.GetBucket())
-	assert.Equal(t, "openitinerary", config.GetBucketPath())
+	assert.Equal(t, "openitinerary-batch-processing", config.GetBucket())
+	assert.Empty(t, config.GetBucketPath())
 }
 
 func TestApplicationConfigStorageEnvironmentOverrides(t *testing.T) {
