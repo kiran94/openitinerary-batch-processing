@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
@@ -22,8 +23,9 @@ func main() {
 		panic(err)
 	}
 
+	config := config.ApplicationConfig{}
 	service := ServiceV1{
-		config:  internal.ApplicationConfig{},
+		config:  config,
 		job:     job.NewJobService(db),
 		queue:   queue.NewInMemoryQueue(),
 		storage: s3,

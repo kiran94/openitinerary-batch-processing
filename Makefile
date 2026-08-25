@@ -32,14 +32,20 @@ ci: format_check lint build test vuln
 generate_oi_go_models:
 	go-jsonschema -p openitinerary internal/openitinerary/0.1/itinerary.schema.json -o internal/openitinerary/0.1/itinerary.gen.go
 
-client_test:
-	 ADAPTER_API_URL="http://127.0.0.1:8000/api/v1/adapt/segment-mock" go run ./main.go
+api:
+	 ADAPTER_API_URL="http://127.0.0.1:8000/api/v1/adapt/segment-mock" go run .
+
+# Live reload
+api_dev:
+	go tool air
 
 install_tools:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
+	go get -tool github.com/air-verse/air@latest
+
 
 
 login_db:
