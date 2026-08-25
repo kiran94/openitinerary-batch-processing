@@ -556,7 +556,7 @@ type MockBatchQueue struct {
 	mock.Mock
 }
 
-func (m *MockBatchQueue) Enqueue(ticket *job.Ticket) error {
+func (m *MockBatchQueue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 	return m.Called(ticket).Error(0)
 }
 

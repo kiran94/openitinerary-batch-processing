@@ -101,7 +101,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.queue.Enqueue(ticket); err != nil {
+	if err := s.queue.Enqueue(r.Context(), ticket); err != nil {
 		obscureError(w, ticket, err, "submit")
 		return
 	}
