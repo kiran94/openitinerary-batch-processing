@@ -24,78 +24,32 @@ import (
 )
 
 func TestServiceSubmit(t *testing.T) {
-	mockConfig := new(MockConfig)
-	mockJobCreator := new(MockJobCreator)
-	mockQueue := new(MockBatchQueue)
-	mockStorage := new(MockStorage)
-
-	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
-	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
-	mockConfig.On("GetBucket").Return("bucket").Once()
-	mockConfig.On("GetBucketPath").Return("path").Once()
-	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
-
-	mockStorage.
-		On("Write", mock.Anything, mock.Anything, "s3://document/path").
-		Run(func(args mock.Arguments) {
-			reader := args.Get(1).(io.ReadCloser)
-			data, err := io.ReadAll(reader)
-			require.NoError(t, err)
-			assert.Equal(t, []byte("my pdf data"), data)
-		}).
-		Return(nil).Once()
-
-	var generatedTicketID uuid.UUID
-	mockJobCreator.On("Create", mock.Anything).Run(func(args mock.Arguments) {
-		passedTicket := args.Get(0).(*job.Ticket)
-		generatedTicketID = passedTicket.ID
-
-		assert.Equal(t, "s3://document/path", passedTicket.DocumentPath)
-		assert.Equal(t, "application/pdf", passedTicket.ContentType)
-
-	}).Return(nil).Once()
-
-	mockQueue.On("Enqueue", mock.Anything).Run(func(args mock.Arguments) {
-		ticket := args.Get(0).(*job.Ticket)
-		assert.Equal(t, generatedTicketID, ticket.ID)
-	}).Return(nil).Once()
-
-	service := ServiceV1{
-		config:  mockConfig,
-		job:     mockJobCreator,
-		queue:   mockQueue,
-		storage: mockStorage,
+	tests := []submitSuccessCase{
+		{
+			name:        "PDF",
+			contentType: "application/pdf",
+			fileType:    "pdf",
+			data:        []byte("my pdf data"),
+		},
+		{
+			name:        "HTML",
+			contentType: "text/html",
+			fileType:    "html",
+			data:        []byte("<html><body>test</body></html>"),
+		},
+		{
+			name:        "Email",
+			contentType: "message/rfc822",
+			fileType:    "eml",
+			data:        []byte("Subject: Test\r\n\r\nEmail body"),
+		},
 	}
 
-	writer := httptest.NewRecorder()
-
-	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
-	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
-	request.Header.Set("Content-Type", contentType)
-
-	service.submit(writer, request)
-
-	response := writer.Result()
-	defer response.Body.Close()
-
-	assert.Equal(t, http.StatusAccepted, response.StatusCode)
-	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
-
-	var ticket job.Ticket
-	require.NoError(t, json.NewDecoder(response.Body).Decode(&ticket))
-
-	assert.NotZero(t, ticket.ID)
-	assert.NotZero(t, ticket.CreatedAt)
-	assert.NotZero(t, ticket.UpdatedAt)
-	assert.Equal(t, "s3://document/path", ticket.DocumentPath)
-	assert.Equal(t, "application/pdf", ticket.ContentType)
-	assert.Equal(t, job.Queued, ticket.Status)
-	assert.Equal(t, generatedTicketID, ticket.ID)
-
-	mockConfig.AssertExpectations(t)
-	mockStorage.AssertExpectations(t)
-	mockJobCreator.AssertExpectations(t)
-	mockQueue.AssertExpectations(t)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServiceSubmitSuccess(t, test)
+		})
+	}
 }
 
 func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
@@ -215,6 +169,30 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 	defer response.Body.Close()
 
 	assert.Equal(t, http.StatusUnsupportedMediaType, response.StatusCode)
+	mockConfig.AssertExpectations(t)
+}
+
+func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+
+	body, contentType := createTestMultipartFormBuffer(t, []byte("image data"), "image/png")
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
+	request.Header.Set("Content-Type", contentType)
+
+	writer := httptest.NewRecorder()
+	service := ServiceV1{config: mockConfig}
+	service.submit(writer, request)
+
+	response := writer.Result()
+	defer response.Body.Close()
+
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusUnsupportedMediaType, response.StatusCode)
+	assert.Contains(t, string(responseBody), "unsupported file format: image/png")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -341,6 +319,98 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 }
 
 // HELPERS
+
+type submitSuccessCase struct {
+	name        string
+	contentType string
+	fileType    string
+	data        []byte
+}
+
+func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
+	t.Helper()
+
+	mockConfig := new(MockConfig)
+	mockJobCreator := new(MockJobCreator)
+	mockQueue := new(MockBatchQueue)
+	mockStorage := new(MockStorage)
+	documentPath := "s3://document/path." + test.fileType
+
+	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetBucket").Return("bucket").Once()
+	mockConfig.On("GetBucketPath").Return("path").Once()
+	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, test.fileType).Return(documentPath).Once()
+
+	mockStorage.
+		On("Write", mock.Anything, mock.Anything, documentPath).
+		Run(func(args mock.Arguments) {
+			reader := args.Get(1).(io.ReadCloser)
+			data, err := io.ReadAll(reader)
+			require.NoError(t, err)
+			assert.Equal(t, test.data, data)
+		}).
+		Return(nil).
+		Once()
+
+	var generatedTicketID uuid.UUID
+	mockJobCreator.
+		On("Create", mock.AnythingOfType("*job.Ticket")).
+		Run(func(args mock.Arguments) {
+			passedTicket := args.Get(0).(*job.Ticket)
+			generatedTicketID = passedTicket.ID
+
+			assert.Equal(t, documentPath, passedTicket.DocumentPath)
+			assert.Equal(t, test.contentType, passedTicket.ContentType)
+		}).
+		Return(nil).
+		Once()
+
+	mockQueue.
+		On("Enqueue", mock.AnythingOfType("*job.Ticket")).
+		Run(func(args mock.Arguments) {
+			ticket := args.Get(0).(*job.Ticket)
+			assert.Equal(t, generatedTicketID, ticket.ID)
+		}).
+		Return(nil).
+		Once()
+
+	service := ServiceV1{
+		config:  mockConfig,
+		job:     mockJobCreator,
+		queue:   mockQueue,
+		storage: mockStorage,
+	}
+
+	body, requestContentType := createTestMultipartFormBuffer(t, test.data, test.contentType)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
+	request.Header.Set("Content-Type", requestContentType)
+
+	writer := httptest.NewRecorder()
+	service.submit(writer, request)
+
+	response := writer.Result()
+	defer response.Body.Close()
+
+	assert.Equal(t, http.StatusAccepted, response.StatusCode)
+	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+
+	var ticket job.Ticket
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&ticket))
+
+	assert.NotZero(t, ticket.ID)
+	assert.NotZero(t, ticket.CreatedAt)
+	assert.NotZero(t, ticket.UpdatedAt)
+	assert.Equal(t, generatedTicketID, ticket.ID)
+	assert.Equal(t, documentPath, ticket.DocumentPath)
+	assert.Equal(t, test.contentType, ticket.ContentType)
+	assert.Equal(t, job.Queued, ticket.Status)
+
+	mockConfig.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+	mockJobCreator.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
 
 func createTestMultipartFormBuffer(t *testing.T, data []byte, contentType string) (*bytes.Buffer, string) {
 	t.Helper()
