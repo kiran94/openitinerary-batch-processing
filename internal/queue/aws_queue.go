@@ -54,7 +54,7 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 		return err
 	}
 
-	fmt.Printf("Submitted Job %v with Message Id: %v", ticket.ID, result.MessageId)
+	fmt.Printf("Submitted Job %v with Message Id: %v", ticket.ID, *result.MessageId)
 	return nil
 }
 
