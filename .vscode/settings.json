@@ -1,16 +1,36 @@
 {
   "[go]": {
+    "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"
     },
     "editor.defaultFormatter": "golang.go",
-    "editor.formatOnSave": true
+    "editor.inlayHints.enabled": "on"
   },
   "go.formatTool": "goimports",
   "go.lintOnSave": "package",
   "go.lintTool": "golangci-lint-v2",
-  "go.testFlags": [
-    "-race"
-  ],
-  "go.toolsManagement.autoUpdate": false
+  "go.testFlags": ["-race"],
+  "go.toolsManagement.autoUpdate": false,
+  "gopls": {
+    "formatting.gofumpt": false,
+    "ui.diagnostic.staticcheck": true,
+    "analyses": {
+      "nilness": true,
+      "unusedparams": true,
+      "unusedwrite": true,
+      "shadow": true
+    },
+    "completeFunctionCalls": true
+  },
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+  },
+  "[terraform-vars]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+  },
 }
