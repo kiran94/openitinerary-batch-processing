@@ -67,7 +67,11 @@ func (ac ApplicationConfig) GetOutputPath(bucket, bucketPath, jobId string) stri
 }
 
 func (ac ApplicationConfig) GetQueueURL() string {
-	return GetEnvOrDefault("SQS_QUEUE_URL", "")
+	url := os.Getenv("SQS_QUEUE_URL")
+	if url == "" {
+		panic("SQS_QUEUE_URL must be set")
+	}
+	return url
 }
 
 func GetEnvOrDefault(envVarName, defaultValue string) string {

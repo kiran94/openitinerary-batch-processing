@@ -65,3 +65,12 @@ func TestApplicationConfigGetQueueURL(t *testing.T) {
 
 	assert.Equal(t, "MY_URL", url)
 }
+
+func TestApplicationConfigGetQueueURLUnset(t *testing.T) {
+	t.Setenv("SQS_QUEUE_URL", "")
+
+	ac := ApplicationConfig{}
+	assert.PanicsWithValue(t, "SQS_QUEUE_URL must be set", func() {
+		ac.GetQueueURL()
+	})
+}
