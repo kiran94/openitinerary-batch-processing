@@ -85,6 +85,7 @@ func TestEnqueueSendMessageError(t *testing.T) {
 
 func TestDequeue(t *testing.T) {
 	ctx := t.Context()
+	queuePollingTime := int32(20)
 	expectedTicket := job.NewTicket()
 	expectedTicket.DocumentPath = "s3://bucket/path/document.pdf"
 	expectedTicket.ContentType = "application/pdf"
@@ -97,6 +98,7 @@ func TestDequeue(t *testing.T) {
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(queuePollingTime).Once()
 
 	mockQueue := new(MockBatchQueue)
 	mockQueue.
@@ -109,6 +111,7 @@ func TestDequeue(t *testing.T) {
 
 			assert.Equal(t, queueURL, *input.QueueUrl)
 			assert.Equal(t, int32(1), input.MaxNumberOfMessages)
+			assert.Equal(t, queuePollingTime, input.WaitTimeSeconds)
 		}).
 		Return(&sqs.ReceiveMessageOutput{
 			Messages: []types.Message{
@@ -141,6 +144,7 @@ func TestDequeueNilBody(t *testing.T) {
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(int32(20)).Once()
 
 	mockQueue := new(MockBatchQueue)
 	mockQueue.
@@ -177,6 +181,7 @@ func TestDequeueNilReceiptHandle(t *testing.T) {
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(int32(20)).Once()
 
 	mockQueue := new(MockBatchQueue)
 	mockQueue.
@@ -208,6 +213,7 @@ func TestDequeueReceiveMessageError(t *testing.T) {
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(int32(20)).Once()
 
 	expectedErr := errors.New("failed to receive message")
 	mockQueue := new(MockBatchQueue)
@@ -232,6 +238,7 @@ func TestDequeueEmptyQueue(t *testing.T) {
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(int32(20)).Once()
 
 	mockQueue := new(MockBatchQueue)
 	mockQueue.
@@ -367,6 +374,10 @@ func (m *MockConfig) GetOutputPath(bucket, bucketPath, jobID string) string {
 
 func (m *MockConfig) GetQueueURL() string {
 	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetQueuePollingTime() int32 {
+	return m.Called().Get(0).(int32)
 }
 
 type MockBatchQueue struct {

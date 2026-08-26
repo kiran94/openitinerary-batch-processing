@@ -79,6 +79,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	result, err := q.Queue.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:            new(q.config.GetQueueURL()),
 		MaxNumberOfMessages: 1,
+		WaitTimeSeconds:     q.config.GetQueuePollingTime(),
 	})
 
 	if err != nil {

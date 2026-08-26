@@ -542,6 +542,10 @@ func (m *MockConfig) GetQueueURL() string {
 	return m.Called().String()
 }
 
+func (m *MockConfig) GetQueuePollingTime() int32 {
+	return m.Called().Get(0).(int32)
+}
+
 type MockJobCreator struct {
 	mock.Mock
 }
