@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/stretchr/testify/assert"
@@ -82,6 +83,237 @@ func TestEnqueueSendMessageError(t *testing.T) {
 	assert.Equal(t, expectedErr, err)
 }
 
+func TestDequeue(t *testing.T) {
+	ctx := t.Context()
+	expectedTicket := job.NewTicket()
+	expectedTicket.DocumentPath = "s3://bucket/path/document.pdf"
+	expectedTicket.ContentType = "application/pdf"
+
+	messageBody, err := json.Marshal(expectedTicket)
+	require.NoError(t, err)
+	messageBodyString := string(messageBody)
+	receiptHandle := "handle1"
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Run(func(args mock.Arguments) {
+			input, ok := args.Get(1).(*sqs.ReceiveMessageInput)
+
+			require.True(t, ok)
+			require.NotNil(t, input.QueueUrl)
+
+			assert.Equal(t, queueURL, *input.QueueUrl)
+			assert.Equal(t, int32(1), input.MaxNumberOfMessages)
+		}).
+		Return(&sqs.ReceiveMessageOutput{
+			Messages: []types.Message{
+				{
+					Body:          &messageBodyString,
+					ReceiptHandle: &receiptHandle,
+				},
+			},
+		}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.QueueReference)
+
+	assert.Equal(t, *expectedTicket, result.Result)
+	assert.Equal(t, receiptHandle, *result.QueueReference)
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDequeueNilBody(t *testing.T) {
+	ctx := t.Context()
+	receiptHandle := "handle1"
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Return(&sqs.ReceiveMessageOutput{
+			Messages: []types.Message{
+				{
+					Body:          nil,
+					ReceiptHandle: &receiptHandle,
+				},
+			},
+		}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "message body was nil")
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDequeueNilReceiptHandle(t *testing.T) {
+	ctx := t.Context()
+	ticket := job.NewTicket()
+
+	messageBody, err := json.Marshal(ticket)
+	require.NoError(t, err)
+	messageBodyString := string(messageBody)
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Return(&sqs.ReceiveMessageOutput{
+			Messages: []types.Message{
+				{
+					Body:          &messageBodyString,
+					ReceiptHandle: nil,
+				},
+			},
+		}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "receipt handle was nil")
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDequeueReceiveMessageError(t *testing.T) {
+	ctx := t.Context()
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	expectedErr := errors.New("failed to receive message")
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Return(nil, expectedErr).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	assert.Nil(t, result)
+	assert.Equal(t, expectedErr, err)
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDequeueEmptyQueue(t *testing.T) {
+	ctx := t.Context()
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Return(&sqs.ReceiveMessageOutput{}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDeleteMessage(t *testing.T) {
+	ctx := t.Context()
+	queueURL := "myQueue"
+	queueReference := "receipt-handle"
+
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("DeleteMessage", ctx, mock.AnythingOfType("*sqs.DeleteMessageInput"), mock.Anything).
+		Run(func(args mock.Arguments) {
+			input, ok := args.Get(1).(*sqs.DeleteMessageInput)
+
+			require.True(t, ok)
+			assert.Equal(t, queueURL, *input.QueueUrl)
+			assert.Equal(t, queueReference, *input.ReceiptHandle)
+		}).
+		Return(&sqs.DeleteMessageOutput{}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	err := queue.DeleteMessage(ctx, queueReference)
+
+	require.NoError(t, err)
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDeleteMessageEmptyQueueReference(t *testing.T) {
+	mockConfig := new(MockConfig)
+	mockQueue := new(MockBatchQueue)
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+
+	err := queue.DeleteMessage(t.Context(), "")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "queueReference was empty")
+	mockConfig.AssertNotCalled(t, "GetQueueURL")
+	mockQueue.AssertNotCalled(t, "DeleteMessage", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeleteMessageError(t *testing.T) {
+	ctx := t.Context()
+	queueURL := "myQueue"
+	queueReference := "receipt-handle"
+
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+
+	expectedErr := errors.New("failed to delete message")
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("DeleteMessage", ctx, mock.AnythingOfType("*sqs.DeleteMessageInput"), mock.Anything).
+		Return(nil, expectedErr).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	err := queue.DeleteMessage(ctx, queueReference)
+
+	assert.Equal(t, expectedErr, err)
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
 // MOCKS
 
 // Compile Time Interface Assertions
@@ -151,6 +383,26 @@ func (m *MockBatchQueue) SendMessage(ctx context.Context, params *sqs.SendMessag
 	sendMessageOutput := args.Get(0)
 	if sendMessageOutput != nil {
 		return args.Get(0).(*sqs.SendMessageOutput), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
+func (m *MockBatchQueue) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+	args := m.Called(ctx, params, optFns)
+
+	if args.Get(0) != nil {
+		return args.Get(0).(*sqs.ReceiveMessageOutput), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
+func (m *MockBatchQueue) DeleteMessage(ctx context.Context, params *sqs.DeleteMessageInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error) {
+	args := m.Called(ctx, params, optFns)
+
+	if args.Get(0) != nil {
+		return args.Get(0).(*sqs.DeleteMessageOutput), args.Error(1)
 	}
 
 	return nil, args.Error(1)
