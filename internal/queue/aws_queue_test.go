@@ -163,8 +163,47 @@ func TestDequeueNilBody(t *testing.T) {
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
-	assert.Nil(t, result)
+	require.NotNil(t, result)
+	require.NotNil(t, result.QueueReference)
+
 	assert.Contains(t, err.Error(), "message body was nil")
+	assert.Equal(t, receiptHandle, *result.QueueReference)
+
+	mockConfig.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestDequeueInvalidJSON(t *testing.T) {
+	ctx := t.Context()
+	messageBody := "invalid JSON"
+	receiptHandle := "handle1"
+
+	queueURL := "myQueue"
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetQueueURL").Return(queueURL).Once()
+	mockConfig.On("GetQueuePollingTime").Return(int32(20)).Once()
+
+	mockQueue := new(MockBatchQueue)
+	mockQueue.
+		On("ReceiveMessage", ctx, mock.AnythingOfType("*sqs.ReceiveMessageInput"), mock.Anything).
+		Return(&sqs.ReceiveMessageOutput{
+			Messages: []types.Message{
+				{
+					Body:          &messageBody,
+					ReceiptHandle: &receiptHandle,
+				},
+			},
+		}, nil).
+		Once()
+
+	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	result, err := queue.Dequeue(ctx)
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.QueueReference)
+
+	assert.Equal(t, receiptHandle, *result.QueueReference)
 
 	mockConfig.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)

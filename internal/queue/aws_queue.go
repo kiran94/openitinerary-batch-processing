@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 
@@ -77,9 +79,10 @@ type DequeueResult struct {
 
 func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	result, err := q.Queue.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-		QueueUrl:            new(q.config.GetQueueURL()),
-		MaxNumberOfMessages: 1,
-		WaitTimeSeconds:     q.config.GetQueuePollingTime(),
+		QueueUrl:                new(q.config.GetQueueURL()),
+		MaxNumberOfMessages:     1,
+		WaitTimeSeconds:         q.config.GetQueuePollingTime(),
+		ReceiveRequestAttemptId: new(uuid.NewString()),
 	})
 
 	if err != nil {
@@ -91,20 +94,28 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	}
 
 	message := result.Messages[0]
-	if message.Body == nil {
-		return nil, errors.New("message body was nil")
-	}
-
 	if message.ReceiptHandle == nil {
 		return nil, errors.New("receipt handle was nil")
 	}
 
-	ticket := new(job.Ticket)
-	if err := json.Unmarshal([]byte(*message.Body), ticket); err != nil {
-		return nil, err
+	// Preserve the receipt handle when the body is malformed so the worker can
+	// delete the message instead of allowing it to retry until retention.
+	dequeueResult := &DequeueResult{
+		QueueReference: message.ReceiptHandle,
 	}
 
-	return &DequeueResult{*ticket, message.ReceiptHandle}, nil
+	if message.Body == nil {
+		err := errors.New("message body was nil")
+		fmt.Printf("failed to decode SQS message %s: %v\n", aws.ToString(message.MessageId), err)
+		return dequeueResult, err
+	}
+
+	if err := json.Unmarshal([]byte(*message.Body), &dequeueResult.Result); err != nil {
+		fmt.Printf("failed to decode SQS message %s: %v\n", aws.ToString(message.MessageId), err)
+		return dequeueResult, err
+	}
+
+	return dequeueResult, nil
 }
 
 func (q *Queue) DeleteMessage(ctx context.Context, queueReference string) error {
