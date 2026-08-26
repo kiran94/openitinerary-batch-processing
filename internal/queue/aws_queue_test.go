@@ -17,6 +17,8 @@ import (
 
 func TestNewQueue(t *testing.T) {
 	mockConfig := MockConfig{}
+	mockConfig.On("GetQueueURL").Return("my_queue")
+
 	queue, err := NewQueue(t.Context(), &mockConfig)
 
 	require.NoError(t, err)

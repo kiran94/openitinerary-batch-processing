@@ -31,6 +31,9 @@ func NewQueue(ctx context.Context, c config.Config) (BatchQueue, error) {
 		return nil, err
 	}
 
+	// ensure that the queue URL is present
+	_ = c.GetQueueURL()
+
 	client := sqs.NewFromConfig(con)
 	return &Queue{Queue: client, config: c}, nil
 }
