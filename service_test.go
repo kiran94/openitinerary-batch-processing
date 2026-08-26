@@ -291,6 +291,15 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 	queueError := errors.New("enqueue error")
 	mockQueue.On("Enqueue", mock.Anything).Return(queueError).Once()
+	mockJobCreator.
+		On(
+			"MarkFailed",
+			mock.AnythingOfType("uuid.UUID"),
+			job.EnqueueFailed,
+			"enqueue failed. err: enqueue error",
+		).
+		Return(true, nil).
+		Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
@@ -550,6 +559,11 @@ func (m *MockJobCreator) Get(id uuid.UUID) (*job.Ticket, error) {
 	}
 
 	return ticket, args.Error(1)
+}
+
+func (m *MockJobCreator) MarkFailed(id uuid.UUID, reason job.TicketStatusReason, detail string) (bool, error) {
+	args := m.Called(id, reason, detail)
+	return args.Bool(0), args.Error(1)
 }
 
 type MockBatchQueue struct {

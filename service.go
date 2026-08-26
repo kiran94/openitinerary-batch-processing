@@ -102,6 +102,14 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.queue.Enqueue(r.Context(), ticket); err != nil {
+		detail := fmt.Sprintf("enqueue failed. err: %v", err)
+		updated, updateErr := s.job.MarkFailed(ticket.ID, job.EnqueueFailed, detail)
+		if updateErr != nil {
+			log.Printf("enqueue of ticket %v failed. Attempted to mark the ticket failed: err: %v", ticket.ID.String(), updateErr)
+		} else if !updated {
+			log.Printf("enqueue of ticket %v failed, but its status was no longer queued", ticket.ID.String())
+		}
+
 		obscureError(w, ticket, err, "submit")
 		return
 	}

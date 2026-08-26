@@ -2,6 +2,7 @@ package job
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -9,12 +10,14 @@ import (
 
 type JobCreator interface {
 	Create(j *Ticket) error
+	MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error)
 	Get(id uuid.UUID) (*Ticket, error)
 }
 
 type Database interface {
 	Create(value interface{}) (tx *gorm.DB)
 	Find(dest interface{}, conditions ...interface{}) (tx *gorm.DB)
+	Model(value interface{}) (tx *gorm.DB)
 }
 
 func NewJobService(db Database) JobCreator {
@@ -31,6 +34,39 @@ func (r *JobService) Create(ticket *Ticket) error {
 	}
 
 	return nil
+}
+
+var ErrUnsupportedTicketStatusReason = errors.New("unsupported ticket status reason")
+
+func (r *JobService) MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error) {
+	switch reason {
+	case EnqueueFailed:
+		return r.markEnqueueFailed(id, detail)
+	default:
+		return false, fmt.Errorf("%w: %s", ErrUnsupportedTicketStatusReason, reason)
+	}
+}
+
+// markEnqueueFailed atomically transitions a queued ticket to failed. The
+// conditional partial update avoids Save overwriting a newer status set by a
+// worker that may have received the message before the enqueue error returned.
+// On the queue side, it's possible for an acknowledgement to be lost even
+// if the message was actually submitted to the queue.
+func (r *JobService) markEnqueueFailed(id uuid.UUID, detail string) (bool, error) {
+
+	result := r.db.
+		Model(&Ticket{}).
+		Where("id = ? AND status = ?", id, Queued).
+		Updates(map[string]interface{}{
+			"status":        Failed,
+			"status_reason": EnqueueFailed,
+			"error":         detail,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected == 1, nil
 }
 
 var ErrRecordNotFound = errors.New("record not found")

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,10 @@ func (m *MockDatabase) Find(dest interface{}, conditions ...interface{}) (tx *go
 	mockArgs := append([]interface{}{dest}, conditions...)
 	args := m.Called(mockArgs...)
 	return args.Get(0).(*gorm.DB)
+}
+
+func (m *MockDatabase) Model(value interface{}) (tx *gorm.DB) {
+	return m.Called(value).Get(0).(*gorm.DB).Model(value)
 }
 
 func TestNewJobService(t *testing.T) {
@@ -57,6 +62,101 @@ func TestJobServiceCreateError(t *testing.T) {
 
 	assert.Equal(t, simulatedErr, err)
 	mockDatabase.AssertExpectations(t)
+}
+
+func TestJobServiceMarkFailedEnqueueFailed(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	detail := "enqueue failed. err: simulated"
+
+	db := newInMemoryDatabase(t)
+	ticket := NewTicket()
+	ticket.ID = id
+	require.NoError(t, db.Create(ticket).Error)
+
+	jobService := NewJobService(db)
+	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+
+	var updatedTicket Ticket
+	require.NoError(t, db.First(&updatedTicket, "id = ?", id).Error)
+
+	require.NotNil(t, updatedTicket.StatusReason)
+	require.NotNil(t, updatedTicket.Error)
+
+	assert.Equal(t, EnqueueFailed, *updatedTicket.StatusReason)
+	assert.Equal(t, detail, *updatedTicket.Error)
+	assert.Equal(t, Failed, updatedTicket.Status)
+}
+
+func TestJobServiceMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	detail := "enqueue failed. err: simulated"
+
+	db := newInMemoryDatabase(t)
+	ticket := NewTicket()
+	ticket.ID = id
+	// Simulate a worker claiming the ticket before enqueue reports an error.
+	ticket.Status = Processing
+	require.NoError(t, db.Create(ticket).Error)
+
+	jobService := NewJobService(db)
+	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+
+	var unchangedTicket Ticket
+	require.NoError(t, db.First(&unchangedTicket, "id = ?", id).Error)
+	assert.Equal(t, Processing, unchangedTicket.Status)
+	assert.Nil(t, unchangedTicket.StatusReason)
+	assert.Nil(t, unchangedTicket.Error)
+}
+
+func TestJobServiceMarkFailedEnqueueFailedError(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	detail := "enqueue failed. err: simulated"
+	db := newInMemoryDatabase(t)
+	// Remove the schema to make the conditional update return a database error.
+	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
+
+	jobService := NewJobService(db)
+	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+
+	require.Error(t, err)
+	assert.False(t, updated)
+}
+
+func TestJobServiceMarkFailedUnsupportedReason(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	// Use an unregistered reason to verify it is rejected before database access.
+	reason := TicketStatusReason("unsupported")
+
+	m := MockDatabase{}
+	jobService := NewJobService(&m)
+	updated, err := jobService.MarkFailed(id, reason, "simulated")
+
+	require.ErrorIs(t, err, ErrUnsupportedTicketStatusReason)
+	assert.False(t, updated)
+	m.AssertNotCalled(t, "Model", mock.Anything)
+}
+
+func newInMemoryDatabase(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	dsn := "file:" + uuid.NewString() + "?mode=memory&cache=shared"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Ticket{}))
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
+
+	return db
 }
 
 func TestJobServiceGetError(t *testing.T) {
