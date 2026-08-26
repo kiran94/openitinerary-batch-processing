@@ -13,21 +13,28 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
+
 	db, err := internal.ConnectDatabase()
 	if err != nil {
 		panic(err)
 	}
 
-	s3, err := storage.NewAWSS3Storage(context.Background())
+	s3, err := storage.NewAWSS3Storage(ctx)
 	if err != nil {
 		panic(err)
 	}
 
 	config := config.ApplicationConfig{}
+	batchQueue, err := queue.NewQueue(ctx, config)
+	if err != nil {
+		panic(err)
+	}
+
 	service := ServiceV1{
 		config:  config,
 		job:     job.NewJobService(db),
-		queue:   queue.NewInMemoryQueue(),
+		queue:   batchQueue,
 		storage: s3,
 	}
 

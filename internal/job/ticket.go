@@ -8,10 +8,13 @@ import (
 )
 
 type Ticket struct {
-	ID           uuid.UUID    `json:"id"`
-	DocumentPath string       `json:"document_path"`
-	ContentType  string       `json:"content_type"`
-	Status       TicketStatus `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
+	ID           uuid.UUID `json:"id"`
+	DocumentPath string    `json:"document_path"`
+	ContentType  string    `json:"content_type"`
+
+	Status       TicketStatus        `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
+	StatusReason *TicketStatusReason `json:"status_reason,omitempty" gorm:"type:varchar(32)"`
+	Error        *string             `json:"-" gorm:"type:text"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -24,6 +27,14 @@ const (
 	Processing TicketStatus = "processing"
 	Complete   TicketStatus = "complete"
 	Failed     TicketStatus = "failed"
+)
+
+type TicketStatusReason string
+
+const (
+
+	// FAILED REASONS
+	EnqueueFailed TicketStatusReason = "enqueue_failed"
 )
 
 func NewTicket() *Ticket {
