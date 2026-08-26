@@ -74,3 +74,9 @@ func TestApplicationConfigGetQueueURLUnset(t *testing.T) {
 		ac.GetQueueURL()
 	})
 }
+
+func TestApplicationConfigQueueDefaults(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, int32(20), config.GetQueuePollingTime())
+}

@@ -22,6 +22,7 @@ type Config interface {
 	GetOutputPath(bucket, bucketPath, jobId string) string
 
 	GetQueueURL() string
+	GetQueuePollingTime() int32
 }
 
 type ApplicationConfig struct{}
@@ -72,6 +73,10 @@ func (ac ApplicationConfig) GetQueueURL() string {
 		panic("SQS_QUEUE_URL must be set")
 	}
 	return url
+}
+
+func (ac ApplicationConfig) GetQueuePollingTime() int32 {
+	return 20
 }
 
 func GetEnvOrDefault(envVarName, defaultValue string) string {

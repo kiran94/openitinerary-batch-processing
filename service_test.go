@@ -542,6 +542,10 @@ func (m *MockConfig) GetQueueURL() string {
 	return m.Called().String()
 }
 
+func (m *MockConfig) GetQueuePollingTime() int32 {
+	return m.Called().Get(0).(int32)
+}
+
 type MockJobCreator struct {
 	mock.Mock
 }
@@ -572,6 +576,21 @@ type MockBatchQueue struct {
 
 func (m *MockBatchQueue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 	return m.Called(ticket).Error(0)
+}
+
+func (m *MockBatchQueue) Dequeue(ctx context.Context) (*queue.DequeueResult, error) {
+	args := m.Called(ctx)
+
+	if value := args.Get(0); value != nil {
+		return value.(*queue.DequeueResult), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
+func (m *MockBatchQueue) DeleteMessage(ctx context.Context, queueReference string) error {
+	args := m.Called(ctx, queueReference)
+	return args.Error(0)
 }
 
 type MockStorage struct {
