@@ -7,6 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestApplicationConfigGetEnvironment(t *testing.T) {
+	t.Setenv("ENV", "production")
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "production", config.GetEnvironment())
+}
+
+func TestApplicationConfigGetEnvironmentUnset(t *testing.T) {
+	t.Setenv("ENV", "")
+	config := ApplicationConfig{}
+
+	assert.Empty(t, config.GetEnvironment())
+}
+
 func TestApplicationConfigServerDefaults(t *testing.T) {
 	config := ApplicationConfig{}
 

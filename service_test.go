@@ -498,6 +498,10 @@ type MockConfig struct {
 	mock.Mock
 }
 
+func (m *MockConfig) GetEnvironment() string {
+	return m.Called().String(0)
+}
+
 func (m *MockConfig) GetPort() string {
 	return m.Called().String(0)
 }
