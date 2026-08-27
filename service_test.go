@@ -502,16 +502,6 @@ type MockConfig struct {
 	mock.Mock
 }
 
-type MockLogger struct{}
-
-func (m *MockLogger) Debug(message string, args ...any) {}
-
-func (m *MockLogger) Info(message string, args ...any) {}
-
-func (m *MockLogger) Warn(message string, args ...any) {}
-
-func (m *MockLogger) Error(message string, args ...any) {}
-
 func (m *MockConfig) GetEnvironment() string {
 	return m.Called().String(0)
 }
@@ -618,3 +608,13 @@ type MockStorage struct {
 func (m *MockStorage) Write(ctx context.Context, reader io.ReadCloser, output string) error {
 	return m.Called(ctx, reader, output).Error(0)
 }
+
+type MockLogger struct{}
+
+func (m *MockLogger) Debug(message string, args ...any) {}
+
+func (m *MockLogger) Info(message string, args ...any) {}
+
+func (m *MockLogger) Warn(message string, args ...any) {}
+
+func (m *MockLogger) Error(message string, args ...any) {}

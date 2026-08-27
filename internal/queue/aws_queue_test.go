@@ -371,16 +371,6 @@ type MockConfig struct {
 	mock.Mock
 }
 
-type MockLogger struct{}
-
-func (m *MockLogger) Debug(message string, args ...any) {}
-
-func (m *MockLogger) Info(message string, args ...any) {}
-
-func (m *MockLogger) Warn(message string, args ...any) {}
-
-func (m *MockLogger) Error(message string, args ...any) {}
-
 func (m *MockConfig) GetEnvironment() string {
 	return m.Called().String(0)
 }
@@ -471,3 +461,13 @@ func (m *MockBatchQueue) DeleteMessage(ctx context.Context, params *sqs.DeleteMe
 
 	return nil, args.Error(1)
 }
+
+type MockLogger struct{}
+
+func (m *MockLogger) Debug(message string, args ...any) {}
+
+func (m *MockLogger) Info(message string, args ...any) {}
+
+func (m *MockLogger) Warn(message string, args ...any) {}
+
+func (m *MockLogger) Error(message string, args ...any) {}
