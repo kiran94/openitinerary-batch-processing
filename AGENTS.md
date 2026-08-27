@@ -13,6 +13,7 @@ The README is the canonical source for project context. This document only conta
 * When creating or modifying unit tests, add comments only for non-obvious setup that is essential to the scenario, such as simulating a concurrent worker state, deliberately forcing a dependency failure, or supplying an unsupported value to verify rejection before a side effect.
 * Place the comment immediately above the meaningful setup line and explain why the setup exists. Do not restate what the code already says.
 * Do not comment routine test construction, mock configuration, method calls, or assertions when the test name and code make their purpose clear.
+* Use UTC for timestamps created or persisted by application code.
 
 # Restricted Operations
 
