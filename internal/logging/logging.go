@@ -16,6 +16,15 @@ type Logger interface {
 	Error(message string, args ...any)
 }
 
+type Component string
+
+const (
+	ComponentDatabase Component = "database"
+	ComponentHTTP     Component = "http"
+	ComponentQueue    Component = "queue"
+	ComponentStorage  Component = "storage"
+)
+
 type SlogLogger struct {
 	logger *slog.Logger
 }

@@ -66,7 +66,7 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -88,7 +88,7 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 	// Skip adding the content type to make this an invalid multipart form
 	// request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -112,7 +112,7 @@ func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -137,7 +137,7 @@ func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -162,7 +162,7 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -182,7 +182,7 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -211,6 +211,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 	service := ServiceV1{
 		config:  mockConfig,
+		logger:  &MockLogger{},
 		storage: mockStorage,
 	}
 
@@ -253,6 +254,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	service := ServiceV1{
 		config:  mockConfig,
 		job:     mockJobCreator,
+		logger:  &MockLogger{},
 		storage: mockStorage,
 	}
 
@@ -304,6 +306,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	service := ServiceV1{
 		config:  mockConfig,
 		job:     mockJobCreator,
+		logger:  &MockLogger{},
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
@@ -387,6 +390,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	service := ServiceV1{
 		config:  mockConfig,
 		job:     mockJobCreator,
+		logger:  &MockLogger{},
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
@@ -497,6 +501,16 @@ var (
 type MockConfig struct {
 	mock.Mock
 }
+
+type MockLogger struct{}
+
+func (m *MockLogger) Debug(message string, args ...any) {}
+
+func (m *MockLogger) Info(message string, args ...any) {}
+
+func (m *MockLogger) Warn(message string, args ...any) {}
+
+func (m *MockLogger) Error(message string, args ...any) {}
 
 func (m *MockConfig) GetEnvironment() string {
 	return m.Called().String(0)

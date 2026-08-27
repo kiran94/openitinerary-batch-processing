@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -24,6 +24,7 @@ type BatchQueue interface {
 type Queue struct {
 	Queue  Queuer
 	config config.Config
+	logger logging.Logger
 }
 
 type Queuer interface {
@@ -32,7 +33,7 @@ type Queuer interface {
 	DeleteMessage(ctx context.Context, params *sqs.DeleteMessageInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
 }
 
-func NewQueue(ctx context.Context, c config.Config) (BatchQueue, error) {
+func NewQueue(ctx context.Context, c config.Config, logger logging.Logger) (BatchQueue, error) {
 	con, err := awsConfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func NewQueue(ctx context.Context, c config.Config) (BatchQueue, error) {
 	_ = c.GetQueueURL()
 
 	client := sqs.NewFromConfig(con)
-	return &Queue{Queue: client, config: c}, nil
+	return &Queue{Queue: client, config: c, logger: logger}, nil
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
@@ -64,7 +65,12 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 		return err
 	}
 
-	fmt.Printf("Submitted Job %v with Message Id: %v", ticket.ID, *result.MessageId)
+	q.logger.Debug(
+		"queue enqueue succeeded",
+		"component", logging.ComponentQueue,
+		"ticket_id", ticket.ID.String(),
+		"queue_message_id", aws.ToString(result.MessageId),
+	)
 	return nil
 }
 
@@ -95,7 +101,15 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 
 	message := result.Messages[0]
 	if message.ReceiptHandle == nil {
-		return nil, errors.New("receipt handle was nil")
+		err := errors.New("receipt handle was nil")
+		q.logger.Error(
+			"queue message invalid",
+			"component", logging.ComponentQueue,
+			"message_id", aws.ToString(message.MessageId),
+			"reason", "nil_receipt_handle",
+			"error", err,
+		)
+		return nil, err
 	}
 
 	// Preserve the receipt handle when the body is malformed so the worker can
@@ -106,12 +120,24 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 
 	if message.Body == nil {
 		err := errors.New("message body was nil")
-		fmt.Printf("failed to decode SQS message %s: %v\n", aws.ToString(message.MessageId), err)
+		q.logger.Error(
+			"queue message invalid",
+			"component", logging.ComponentQueue,
+			"message_id", aws.ToString(message.MessageId),
+			"reason", "nil_body",
+			"error", err,
+		)
 		return dequeueResult, err
 	}
 
 	if err := json.Unmarshal([]byte(*message.Body), &dequeueResult.Result); err != nil {
-		fmt.Printf("failed to decode SQS message %s: %v\n", aws.ToString(message.MessageId), err)
+		q.logger.Error(
+			"queue message invalid",
+			"component", logging.ComponentQueue,
+			"message_id", aws.ToString(message.MessageId),
+			"reason", "invalid_json",
+			"error", err,
+		)
 		return dequeueResult, err
 	}
 

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"mime"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 )
@@ -18,6 +19,7 @@ import (
 type ServiceV1 struct {
 	config  config.Config
 	job     job.JobCreator
+	logger  logging.Logger
 	queue   queue.BatchQueue
 	storage storage.Storage
 }
@@ -35,6 +37,7 @@ type ServiceV1 struct {
 // @Failure      500  {string}  string  "Document submission failed"
 // @Router       /api/v1/submit [post]
 func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
+	startedAt := time.Now().UTC()
 	defer r.Body.Close()
 
 	r.Body = http.MaxBytesReader(w, r.Body, s.config.GetMaximumAllowedRequestSizeMb())
@@ -52,7 +55,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := r.MultipartForm.RemoveAll()
 		if err != nil {
-			log.Println(err.Error())
+			s.logger.Warn("multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", "multipart_cleanup", "error", err)
 		}
 	}()
 
@@ -92,12 +95,14 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket.ContentType = contentType
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
-		obscureError(w, ticket, err, "submit")
+		s.logger.Error("document storage failed", "component", logging.ComponentStorage, "ticket_id", ticket.ID.String(), "content_type", contentType, "error", err)
+		obscureError(w, "submit")
 		return
 	}
 
 	if err := s.job.Create(ticket); err != nil {
-		obscureError(w, ticket, err, "submit")
+		s.logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "error", err)
+		obscureError(w, "submit")
 		return
 	}
 
@@ -105,18 +110,22 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
 		updated, updateErr := s.job.MarkFailed(ticket.ID, job.EnqueueFailed, detail)
 		if updateErr != nil {
-			log.Printf("enqueue of ticket %v failed. Attempted to mark the ticket failed: err: %v", ticket.ID.String(), updateErr)
+			s.logger.Error("ticket failure update failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed, "error", updateErr)
 		} else if !updated {
-			log.Printf("enqueue of ticket %v failed, but its status was no longer queued", ticket.ID.String())
+			s.logger.Warn("ticket failure update skipped", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed)
+		} else {
+			s.logger.Info("ticket marked failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed)
 		}
 
-		obscureError(w, ticket, err, "submit")
+		s.logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "ticket_id", ticket.ID.String(), "error", err)
+		obscureError(w, "submit")
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		obscureError(w, ticket, err, "submit")
+		s.logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "error", err)
+		obscureError(w, "submit")
 		return
 	}
 
@@ -124,8 +133,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 
 	if _, err := w.Write(responseBody); err != nil {
-		log.Printf("failed to write response ticket_id=%s: %v", ticket.ID, err)
+		s.logger.Warn("response write failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "status_code", http.StatusAccepted, "error", err)
+		return
 	}
+
+	s.logger.Info("submit accepted", "ticket_id", ticket.ID.String(), "content_type", contentType, "status", ticket.Status, "status_code", http.StatusAccepted, "duration_ms", time.Since(startedAt).Milliseconds())
 }
 
 // status retrieves the current processing state of a ticket.
@@ -158,19 +170,20 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketID), http.StatusNotFound)
 		} else {
-			obscureError(w, ticketIDParsed, err, "status")
+			s.logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "ticket_id", ticketIDParsed.String(), "error", err)
+			obscureError(w, "status")
 		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(&ticket); err != nil {
-		obscureError(w, ticket, err, "status")
+		s.logger.Error("ticket status response encoding failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "error", err)
+		obscureError(w, "status")
 		return
 	}
 }
 
-func obscureError[T fmt.Stringer](w http.ResponseWriter, obj T, err error, errorSource string) {
-	log.Printf("failed to perform operation '%v', object: '%v', err: '%v'", errorSource, obj, err)
+func obscureError(w http.ResponseWriter, errorSource string) {
 	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
 }
