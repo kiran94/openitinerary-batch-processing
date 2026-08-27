@@ -7,6 +7,7 @@ import (
 )
 
 type Config interface {
+	GetEnvironment() string
 	GetPort() string
 
 	GetServerReadTimeout() time.Duration
@@ -26,6 +27,10 @@ type Config interface {
 }
 
 type ApplicationConfig struct{}
+
+func (ac ApplicationConfig) GetEnvironment() string {
+	return os.Getenv("ENV")
+}
 
 func (ac ApplicationConfig) GetPort() string {
 	return ":8080"

@@ -20,7 +20,7 @@ func TestNewQueue(t *testing.T) {
 	mockConfig := MockConfig{}
 	mockConfig.On("GetQueueURL").Return("my_queue")
 
-	queue, err := NewQueue(t.Context(), &mockConfig)
+	queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
 
 	require.NoError(t, err)
 	assert.NotNil(t, queue)
@@ -47,7 +47,7 @@ func TestEnqueue(t *testing.T) {
 		Return(&sqs.SendMessageOutput{MessageId: new("message-id")}, nil).
 		Once()
 
-	batchQueue := &Queue{Queue: mockQueue, config: mockConfig}
+	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	err = batchQueue.Enqueue(ctx, ticket)
 
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestEnqueueSendMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	batchQueue := &Queue{Queue: mockQueue, config: mockConfig}
+	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	err := batchQueue.Enqueue(ctx, ticket)
 
 	assert.Equal(t, expectedErr, err)
@@ -123,7 +123,7 @@ func TestDequeue(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestDequeueNilBody(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -196,7 +196,7 @@ func TestDequeueInvalidJSON(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -235,7 +235,7 @@ func TestDequeueNilReceiptHandle(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -261,7 +261,7 @@ func TestDequeueReceiveMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	assert.Nil(t, result)
@@ -285,7 +285,7 @@ func TestDequeueEmptyQueue(t *testing.T) {
 		Return(&sqs.ReceiveMessageOutput{}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	result, err := queue.Dequeue(ctx)
 
 	require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestDeleteMessage(t *testing.T) {
 		Return(&sqs.DeleteMessageOutput{}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	err := queue.DeleteMessage(ctx, queueReference)
 
 	require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestDeleteMessage(t *testing.T) {
 func TestDeleteMessageEmptyQueueReference(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockQueue := new(MockBatchQueue)
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 
 	err := queue.DeleteMessage(t.Context(), "")
 
@@ -352,7 +352,7 @@ func TestDeleteMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 	err := queue.DeleteMessage(ctx, queueReference)
 
 	assert.Equal(t, expectedErr, err)
@@ -369,6 +369,10 @@ var (
 
 type MockConfig struct {
 	mock.Mock
+}
+
+func (m *MockConfig) GetEnvironment() string {
+	return m.Called().String(0)
 }
 
 func (m *MockConfig) GetPort() string {
@@ -457,3 +461,13 @@ func (m *MockBatchQueue) DeleteMessage(ctx context.Context, params *sqs.DeleteMe
 
 	return nil, args.Error(1)
 }
+
+type MockLogger struct{}
+
+func (m *MockLogger) Debug(message string, args ...any) {}
+
+func (m *MockLogger) Info(message string, args ...any) {}
+
+func (m *MockLogger) Warn(message string, args ...any) {}
+
+func (m *MockLogger) Error(message string, args ...any) {}
