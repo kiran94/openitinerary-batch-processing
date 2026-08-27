@@ -36,7 +36,17 @@ func New(config config.Config) Logger {
 func newLogger(output io.Writer, environment string) Logger {
 	var handler slog.Handler
 	if environment == "production" {
-		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{Level: slog.LevelInfo})
+		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
+				// Ensure that Production logs always output in UTC time.
+				if attr.Key == slog.TimeKey {
+					return slog.Time(slog.TimeKey, attr.Value.Time().UTC())
+				}
+
+				return attr
+			},
+		})
 	} else {
 		handler = tint.NewTextHandler(output, &tint.Options{Level: slog.LevelDebug})
 	}
