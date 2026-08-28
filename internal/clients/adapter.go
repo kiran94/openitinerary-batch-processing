@@ -14,7 +14,7 @@ import (
 )
 
 type Adapter interface {
-	Convert(ctx context.Context, document io.Reader, filename string, contentType string, w io.WriteCloser) error
+	Convert(ctx context.Context, document io.Reader, filename string, contentType string) (io.ReadCloser, error)
 }
 
 type AdapterClient struct {
@@ -36,13 +36,9 @@ func NewAdapterClient(http *http.Client) Adapter {
 // complete, or passes along an error if reading the document fails.
 //
 // document reader → multipart writer → io.Pipe → HTTP client → Adapter API
-func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string, w io.WriteCloser) (err error) {
-	defer func() {
-		err = errors.Join(err, w.Close())
-	}()
-
+func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (w io.ReadCloser, err error) {
 	if document == nil {
-		return errors.New("document was nil")
+		return nil, errors.New("document was nil")
 	}
 
 	readerBuffer, writerBuffer := io.Pipe()
@@ -52,7 +48,7 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 	if err != nil {
 		_ = readerBuffer.Close()
 		_ = writerBuffer.Close()
-		return err
+		return nil, err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -73,33 +69,23 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 	uploadErr := <-uploadDone
 
 	if requestErr != nil {
-		if response != nil {
-			_ = response.Body.Close()
-		}
-
 		if uploadErr != nil && !errors.Is(uploadErr, io.ErrClosedPipe) {
-			return uploadErr
+			return nil, uploadErr
 		}
 
-		return requestErr
+		return nil, requestErr
 	}
-	defer func() {
-		err = errors.Join(err, response.Body.Close())
-	}()
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+		return nil, fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
 	}
 
 	if uploadErr != nil {
-		return uploadErr
+		return nil, uploadErr
 	}
 
-	if _, err := io.Copy(w, response.Body); err != nil {
-		return err
-	}
-
-	return nil
+	w = response.Body
+	return w, nil
 }
 
 func writeMultipart(writer *multipart.Writer, document io.Reader, filename string, contentType string) error {

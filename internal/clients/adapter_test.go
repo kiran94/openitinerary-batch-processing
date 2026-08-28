@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -20,16 +19,6 @@ type failingDocumentReader struct{}
 
 func (failingDocumentReader) Read([]byte) (int, error) {
 	return 0, errDocumentRead
-}
-
-type trackingWriteCloser struct {
-	bytes.Buffer
-	closed bool
-}
-
-func (w *trackingWriteCloser) Close() error {
-	w.closed = true
-	return nil
 }
 
 func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
@@ -57,8 +46,11 @@ func TestNewAdapterClient(t *testing.T) {
 func TestConvertNilDocument(t *testing.T) {
 	adapter := newAdapterTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
 
-	err := adapter.Convert(context.Background(), nil, "filename", "contentType", &trackingWriteCloser{})
-	assert.Error(t, err, "document was nil")
+	response, err := adapter.Convert(context.Background(), nil, "filename", "contentType")
+
+	require.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "document was nil")
 }
 
 func TestConvertStatusCodeNotOk(t *testing.T) {
@@ -71,8 +63,10 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 	})
 
 	mockDocument := strings.NewReader("mock")
-	err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType", &trackingWriteCloser{})
-	assert.Error(t, err)
+	response, err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType")
+
+	require.Error(t, err)
+	assert.Nil(t, response)
 }
 
 func TestConvertStatusCodeOk(t *testing.T) {
@@ -104,19 +98,20 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	result := &trackingWriteCloser{}
-	err := adapter.Convert(
+	response, err := adapter.Convert(
 		context.Background(),
 		strings.NewReader("PDF contents"),
 		"example.pdf",
 		"application/pdf",
-		result,
 	)
 
 	require.NoError(t, err)
+	require.NotNil(t, response)
+	defer response.Close()
 
-	assert.JSONEq(t, `[{"type":"flight"}]`, result.String())
-	assert.True(t, result.closed)
+	result, err := io.ReadAll(response)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"type":"flight"}]`, string(result))
 }
 
 func TestConvertDocumentReadError(t *testing.T) {
@@ -128,15 +123,13 @@ func TestConvertDocumentReadError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	result := &trackingWriteCloser{}
-	err := adapter.Convert(
+	response, err := adapter.Convert(
 		context.Background(),
 		failingDocumentReader{},
 		"example.pdf",
 		"application/pdf",
-		result,
 	)
 
 	require.ErrorIs(t, err, errDocumentRead)
-	assert.True(t, result.closed)
+	assert.Nil(t, response)
 }
