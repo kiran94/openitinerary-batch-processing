@@ -18,14 +18,14 @@ type Adapter interface {
 }
 
 type AdapterClient struct {
-	adapter_api_url string
-	http            *http.Client
+	adapterAPIURL string
+	http          *http.Client
 }
 
 func NewAdapterClient(http *http.Client) Adapter {
 	return &AdapterClient{
-		adapter_api_url: getAdapterApiUrl(),
-		http:            http,
+		adapterAPIURL: getAdapterAPIURL(),
+		http:          http,
 	}
 }
 
@@ -44,7 +44,7 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 	readerBuffer, writerBuffer := io.Pipe()
 	writer := multipart.NewWriter(writerBuffer)
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.adapter_api_url, readerBuffer)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.adapterAPIURL, readerBuffer)
 	if err != nil {
 		_ = readerBuffer.Close()
 		_ = writerBuffer.Close()
@@ -121,12 +121,12 @@ func writeMultipart(writer *multipart.Writer, document io.Reader, filename strin
 	return writer.Close()
 }
 
-func getAdapterApiUrl() string {
-	const ADAPTER_API = "http://127.0.0.1:8000/api/v1/adapt/segment"
+func getAdapterAPIURL() string {
+	const AdapterAPI = "http://127.0.0.1:8000/api/v1/adapt/segment"
 
 	value := os.Getenv("ADAPTER_API_URL")
 	if value == "" {
-		return ADAPTER_API
+		return AdapterAPI
 	}
 
 	return value

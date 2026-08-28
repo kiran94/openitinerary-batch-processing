@@ -42,7 +42,7 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 
 func newAdapterResponseClient(statusCode int, responseBody io.ReadCloser) Adapter {
 	return &AdapterClient{
-		adapter_api_url: "http://adapter.test",
+		adapterAPIURL: "http://adapter.test",
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				defer request.Body.Close()
@@ -66,7 +66,7 @@ func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 	t.Cleanup(server.Close)
 
 	return &AdapterClient{
-		adapter_api_url: server.URL,
+		adapterAPIURL: server.URL,
 		http:            server.Client(),
 	}
 }
@@ -109,7 +109,7 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 
 func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 	adapter := &AdapterClient{
-		adapter_api_url: "http://adapter.test",
+		adapterAPIURL: "http://adapter.test",
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				_ = request.Body.Close()
