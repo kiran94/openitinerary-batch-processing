@@ -70,22 +70,31 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 
 	if requestErr != nil {
 		if uploadErr != nil && !errors.Is(uploadErr, io.ErrClosedPipe) {
-			return nil, uploadErr
+			return nil, closeResponseBody(response, uploadErr)
 		}
 
-		return nil, requestErr
+		return nil, closeResponseBody(response, requestErr)
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+		err := fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+		return nil, closeResponseBody(response, err)
 	}
 
 	if uploadErr != nil {
-		return nil, uploadErr
+		return nil, closeResponseBody(response, uploadErr)
 	}
 
 	w = response.Body
 	return w, nil
+}
+
+func closeResponseBody(response *http.Response, primaryErr error) error {
+	if response == nil || response.Body == nil {
+		return primaryErr
+	}
+
+	return errors.Join(primaryErr, response.Body.Close())
 }
 
 func writeMultipart(writer *multipart.Writer, document io.Reader, filename string, contentType string) error {

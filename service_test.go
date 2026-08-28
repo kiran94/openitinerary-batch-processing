@@ -357,7 +357,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	mockStorage.
 		On("Write", mock.Anything, mock.Anything, documentPath).
 		Run(func(args mock.Arguments) {
-			reader := args.Get(1).(io.ReadCloser)
+			reader := args.Get(1).(io.Reader)
 			data, err := io.ReadAll(reader)
 			require.NoError(t, err)
 			assert.Equal(t, test.data, data)
@@ -605,15 +605,15 @@ type MockStorage struct {
 	mock.Mock
 }
 
-func (m *MockStorage) Write(ctx context.Context, reader io.ReadCloser, output string) error {
+func (m *MockStorage) Write(ctx context.Context, reader io.Reader, output string) error {
 	return m.Called(ctx, reader, output).Error(0)
 }
 
-func (m *MockStorage) Read(ctx context.Context, input string) (io.Reader, error) {
+func (m *MockStorage) Read(ctx context.Context, input string) (io.ReadCloser, error) {
 	args := m.Called(ctx, input)
 
 	if reader := args.Get(0); reader != nil {
-		return reader.(io.Reader), args.Error(1)
+		return reader.(io.ReadCloser), args.Error(1)
 	}
 
 	return nil, args.Error(1)

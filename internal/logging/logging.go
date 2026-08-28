@@ -23,6 +23,7 @@ const (
 	ComponentHTTP     Component = "http"
 	ComponentQueue    Component = "queue"
 	ComponentStorage  Component = "storage"
+	ComponentWorker   Component = "worker"
 )
 
 type SlogLogger struct {

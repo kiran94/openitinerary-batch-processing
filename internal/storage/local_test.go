@@ -30,6 +30,16 @@ type failingReadCloser struct {
 	closed bool
 }
 
+type trackingReadCloser struct {
+	io.Reader
+	closed bool
+}
+
+func (r *trackingReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
+
 func (r *failingReadCloser) Read([]byte) (int, error) {
 	return 0, r.err
 }
@@ -43,6 +53,7 @@ func TestNewLocalStorage(t *testing.T) {
 	storage := NewLocalStorage()
 
 	assert.NotNil(t, storage.createFile)
+	assert.NotNil(t, storage.openFile)
 }
 
 func TestLocalStorageWrite(t *testing.T) {
@@ -159,4 +170,45 @@ func TestLocalStorageWriteCreatesFile(t *testing.T) {
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "itinerary", string(contents))
+}
+
+func TestLocalStorageWriteDoesNotCloseSource(t *testing.T) {
+	destination := &trackingWriteCloser{}
+	reader := &trackingReadCloser{Reader: strings.NewReader("itinerary")}
+	storage := NewLocalStorage()
+	storage.createFile = func(string) (io.WriteCloser, error) {
+		return destination, nil
+	}
+
+	err := storage.Write(context.Background(), reader, "test.json")
+
+	require.NoError(t, err)
+	assert.False(t, reader.closed)
+}
+
+func TestLocalStorageRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.json")
+	require.NoError(t, os.WriteFile(path, []byte("itinerary"), 0o600))
+	storage := NewLocalStorage()
+
+	reader, err := storage.Read(context.Background(), path)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	contents, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "itinerary", string(contents))
+}
+
+func TestLocalStorageReadOpenError(t *testing.T) {
+	openErr := errors.New("open failed")
+	storage := NewLocalStorage()
+	storage.openFile = func(string) (io.ReadCloser, error) {
+		return nil, openErr
+	}
+
+	reader, err := storage.Read(context.Background(), "test.json")
+
+	require.ErrorIs(t, err, openErr)
+	assert.Nil(t, reader)
 }
