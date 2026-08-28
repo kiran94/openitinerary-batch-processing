@@ -12,12 +12,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-type Uploader interface {
+type TransferClient interface {
 	UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error)
+	GetObject(ctx context.Context, input *transfermanager.GetObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.GetObjectOutput, error)
 }
 
 type AWSS3Storage struct {
-	s3Client Uploader
+	s3Client TransferClient
 }
 
 func NewAWSS3Storage(ctx context.Context) (*AWSS3Storage, error) {
@@ -49,6 +50,24 @@ func (a *AWSS3Storage) Write(ctx context.Context, w io.ReadCloser, output string
 	}
 
 	return nil
+}
+
+func (a *AWSS3Storage) Read(ctx context.Context, input string) (io.Reader, error) {
+	bucket, key, err := a.extractBucketKey(input)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := a.s3Client.GetObject(ctx, &transfermanager.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return output.Body, nil
 }
 
 func (a AWSS3Storage) extractBucketKey(s string) (bucket string, key string, err error) {

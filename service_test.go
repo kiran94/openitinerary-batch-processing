@@ -609,6 +609,16 @@ func (m *MockStorage) Write(ctx context.Context, reader io.ReadCloser, output st
 	return m.Called(ctx, reader, output).Error(0)
 }
 
+func (m *MockStorage) Read(ctx context.Context, input string) (io.Reader, error) {
+	args := m.Called(ctx, input)
+
+	if reader := args.Get(0); reader != nil {
+		return reader.(io.Reader), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
 type MockLogger struct{}
 
 func (m *MockLogger) Debug(message string, args ...any) {}
