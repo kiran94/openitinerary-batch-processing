@@ -31,28 +31,50 @@ func TestApplicationConfigServerDefaults(t *testing.T) {
 }
 
 func TestApplicationConfigUploadDefaults(t *testing.T) {
+	t.Setenv("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", "")
 	config := ApplicationConfig{}
 
 	assert.Equal(t, int64(10<<20), config.GetMaximumAllowedRequestSizeMb())
 	assert.Equal(t, int64(5<<20), config.GetMaximumBufferMultipartForm())
+	assert.Equal(t, int64(25<<20), config.GetMaximumAdapterResponseSizeBytes())
 }
 
 func TestApplicationConfigStorageDefaults(t *testing.T) {
 	t.Setenv("OIBP_BUCKET", "")
 	t.Setenv("OIBP_BUCKET_PREFIX", "")
+	t.Setenv("OIBP_S3_UPLOAD_CONCURRENCY", "")
 	config := ApplicationConfig{}
 
 	assert.Equal(t, "openitinerary-batch-processing", config.GetBucket())
 	assert.Empty(t, config.GetBucketPath())
+	assert.Equal(t, 1, config.GetS3UploadConcurrency())
 }
 
 func TestApplicationConfigStorageEnvironmentOverrides(t *testing.T) {
 	t.Setenv("OIBP_BUCKET", "test-bucket")
 	t.Setenv("OIBP_BUCKET_PREFIX", "test-prefix")
+	t.Setenv("OIBP_S3_UPLOAD_CONCURRENCY", "3")
 	config := ApplicationConfig{}
 
 	assert.Equal(t, "test-bucket", config.GetBucket())
 	assert.Equal(t, "test-prefix", config.GetBucketPath())
+	assert.Equal(t, 3, config.GetS3UploadConcurrency())
+}
+
+func TestApplicationConfigAdapterResponseSizeEnvironmentOverride(t *testing.T) {
+	t.Setenv("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", "1048576")
+	config := ApplicationConfig{}
+
+	assert.Equal(t, int64(1048576), config.GetMaximumAdapterResponseSizeBytes())
+}
+
+func TestApplicationConfigRejectsInvalidPositiveInteger(t *testing.T) {
+	t.Setenv("OIBP_S3_UPLOAD_CONCURRENCY", "0")
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "OIBP_S3_UPLOAD_CONCURRENCY must be a positive integer", func() {
+		config.GetS3UploadConcurrency()
+	})
 }
 
 func TestApplicationConfigGetDocumentPath(t *testing.T) {

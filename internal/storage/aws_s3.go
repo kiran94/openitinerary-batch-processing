@@ -27,7 +27,11 @@ type AWSS3Storage struct {
 
 var _ Storage = (*AWSS3Storage)(nil)
 
-func NewAWSS3Storage(ctx context.Context) (*AWSS3Storage, error) {
+func NewAWSS3Storage(ctx context.Context, uploadConcurrency int) (*AWSS3Storage, error) {
+	if uploadConcurrency < 1 {
+		return nil, fmt.Errorf("S3 upload concurrency must be positive. Got %d", uploadConcurrency)
+	}
+
 	awsConfig, err := config.LoadDefaultConfig(ctx)
 
 	if err != nil {
@@ -35,8 +39,17 @@ func NewAWSS3Storage(ctx context.Context) (*AWSS3Storage, error) {
 	}
 
 	s3Client := s3.NewFromConfig(awsConfig)
-	transferClient := transfermanager.New(s3Client)
+	transferClient := transfermanager.New(s3Client, configureTransferManager(uploadConcurrency))
 	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client}, nil
+}
+
+func configureTransferManager(uploadConcurrency int) func(*transfermanager.Options) {
+	return func(options *transfermanager.Options) {
+		// BatchWorker instances already provide job-level concurrency. Keep part
+		// concurrency low to bound per-worker memory, and increase it only when
+		// measured upload latency justifies the additional part buffers.
+		options.Concurrency = uploadConcurrency
+	}
 }
 
 func (a *AWSS3Storage) Write(ctx context.Context, reader io.Reader, output string) error {

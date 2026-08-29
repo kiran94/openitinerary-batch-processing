@@ -530,12 +530,20 @@ func (m *MockConfig) GetMaximumBufferMultipartForm() int64 {
 	return m.Called().Get(0).(int64)
 }
 
+func (m *MockConfig) GetMaximumAdapterResponseSizeBytes() int64 {
+	return m.Called().Get(0).(int64)
+}
+
 func (m *MockConfig) GetBucket() string {
 	return m.Called().String(0)
 }
 
 func (m *MockConfig) GetBucketPath() string {
 	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetS3UploadConcurrency() int {
+	return m.Called().Int(0)
 }
 
 func (m *MockConfig) GetDocumentPath(bucket, bucketPath, jobID, fileType string) string {

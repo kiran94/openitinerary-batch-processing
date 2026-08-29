@@ -18,14 +18,16 @@ type Adapter interface {
 }
 
 type AdapterClient struct {
-	adapterAPIURL string
-	http          *http.Client
+	adapterAPIURL                   string
+	maximumAdapterResponseSizeBytes int64
+	http                            *http.Client
 }
 
-func NewAdapterClient(http *http.Client) Adapter {
+func NewAdapterClient(http *http.Client, maximumAdapterResponseSizeBytes int64) Adapter {
 	return &AdapterClient{
-		adapterAPIURL: getAdapterAPIURL(),
-		http:          http,
+		adapterAPIURL:                   getAdapterAPIURL(),
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
+		http:                            http,
 	}
 }
 
@@ -84,8 +86,12 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 	if uploadErr != nil {
 		return nil, closeResponseBody(response, uploadErr)
 	}
+	if response.ContentLength > a.maximumAdapterResponseSizeBytes {
+		err := &http.MaxBytesError{Limit: a.maximumAdapterResponseSizeBytes}
+		return nil, closeResponseBody(response, err)
+	}
 
-	w = response.Body
+	w = http.MaxBytesReader(nil, response.Body, a.maximumAdapterResponseSizeBytes)
 	return w, nil
 }
 

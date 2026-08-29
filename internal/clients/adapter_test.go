@@ -17,6 +17,8 @@ var errDocumentRead = errors.New("document read failed")
 var errRequest = errors.New("request failed")
 var errResponseClose = errors.New("response close failed")
 
+const maximumAdapterResponseSizeBytes = int64(1 << 20)
+
 type failingDocumentReader struct{}
 
 func (failingDocumentReader) Read([]byte) (int, error) {
@@ -40,19 +42,21 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
-func newAdapterResponseClient(statusCode int, responseBody io.ReadCloser) Adapter {
+func newAdapterResponseClient(statusCode int, contentLength int64, responseBody io.ReadCloser) Adapter {
 	return &AdapterClient{
-		adapterAPIURL: "http://adapter.test",
+		adapterAPIURL:                   "http://adapter.test",
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				defer request.Body.Close()
 				_, _ = io.Copy(io.Discard, request.Body)
 
 				return &http.Response{
-					StatusCode: statusCode,
-					Body:       responseBody,
-					Header:     make(http.Header),
-					Request:    request,
+					StatusCode:    statusCode,
+					ContentLength: contentLength,
+					Body:          responseBody,
+					Header:        make(http.Header),
+					Request:       request,
 				}, nil
 			}),
 		},
@@ -66,14 +70,15 @@ func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 	t.Cleanup(server.Close)
 
 	return &AdapterClient{
-		adapterAPIURL: server.URL,
-		http:            server.Client(),
+		adapterAPIURL:                   server.URL,
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
+		http:                            server.Client(),
 	}
 }
 
 func TestNewAdapterClient(t *testing.T) {
 	http := &http.Client{}
-	adapter := NewAdapterClient(http)
+	adapter := NewAdapterClient(http, maximumAdapterResponseSizeBytes)
 
 	client, ok := adapter.(*AdapterClient)
 
@@ -96,7 +101,7 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 		Reader:   strings.NewReader("unprocessable"),
 		closeErr: errResponseClose,
 	}
-	adapter := newAdapterResponseClient(http.StatusUnprocessableEntity, responseBody)
+	adapter := newAdapterResponseClient(http.StatusUnprocessableEntity, -1, responseBody)
 
 	mockDocument := strings.NewReader("mock")
 	response, err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType")
@@ -109,7 +114,8 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 
 func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 	adapter := &AdapterClient{
-		adapterAPIURL: "http://adapter.test",
+		adapterAPIURL:                   "http://adapter.test",
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				_ = request.Body.Close()
@@ -174,9 +180,69 @@ func TestConvertStatusCodeOk(t *testing.T) {
 	assert.JSONEq(t, `[{"type":"flight"}]`, string(result))
 }
 
+func TestConvertRejectsKnownOversizedResponse(t *testing.T) {
+	responseBody := &trackingReadCloser{Reader: strings.NewReader("123456")}
+	adapter := newAdapterResponseClient(http.StatusOK, 6, responseBody).(*AdapterClient)
+	adapter.maximumAdapterResponseSizeBytes = 5
+
+	response, err := adapter.Convert(
+		context.Background(),
+		strings.NewReader("document"),
+		"example.pdf",
+		"application/pdf",
+	)
+
+	var maxBytesErr *http.MaxBytesError
+	require.ErrorAs(t, err, &maxBytesErr)
+	assert.Equal(t, int64(5), maxBytesErr.Limit)
+	assert.Nil(t, response)
+	assert.True(t, responseBody.closed)
+}
+
+func TestConvertRejectsStreamedOversizedResponse(t *testing.T) {
+	responseBody := &trackingReadCloser{Reader: strings.NewReader("123456")}
+	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody).(*AdapterClient)
+	adapter.maximumAdapterResponseSizeBytes = 5
+
+	response, err := adapter.Convert(
+		context.Background(),
+		strings.NewReader("document"),
+		"example.pdf",
+		"application/pdf",
+	)
+	require.NoError(t, err)
+
+	result, readErr := io.ReadAll(response)
+	var maxBytesErr *http.MaxBytesError
+	require.ErrorAs(t, readErr, &maxBytesErr)
+	assert.Equal(t, "12345", string(result))
+	assert.Equal(t, int64(5), maxBytesErr.Limit)
+	require.NoError(t, response.Close())
+	assert.True(t, responseBody.closed)
+}
+
+func TestConvertAcceptsResponseAtMaximumSize(t *testing.T) {
+	responseBody := &trackingReadCloser{Reader: strings.NewReader("12345")}
+	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody).(*AdapterClient)
+	adapter.maximumAdapterResponseSizeBytes = 5
+
+	response, err := adapter.Convert(
+		context.Background(),
+		strings.NewReader("document"),
+		"example.pdf",
+		"application/pdf",
+	)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(response)
+	require.NoError(t, err)
+	assert.Equal(t, "12345", string(result))
+	require.NoError(t, response.Close())
+}
+
 func TestConvertDocumentReadError(t *testing.T) {
 	responseBody := &trackingReadCloser{Reader: strings.NewReader("unused")}
-	adapter := newAdapterResponseClient(http.StatusOK, responseBody)
+	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody)
 
 	response, err := adapter.Convert(
 		context.Background(),
