@@ -18,7 +18,7 @@ import (
 
 type ServiceV1 struct {
 	config  config.Config
-	job     job.JobCreator
+	job     job.TicketRepository
 	logger  logging.Logger
 	queue   queue.BatchQueue
 	storage storage.Storage

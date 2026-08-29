@@ -42,7 +42,7 @@ func main() {
 
 	service := ServiceV1{
 		config:  appConfig,
-		job:     job.NewJobService(db),
+		job:     job.NewTicketRepository(db),
 		logger:  logger,
 		queue:   batchQueue,
 		storage: s3,
