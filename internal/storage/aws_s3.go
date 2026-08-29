@@ -7,9 +7,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	applicationConfig "github.com/kiran94/openitinerary-batch-processing/internal/config"
 )
 
 type TransferClient interface {
@@ -27,18 +28,19 @@ type AWSS3Storage struct {
 
 var _ Storage = (*AWSS3Storage)(nil)
 
-func NewAWSS3Storage(ctx context.Context, uploadConcurrency int) (*AWSS3Storage, error) {
+func NewAWSS3Storage(ctx context.Context, config applicationConfig.Config) (*AWSS3Storage, error) {
+	uploadConcurrency := config.GetS3UploadConcurrency()
 	if uploadConcurrency < 1 {
 		return nil, fmt.Errorf("S3 upload concurrency must be positive. Got %d", uploadConcurrency)
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx)
+	sdkConfig, err := awsConfig.LoadDefaultConfig(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	s3Client := s3.NewFromConfig(awsConfig)
+	s3Client := s3.NewFromConfig(sdkConfig)
 	transferClient := transfermanager.New(s3Client, configureTransferManager(uploadConcurrency))
 	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client}, nil
 }

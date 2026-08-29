@@ -26,7 +26,7 @@ func main() {
 	}
 	logger.Info("database ready", "component", logging.ComponentDatabase)
 
-	s3, err := storage.NewAWSS3Storage(ctx, appConfig.GetS3UploadConcurrency())
+	s3, err := storage.NewAWSS3Storage(ctx, appConfig)
 	if err != nil {
 		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		os.Exit(1)
