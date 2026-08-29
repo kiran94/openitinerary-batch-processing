@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"time"
 )
 
@@ -16,9 +18,11 @@ type Config interface {
 
 	GetMaximumAllowedRequestSizeMb() int64
 	GetMaximumBufferMultipartForm() int64
+	GetMaximumAdapterResponseSizeBytes() int64
 
 	GetBucket() string
 	GetBucketPath() string
+	GetS3UploadConcurrency() int
 	GetDocumentPath(bucket, bucketPath, jobId, fileType string) string
 	GetOutputPath(bucket, bucketPath, jobId string) string
 
@@ -56,12 +60,20 @@ func (ac ApplicationConfig) GetMaximumBufferMultipartForm() int64 {
 	return 5 << 20 // 5MB
 }
 
+func (ac ApplicationConfig) GetMaximumAdapterResponseSizeBytes() int64 {
+	return getPositiveInt64EnvOrDefault("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", 25<<20)
+}
+
 func (ac ApplicationConfig) GetBucket() string {
 	return GetEnvOrDefault("OIBP_BUCKET", "openitinerary-batch-processing")
 }
 
 func (ac ApplicationConfig) GetBucketPath() string {
 	return GetEnvOrDefault("OIBP_BUCKET_PREFIX", "")
+}
+
+func (ac ApplicationConfig) GetS3UploadConcurrency() int {
+	return getPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1)
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {
@@ -91,4 +103,32 @@ func GetEnvOrDefault(envVarName, defaultValue string) string {
 	}
 
 	return value
+}
+
+func getPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {
+	value := os.Getenv(envVarName)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
+	}
+
+	return parsed
+}
+
+func getPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) int64 {
+	value := os.Getenv(envVarName)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed < 1 {
+		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
+	}
+
+	return parsed
 }

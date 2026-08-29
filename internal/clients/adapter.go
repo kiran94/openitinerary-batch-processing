@@ -14,18 +14,20 @@ import (
 )
 
 type Adapter interface {
-	Convert(ctx context.Context, document io.Reader, filename string, contentType string, w io.WriteCloser) error
+	Convert(ctx context.Context, document io.Reader, filename string, contentType string) (io.ReadCloser, error)
 }
 
 type AdapterClient struct {
-	adapter_api_url string
-	http            *http.Client
+	adapterAPIURL                   string
+	maximumAdapterResponseSizeBytes int64
+	http                            *http.Client
 }
 
-func NewAdapterClient(http *http.Client) Adapter {
+func NewAdapterClient(http *http.Client, maximumAdapterResponseSizeBytes int64) Adapter {
 	return &AdapterClient{
-		adapter_api_url: getAdapterApiUrl(),
-		http:            http,
+		adapterAPIURL:                   getAdapterAPIURL(),
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
+		http:                            http,
 	}
 }
 
@@ -36,23 +38,19 @@ func NewAdapterClient(http *http.Client) Adapter {
 // complete, or passes along an error if reading the document fails.
 //
 // document reader → multipart writer → io.Pipe → HTTP client → Adapter API
-func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string, w io.WriteCloser) (err error) {
-	defer func() {
-		err = errors.Join(err, w.Close())
-	}()
-
+func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (w io.ReadCloser, err error) {
 	if document == nil {
-		return errors.New("document was nil")
+		return nil, errors.New("document was nil")
 	}
 
 	readerBuffer, writerBuffer := io.Pipe()
 	writer := multipart.NewWriter(writerBuffer)
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.adapter_api_url, readerBuffer)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.adapterAPIURL, readerBuffer)
 	if err != nil {
 		_ = readerBuffer.Close()
 		_ = writerBuffer.Close()
-		return err
+		return nil, err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -73,33 +71,36 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 	uploadErr := <-uploadDone
 
 	if requestErr != nil {
-		if response != nil {
-			_ = response.Body.Close()
-		}
-
 		if uploadErr != nil && !errors.Is(uploadErr, io.ErrClosedPipe) {
-			return uploadErr
+			return nil, closeResponseBody(response, uploadErr)
 		}
 
-		return requestErr
+		return nil, closeResponseBody(response, requestErr)
 	}
-	defer func() {
-		err = errors.Join(err, response.Body.Close())
-	}()
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+		err := fmt.Errorf("response from adapter API was not okay. Got %v", response.Status)
+		return nil, closeResponseBody(response, err)
 	}
 
 	if uploadErr != nil {
-		return uploadErr
+		return nil, closeResponseBody(response, uploadErr)
+	}
+	if response.ContentLength > a.maximumAdapterResponseSizeBytes {
+		err := &http.MaxBytesError{Limit: a.maximumAdapterResponseSizeBytes}
+		return nil, closeResponseBody(response, err)
 	}
 
-	if _, err := io.Copy(w, response.Body); err != nil {
-		return err
+	w = http.MaxBytesReader(nil, response.Body, a.maximumAdapterResponseSizeBytes)
+	return w, nil
+}
+
+func closeResponseBody(response *http.Response, primaryErr error) error {
+	if response == nil || response.Body == nil {
+		return primaryErr
 	}
 
-	return nil
+	return errors.Join(primaryErr, response.Body.Close())
 }
 
 func writeMultipart(writer *multipart.Writer, document io.Reader, filename string, contentType string) error {
@@ -126,12 +127,12 @@ func writeMultipart(writer *multipart.Writer, document io.Reader, filename strin
 	return writer.Close()
 }
 
-func getAdapterApiUrl() string {
-	const ADAPTER_API = "http://127.0.0.1:8000/api/v1/adapt/segment"
+func getAdapterAPIURL() string {
+	const AdapterAPI = "http://127.0.0.1:8000/api/v1/adapt/segment"
 
 	value := os.Getenv("ADAPTER_API_URL")
 	if value == "" {
-		return ADAPTER_API
+		return AdapterAPI
 	}
 
 	return value
