@@ -33,7 +33,8 @@ generate_oi_go_models:
 	go-jsonschema -p openitinerary internal/openitinerary/0.1/itinerary.schema.json -o internal/openitinerary/0.1/itinerary.gen.go
 
 api:
-	 ADAPTER_API_URL="http://127.0.0.1:8000/api/v1/adapt/segment-mock" go run .
+	 # ADAPTER_API_URL="http://127.0.0.1:8000/api/v1/adapt/segment-mock" go run .
+	 ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment-mock" go run .
 
 # Live reload
 api_dev:
