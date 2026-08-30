@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestEnqueue(t *testing.T) {
 	queueURL := "https://sqs.ap-southeast-1.amazonaws.com/123456789012/jobs.fifo"
 	ticket := job.NewTicket()
 
-	expectedMessageBody, err := json.Marshal(ticket)
+	expectedMessageBody, err := json.Marshal(EnqueuePayload{TicketID: ticket.ID.String()})
 	require.NoError(t, err)
 
 	mockConfig := new(MockConfig)
@@ -86,11 +87,9 @@ func TestEnqueueSendMessageError(t *testing.T) {
 func TestDequeue(t *testing.T) {
 	ctx := t.Context()
 	queuePollingTime := int32(20)
-	expectedTicket := job.NewTicket()
-	expectedTicket.DocumentPath = "s3://bucket/path/document.pdf"
-	expectedTicket.ContentType = "application/pdf"
+	expectedPayload := EnqueuePayload{TicketID: uuid.NewString()}
 
-	messageBody, err := json.Marshal(expectedTicket)
+	messageBody, err := json.Marshal(expectedPayload)
 	require.NoError(t, err)
 	messageBodyString := string(messageBody)
 	receiptHandle := "handle1"
@@ -130,7 +129,7 @@ func TestDequeue(t *testing.T) {
 	require.NotNil(t, result)
 	require.NotNil(t, result.QueueReference)
 
-	assert.Equal(t, *expectedTicket, result.Result)
+	assert.Equal(t, expectedPayload, result.Result)
 	assert.Equal(t, receiptHandle, *result.QueueReference)
 
 	mockConfig.AssertExpectations(t)
@@ -211,9 +210,9 @@ func TestDequeueInvalidJSON(t *testing.T) {
 
 func TestDequeueNilReceiptHandle(t *testing.T) {
 	ctx := t.Context()
-	ticket := job.NewTicket()
+	payload := EnqueuePayload{TicketID: uuid.NewString()}
 
-	messageBody, err := json.Marshal(ticket)
+	messageBody, err := json.Marshal(payload)
 	require.NoError(t, err)
 	messageBodyString := string(messageBody)
 
