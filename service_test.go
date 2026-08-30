@@ -562,6 +562,10 @@ func (m *MockConfig) GetQueuePollingTime() int32 {
 	return m.Called().Get(0).(int32)
 }
 
+func (m *MockConfig) GetWorkerTimeoutSeconds() int {
+	return m.Called().Int(0)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }

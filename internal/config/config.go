@@ -28,6 +28,8 @@ type Config interface {
 
 	GetQueueURL() string
 	GetQueuePollingTime() int32
+
+	GetWorkerTimeoutSeconds() int
 }
 
 type ApplicationConfig struct{}
@@ -94,6 +96,10 @@ func (ac ApplicationConfig) GetQueueURL() string {
 
 func (ac ApplicationConfig) GetQueuePollingTime() int32 {
 	return 20
+}
+
+func (ac ApplicationConfig) GetWorkerTimeoutSeconds() int {
+	return getPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
 }
 
 func GetEnvOrDefault(envVarName, defaultValue string) string {
