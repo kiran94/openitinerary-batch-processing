@@ -31,40 +31,40 @@ func (m *MockDatabase) Model(value interface{}) (tx *gorm.DB) {
 	return m.Called(value).Get(0).(*gorm.DB).Model(value)
 }
 
-func TestNewJobService(t *testing.T) {
-	jobService := NewJobService(&MockDatabase{})
-	require.NotNil(t, jobService)
-	assert.Implements(t, (*JobCreator)(nil), jobService)
+func TestNewTicketRepository(t *testing.T) {
+	repository := NewTicketRepository(&MockDatabase{})
+	require.NotNil(t, repository)
+	assert.Implements(t, (*TicketRepository)(nil), repository)
 }
 
-func TestJobServiceCreate(t *testing.T) {
+func TestTicketRepositoryCreate(t *testing.T) {
 	ticket := NewTicket()
 
 	mockDatabase := MockDatabase{}
 	mockDatabase.On("Create", ticket).Return(&gorm.DB{})
 
-	jobService := NewJobService(&mockDatabase)
-	err := jobService.Create(ticket)
+	repository := NewTicketRepository(&mockDatabase)
+	err := repository.Create(ticket)
 
 	require.NoError(t, err)
 	mockDatabase.AssertExpectations(t)
 }
 
-func TestJobServiceCreateError(t *testing.T) {
+func TestTicketRepositoryCreateError(t *testing.T) {
 	ticket := NewTicket()
 	simulatedErr := errors.New("simulated")
 
 	mockDatabase := MockDatabase{}
 	mockDatabase.On("Create", ticket).Return(&gorm.DB{Error: simulatedErr})
 
-	jobService := NewJobService(&mockDatabase)
-	err := jobService.Create(ticket)
+	repository := NewTicketRepository(&mockDatabase)
+	err := repository.Create(ticket)
 
 	assert.Equal(t, simulatedErr, err)
 	mockDatabase.AssertExpectations(t)
 }
 
-func TestJobServiceMarkFailedEnqueueFailed(t *testing.T) {
+func TestTicketRepositoryMarkFailedEnqueueFailed(t *testing.T) {
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	detail := "enqueue failed. err: simulated"
 
@@ -73,8 +73,8 @@ func TestJobServiceMarkFailedEnqueueFailed(t *testing.T) {
 	ticket.ID = id
 	require.NoError(t, db.Create(ticket).Error)
 
-	jobService := NewJobService(db)
-	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+	repository := NewTicketRepository(db)
+	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
 	assert.True(t, updated)
@@ -90,7 +90,7 @@ func TestJobServiceMarkFailedEnqueueFailed(t *testing.T) {
 	assert.Equal(t, Failed, updatedTicket.Status)
 }
 
-func TestJobServiceMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
+func TestTicketRepositoryMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	detail := "enqueue failed. err: simulated"
 
@@ -101,8 +101,8 @@ func TestJobServiceMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
 	ticket.Status = Processing
 	require.NoError(t, db.Create(ticket).Error)
 
-	jobService := NewJobService(db)
-	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+	repository := NewTicketRepository(db)
+	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
 	assert.False(t, updated)
@@ -114,28 +114,28 @@ func TestJobServiceMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
 	assert.Nil(t, unchangedTicket.Error)
 }
 
-func TestJobServiceMarkFailedEnqueueFailedError(t *testing.T) {
+func TestTicketRepositoryMarkFailedEnqueueFailedError(t *testing.T) {
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	detail := "enqueue failed. err: simulated"
 	db := newInMemoryDatabase(t)
 	// Remove the schema to make the conditional update return a database error.
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 
-	jobService := NewJobService(db)
-	updated, err := jobService.MarkFailed(id, EnqueueFailed, detail)
+	repository := NewTicketRepository(db)
+	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
 
 	require.Error(t, err)
 	assert.False(t, updated)
 }
 
-func TestJobServiceMarkFailedUnsupportedReason(t *testing.T) {
+func TestTicketRepositoryMarkFailedUnsupportedReason(t *testing.T) {
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	// Use an unregistered reason to verify it is rejected before database access.
 	reason := TicketStatusReason("unsupported")
 
 	m := MockDatabase{}
-	jobService := NewJobService(&m)
-	updated, err := jobService.MarkFailed(id, reason, "simulated")
+	repository := NewTicketRepository(&m)
+	updated, err := repository.MarkFailed(id, reason, "simulated")
 
 	require.ErrorIs(t, err, ErrUnsupportedTicketStatusReason)
 	assert.False(t, updated)
@@ -159,7 +159,7 @@ func newInMemoryDatabase(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestJobServiceGetError(t *testing.T) {
+func TestTicketRepositoryGetError(t *testing.T) {
 
 	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	expectedErr := errors.New("record not found")
@@ -167,29 +167,29 @@ func TestJobServiceGetError(t *testing.T) {
 	m := MockDatabase{}
 	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{Error: expectedErr})
 
-	job := NewJobService(&m)
-	ticket, err := job.Get(id)
+	repository := NewTicketRepository(&m)
+	ticket, err := repository.Get(id)
 
 	m.AssertExpectations(t)
 	assert.Equal(t, expectedErr, err)
 	assert.Nil(t, ticket)
 }
 
-func TestJobServiceGetRecordNotFound(t *testing.T) {
+func TestTicketRepositoryGetRecordNotFound(t *testing.T) {
 	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
 
 	m := MockDatabase{}
 	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{RowsAffected: 0})
 
-	job := NewJobService(&m)
-	ticket, err := job.Get(id)
+	repository := NewTicketRepository(&m)
+	ticket, err := repository.Get(id)
 
 	m.AssertExpectations(t)
 	assert.Equal(t, ErrRecordNotFound, err)
 	assert.Nil(t, ticket)
 }
 
-func TestJobServiceGet(t *testing.T) {
+func TestTicketRepositoryGet(t *testing.T) {
 	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
 
 	expectedTicket := NewTicket()
@@ -201,9 +201,43 @@ func TestJobServiceGet(t *testing.T) {
 		*ticket = *expectedTicket
 	}).Return(&gorm.DB{RowsAffected: 1})
 
-	job := NewJobService(&m)
-	ticket, err := job.Get(id)
+	repository := NewTicketRepository(&m)
+	ticket, err := repository.Get(id)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTicket, ticket)
+}
+
+func TestTicketRepositoryUpdate(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	db := newInMemoryDatabase(t)
+	ticket := NewTicket()
+	ticket.ID = id
+	require.NoError(t, db.Create(ticket).Error)
+
+	ticket.Status = Processing
+	repository := NewTicketRepository(db)
+	require.NoError(t, repository.Update(ticket))
+
+	var updatedTicket Ticket
+	require.NoError(t, db.First(&updatedTicket, "id = ?", id).Error)
+	assert.Equal(t, Processing, updatedTicket.Status)
+}
+
+func TestTicketRepositoryUpdateRecordNotFound(t *testing.T) {
+	repository := NewTicketRepository(newInMemoryDatabase(t))
+
+	err := repository.Update(NewTicket())
+
+	require.ErrorIs(t, err, ErrRecordNotFound)
+}
+
+func TestTicketRepositoryUpdateError(t *testing.T) {
+	db := newInMemoryDatabase(t)
+	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
+
+	repository := NewTicketRepository(db)
+	err := repository.Update(NewTicket())
+
+	require.Error(t, err)
 }

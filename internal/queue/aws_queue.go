@@ -46,9 +46,15 @@ func NewQueue(ctx context.Context, c config.Config, logger logging.Logger) (Batc
 	return &Queue{Queue: client, config: c, logger: logger}, nil
 }
 
+type EnqueuePayload struct {
+	TicketID string `json:"ticket_id"`
+}
+
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 
-	buffer, err := json.Marshal(ticket)
+	ep := EnqueuePayload{TicketID: ticket.ID.String()}
+
+	buffer, err := json.Marshal(ep)
 	if err != nil {
 		return err
 	}
@@ -75,7 +81,7 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 }
 
 type DequeueResult struct {
-	Result job.Ticket
+	Result EnqueuePayload
 
 	// Some reference from the queue so that the message can be
 	// removed from the queue upon processing

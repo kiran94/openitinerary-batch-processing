@@ -238,7 +238,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig := new(MockConfig)
-	mockJobCreator := new(MockJobCreator)
+	mockTicketRepository := new(MockTicketRepository)
 	mockStorage := new(MockStorage)
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -249,11 +249,11 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
 
 	jobCreateError := errors.New("error creating job")
-	mockJobCreator.On("Create", mock.Anything).Return(jobCreateError).Once()
+	mockTicketRepository.On("Create", mock.Anything).Return(jobCreateError).Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
-		job:     mockJobCreator,
+		job:     mockTicketRepository,
 		logger:  &MockLogger{},
 		storage: mockStorage,
 	}
@@ -273,12 +273,12 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
-	mockJobCreator.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
 }
 
 func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig := new(MockConfig)
-	mockJobCreator := new(MockJobCreator)
+	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
 
@@ -289,11 +289,11 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
-	mockJobCreator.On("Create", mock.Anything).Return(nil).Once()
+	mockTicketRepository.On("Create", mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
 	mockQueue.On("Enqueue", mock.Anything).Return(queueError).Once()
-	mockJobCreator.
+	mockTicketRepository.
 		On(
 			"MarkFailed",
 			mock.AnythingOfType("uuid.UUID"),
@@ -305,7 +305,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 	service := ServiceV1{
 		config:  mockConfig,
-		job:     mockJobCreator,
+		job:     mockTicketRepository,
 		logger:  &MockLogger{},
 		queue:   mockQueue,
 		storage: mockStorage,
@@ -326,7 +326,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
-	mockJobCreator.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
 }
 
@@ -343,7 +343,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	t.Helper()
 
 	mockConfig := new(MockConfig)
-	mockJobCreator := new(MockJobCreator)
+	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
 	documentPath := "s3://document/path." + test.fileType
@@ -366,7 +366,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		Once()
 
 	var generatedTicketID uuid.UUID
-	mockJobCreator.
+	mockTicketRepository.
 		On("Create", mock.AnythingOfType("*job.Ticket")).
 		Run(func(args mock.Arguments) {
 			passedTicket := args.Get(0).(*job.Ticket)
@@ -389,7 +389,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 	service := ServiceV1{
 		config:  mockConfig,
-		job:     mockJobCreator,
+		job:     mockTicketRepository,
 		logger:  &MockLogger{},
 		queue:   mockQueue,
 		storage: mockStorage,
@@ -421,7 +421,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
-	mockJobCreator.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
 }
 
@@ -492,10 +492,10 @@ func createTestMultipartFormWithoutContentType(t *testing.T) (*bytes.Buffer, str
 // Compile Time Interface Assertions
 // Ensure that each of the mocks implement the interfaces they target.
 var (
-	_ config.Config    = (*MockConfig)(nil)
-	_ job.JobCreator   = (*MockJobCreator)(nil)
-	_ queue.BatchQueue = (*MockBatchQueue)(nil)
-	_ storage.Storage  = (*MockStorage)(nil)
+	_ config.Config        = (*MockConfig)(nil)
+	_ job.TicketRepository = (*MockTicketRepository)(nil)
+	_ queue.BatchQueue     = (*MockBatchQueue)(nil)
+	_ storage.Storage      = (*MockStorage)(nil)
 )
 
 type MockConfig struct {
@@ -562,15 +562,15 @@ func (m *MockConfig) GetQueuePollingTime() int32 {
 	return m.Called().Get(0).(int32)
 }
 
-type MockJobCreator struct {
+type MockTicketRepository struct {
 	mock.Mock
 }
 
-func (m *MockJobCreator) Create(ticket *job.Ticket) error {
+func (m *MockTicketRepository) Create(ticket *job.Ticket) error {
 	return m.Called(ticket).Error(0)
 }
 
-func (m *MockJobCreator) Get(id uuid.UUID) (*job.Ticket, error) {
+func (m *MockTicketRepository) Get(id uuid.UUID) (*job.Ticket, error) {
 	args := m.Called(id)
 
 	var ticket *job.Ticket
@@ -581,7 +581,11 @@ func (m *MockJobCreator) Get(id uuid.UUID) (*job.Ticket, error) {
 	return ticket, args.Error(1)
 }
 
-func (m *MockJobCreator) MarkFailed(id uuid.UUID, reason job.TicketStatusReason, detail string) (bool, error) {
+func (m *MockTicketRepository) Update(ticket *job.Ticket) error {
+	return m.Called(ticket).Error(0)
+}
+
+func (m *MockTicketRepository) MarkFailed(id uuid.UUID, reason job.TicketStatusReason, detail string) (bool, error) {
 	args := m.Called(id, reason, detail)
 	return args.Bool(0), args.Error(1)
 }

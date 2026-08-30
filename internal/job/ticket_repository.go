@@ -8,10 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
-type JobCreator interface {
-	Create(j *Ticket) error
-	MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error)
+type TicketRepository interface {
+	Create(ticket *Ticket) error
 	Get(id uuid.UUID) (*Ticket, error)
+	Update(ticket *Ticket) error
+	MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error)
 }
 
 type Database interface {
@@ -20,15 +21,15 @@ type Database interface {
 	Model(value interface{}) (tx *gorm.DB)
 }
 
-func NewJobService(db Database) JobCreator {
-	return &JobService{db}
+func NewTicketRepository(db Database) TicketRepository {
+	return &ticketRepository{db}
 }
 
-type JobService struct {
+type ticketRepository struct {
 	db Database
 }
 
-func (r *JobService) Create(ticket *Ticket) error {
+func (r *ticketRepository) Create(ticket *Ticket) error {
 	if result := r.db.Create(ticket); result.Error != nil {
 		return result.Error
 	}
@@ -38,7 +39,7 @@ func (r *JobService) Create(ticket *Ticket) error {
 
 var ErrUnsupportedTicketStatusReason = errors.New("unsupported ticket status reason")
 
-func (r *JobService) MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error) {
+func (r *ticketRepository) MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error) {
 	switch reason {
 	case EnqueueFailed:
 		return r.markEnqueueFailed(id, detail)
@@ -52,7 +53,7 @@ func (r *JobService) MarkFailed(id uuid.UUID, reason TicketStatusReason, detail 
 // worker that may have received the message before the enqueue error returned.
 // On the queue side, it's possible for an acknowledgement to be lost even
 // if the message was actually submitted to the queue.
-func (r *JobService) markEnqueueFailed(id uuid.UUID, detail string) (bool, error) {
+func (r *ticketRepository) markEnqueueFailed(id uuid.UUID, detail string) (bool, error) {
 
 	result := r.db.
 		Model(&Ticket{}).
@@ -71,7 +72,7 @@ func (r *JobService) markEnqueueFailed(id uuid.UUID, detail string) (bool, error
 
 var ErrRecordNotFound = errors.New("record not found")
 
-func (r *JobService) Get(id uuid.UUID) (*Ticket, error) {
+func (r *ticketRepository) Get(id uuid.UUID) (*Ticket, error) {
 	ticket := &Ticket{}
 
 	result := r.db.Find(ticket, []string{id.String()})
@@ -84,4 +85,17 @@ func (r *JobService) Get(id uuid.UUID) (*Ticket, error) {
 	}
 
 	return ticket, nil
+}
+
+func (r *ticketRepository) Update(ticket *Ticket) error {
+	result := r.db.Model(ticket).Select("*").Updates(ticket)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
 }
