@@ -33,9 +33,13 @@ const (
 type TicketStatusReason string
 
 const (
-
 	// FAILED REASONS
-	EnqueueFailed TicketStatusReason = "enqueue_failed"
+	EnqueueFailed      TicketStatusReason = "enqueue_failed"
+	StorageReadFailed  TicketStatusReason = "storage_read_failed"
+	StorageReadNil     TicketStatusReason = "storage_read_nil"
+	ConvertFailed      TicketStatusReason = "convert_failed"
+	ResponseReaderNil  TicketStatusReason = "response_reader_nil"
+	StorageWriteFailed TicketStatusReason = "storage_write_failed"
 )
 
 func NewTicket() *Ticket {
