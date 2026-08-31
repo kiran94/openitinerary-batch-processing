@@ -206,11 +206,17 @@ func checkVisibilityTimeout(ctx context.Context, c config.Config, client Queuer)
 		return err
 	}
 
+	const buffer = 60 // visibility timeout safety margin
 	workerTimeoutSeconds := c.GetWorkerTimeoutSeconds()
-	if workerTimeoutSeconds > visibilityTimeoutSeconds {
+
+	workerTimeoutWithBuffer := workerTimeoutSeconds + buffer
+
+	if workerTimeoutWithBuffer > visibilityTimeoutSeconds {
 		return fmt.Errorf(
-			"worker is allowed to run longer then visibility timeout. Which could lead to duplicate processing. worker: %v, visibility_timeout: %v",
+			"queue visibility timeout must be at least %d seconds: worker_timeout=%d, safety_margin=%d, visibility_timeout=%d",
+			visibilityTimeoutSeconds+buffer,
 			workerTimeoutSeconds,
+			buffer,
 			visibilityTimeoutSeconds,
 		)
 	}

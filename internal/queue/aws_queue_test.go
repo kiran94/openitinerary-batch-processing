@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,36 +28,54 @@ func TestNewQueue(t *testing.T) {
 	assert.NotNil(t, queue)
 }
 
-func TestNewQueueWorkerTimeoutLargerThenVisibility(t *testing.T) {
+func TestCheckVisibilityTimeout(t *testing.T) {
 
-	visibilityTimeoutSeconds := "180"
-	workerTimeoutSeconds := 1800
+	tests := []struct {
+		name                     string
+		visibilityTimeoutSeconds int
+		workerTimeoutSeconds     int
+		ready                    bool
+	}{
+		{name: "larger", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 1800, ready: false},
+		{name: "same", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 180, ready: false},
+		{name: "same_on_buffer", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 240, ready: false},
+		{name: "smaller", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 60, ready: true},
+	}
 
-	mockConfig := MockConfig{}
-	mockConfig.On("GetQueueURL").Return("my_queue").Twice()
-	mockConfig.On("GetWorkerTimeoutSeconds").Return(workerTimeoutSeconds).Once()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-	queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
-	require.NoError(t, err)
+			mockConfig := MockConfig{}
+			mockConfig.On("GetQueueURL").Return("my_queue").Twice()
+			mockConfig.On("GetWorkerTimeoutSeconds").Return(tt.workerTimeoutSeconds).Once()
 
-	q, ok := queue.(*Queue)
-	require.True(t, ok)
+			queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
+			require.NoError(t, err)
 
-	mockBatchQueue := MockBatchQueue{}
-	mockBatchQueue.On("GetQueueAttributes", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		a, ok := args.Get(1).(*sqs.GetQueueAttributesInput)
-		require.True(t, ok)
+			q, ok := queue.(*Queue)
+			require.True(t, ok)
 
-		assert.Equal(t, "my_queue", *a.QueueUrl)
-		assert.Contains(t, a.AttributeNames, types.QueueAttributeNameVisibilityTimeout)
-	}).Return(&sqs.GetQueueAttributesOutput{
-		Attributes: map[string]string{"VisibilityTimeout": visibilityTimeoutSeconds},
-	})
-	q.Queue = &mockBatchQueue
+			mockBatchQueue := MockBatchQueue{}
+			mockBatchQueue.On("GetQueueAttributes", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				a, ok := args.Get(1).(*sqs.GetQueueAttributesInput)
+				require.True(t, ok)
 
-	readyErr := queue.Ready(t.Context())
+				assert.Equal(t, "my_queue", *a.QueueUrl)
+				assert.Contains(t, a.AttributeNames, types.QueueAttributeNameVisibilityTimeout)
+			}).Return(&sqs.GetQueueAttributesOutput{
+				Attributes: map[string]string{"VisibilityTimeout": strconv.Itoa(tt.visibilityTimeoutSeconds)},
+			})
+			q.Queue = &mockBatchQueue
 
-	assert.Error(t, readyErr)
+			readyErr := queue.Ready(t.Context())
+			if tt.ready {
+				assert.NoError(t, readyErr)
+			} else {
+				assert.Error(t, readyErr)
+			}
+
+		})
+	}
 }
 
 func TestEnqueue(t *testing.T) {
