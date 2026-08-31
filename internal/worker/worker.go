@@ -93,6 +93,8 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 							"component", logging.ComponentWorker,
 							"error", err,
 						)
+
+						return nil, err
 					}
 				}
 				continue
