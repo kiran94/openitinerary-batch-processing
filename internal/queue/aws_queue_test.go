@@ -38,7 +38,8 @@ func TestCheckVisibilityTimeout(t *testing.T) {
 	}{
 		{name: "larger", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 1800, ready: false},
 		{name: "same", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 180, ready: false},
-		{name: "same_on_buffer", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 240, ready: false},
+		{name: "same_on_buffer+1", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 121, ready: false},
+		{name: "same_on_buffer", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 120, ready: true},
 		{name: "smaller", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 60, ready: true},
 	}
 

@@ -213,8 +213,8 @@ func checkVisibilityTimeout(ctx context.Context, c config.Config, client Queuer)
 
 	if workerTimeoutWithBuffer > visibilityTimeoutSeconds {
 		return fmt.Errorf(
-			"queue visibility timeout must be at least %d seconds: worker_timeout=%d, safety_margin=%d, visibility_timeout=%d",
-			visibilityTimeoutSeconds+buffer,
+			"worker timeout must be at most %d seconds: worker_timeout=%d, safety_margin=%d, visibility_timeout=%d",
+			visibilityTimeoutSeconds-buffer,
 			workerTimeoutSeconds,
 			buffer,
 			visibilityTimeoutSeconds,
