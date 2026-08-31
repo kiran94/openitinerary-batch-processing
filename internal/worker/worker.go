@@ -97,6 +97,8 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 				}
 				continue
 			}
+
+			return nil, err
 		}
 
 		if dequeueResult == nil {
