@@ -30,7 +30,7 @@ func main() {
 		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("storage ready", "component", logging.ComponentStorage)
+	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {
@@ -41,14 +41,14 @@ func main() {
 
 	queueService, err := queue.NewQueue(ctx, config, logger)
 	if err != nil {
-		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "error", err)
+		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		os.Exit(1)
 	}
 	if err = queueService.Ready(ctx); err != nil {
-		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "error", err)
+		logger.Error("queue readiness check failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("queue ready", "component", logging.ComponentQueue)
+	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
 	ticketRepository := job.NewTicketRepository(db)
 
@@ -60,6 +60,12 @@ func main() {
 	wg := &sync.WaitGroup{}
 
 	workerErrors := make([]error, numberWorkers)
+	logger.Info(
+		"worker pool starting",
+		"component", logging.ComponentWorker,
+		"worker_count", numberWorkers,
+		"worker_timeout_seconds", config.GetWorkerTimeoutSeconds(),
+	)
 
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
@@ -87,9 +93,16 @@ func main() {
 
 	err = errors.Join(workerErrors...)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error(
+			"worker pool failed",
+			"component", logging.ComponentWorker,
+			"worker_count", numberWorkers,
+			"error", err,
+		)
 		os.Exit(1)
 	}
+
+	logger.Info("worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
 }
 
 func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.Logger) (bool, error) {
@@ -98,6 +111,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	defer func() {
 		l.Info(
 			"worker completed",
+			"component", logging.ComponentWorker,
 			"worker_id", w.GetID(),
 			"ticket_id", wr.GetTicketID(),
 			"polling_duration_ms", wr.GetPollingDurationMs(),
@@ -115,7 +129,12 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	dequeueResult, err := w.Polling(ctx)
 	wr.MarkPollingTime()
 	if err != nil {
-		l.Debug("worker returned error during polling", "worker_id", w.GetID(), "error", err)
+		l.Debug(
+			"worker returned error during polling",
+			"component", logging.ComponentWorker,
+			"worker_id", w.GetID(),
+			"error", err,
+		)
 		wr.SetError(err)
 		return wr.GetProcessedItem(), err
 	}
@@ -125,7 +144,13 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	err = w.Start(ctx, *dequeueResult)
 	wr.MarkProcessingTime()
 	if err != nil {
-		l.Debug("worker returned error during processing", "worker_id", w.GetID(), "error", err)
+		l.Debug(
+			"worker returned error during processing",
+			"component", logging.ComponentWorker,
+			"worker_id", w.GetID(),
+			"ticket_id", wr.GetTicketID(),
+			"error", err,
+		)
 		wr.SetError(err)
 		return wr.GetProcessedItem(), err
 	}
