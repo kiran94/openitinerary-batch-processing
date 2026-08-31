@@ -617,6 +617,10 @@ func (m *MockBatchQueue) DeleteMessage(ctx context.Context, queueReference strin
 	return args.Error(0)
 }
 
+func (m *MockBatchQueue) Ready(ctx context.Context) error {
+	return m.Called(ctx).Error(0)
+}
+
 type MockStorage struct {
 	mock.Mock
 }

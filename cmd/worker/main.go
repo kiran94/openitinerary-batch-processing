@@ -44,6 +44,10 @@ func main() {
 		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "error", err)
 		os.Exit(1)
 	}
+	if err = queueService.Ready(ctx); err != nil {
+		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "error", err)
+		os.Exit(1)
+	}
 	logger.Info("queue ready", "component", logging.ComponentQueue)
 
 	ticketRepository := job.NewTicketRepository(db)

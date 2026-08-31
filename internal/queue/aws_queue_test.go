@@ -27,6 +27,38 @@ func TestNewQueue(t *testing.T) {
 	assert.NotNil(t, queue)
 }
 
+func TestNewQueueWorkerTimeoutLargerThenVisibility(t *testing.T) {
+
+	visibilityTimeoutSeconds := "180"
+	workerTimeoutSeconds := 1800
+
+	mockConfig := MockConfig{}
+	mockConfig.On("GetQueueURL").Return("my_queue").Twice()
+	mockConfig.On("GetWorkerTimeoutSeconds").Return(workerTimeoutSeconds).Once()
+
+	queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
+	require.NoError(t, err)
+
+	q, ok := queue.(*Queue)
+	require.True(t, ok)
+
+	mockBatchQueue := MockBatchQueue{}
+	mockBatchQueue.On("GetQueueAttributes", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		a, ok := args.Get(1).(*sqs.GetQueueAttributesInput)
+		require.True(t, ok)
+
+		assert.Equal(t, "my_queue", *a.QueueUrl)
+		assert.Contains(t, a.AttributeNames, types.QueueAttributeNameVisibilityTimeout)
+	}).Return(&sqs.GetQueueAttributesOutput{
+		Attributes: map[string]string{"VisibilityTimeout": visibilityTimeoutSeconds},
+	})
+	q.Queue = &mockBatchQueue
+
+	readyErr := queue.Ready(t.Context())
+
+	assert.Error(t, readyErr)
+}
+
 func TestEnqueue(t *testing.T) {
 	ctx := t.Context()
 	queueURL := "https://sqs.ap-southeast-1.amazonaws.com/123456789012/jobs.fifo"
@@ -468,6 +500,17 @@ func (m *MockBatchQueue) DeleteMessage(ctx context.Context, params *sqs.DeleteMe
 
 	if args.Get(0) != nil {
 		return args.Get(0).(*sqs.DeleteMessageOutput), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
+func (m *MockBatchQueue) GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error) {
+	args := m.Called(ctx, params, optFns)
+
+	r := args.Get(0)
+	if r != nil {
+		return r.(*sqs.GetQueueAttributesOutput), nil
 	}
 
 	return nil, args.Error(1)

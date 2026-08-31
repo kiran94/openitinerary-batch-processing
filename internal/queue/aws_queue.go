@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
@@ -13,9 +15,15 @@ import (
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
+type Ready interface {
+	Ready(ctx context.Context) error
+}
+
 type BatchQueue interface {
+	Ready
 	Enqueue(ctx context.Context, ticket *job.Ticket) error
 	Dequeue(ctx context.Context) (*DequeueResult, error)
 	DeleteMessage(ctx context.Context, queueReference string) error
@@ -31,6 +39,7 @@ type Queuer interface {
 	SendMessage(ctx context.Context, params *sqs.SendMessageInput, optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
 	ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
 	DeleteMessage(ctx context.Context, params *sqs.DeleteMessageInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
+	GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
 }
 
 func NewQueue(ctx context.Context, c config.Config, logger logging.Logger) (BatchQueue, error) {
@@ -48,6 +57,10 @@ func NewQueue(ctx context.Context, c config.Config, logger logging.Logger) (Batc
 
 type EnqueuePayload struct {
 	TicketID string `json:"ticket_id"`
+}
+
+func (q *Queue) Ready(ctx context.Context) error {
+	return checkVisibilityTimeout(ctx, q.config, q.Queue)
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
@@ -168,5 +181,39 @@ func (q *Queue) DeleteMessage(ctx context.Context, queueReference string) error 
 }
 
 func (q *Queue) Close() error {
+	return nil
+}
+
+func checkVisibilityTimeout(ctx context.Context, c config.Config, client Queuer) error {
+	result, err := client.GetQueueAttributes(
+		ctx,
+		&sqs.GetQueueAttributesInput{
+			AttributeNames: []types.QueueAttributeName{types.QueueAttributeNameVisibilityTimeout},
+			QueueUrl:       new(c.GetQueueURL()),
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	v, ok := result.Attributes[string(types.QueueAttributeNameVisibilityTimeout)]
+	if !ok {
+		return errors.New("VisibilityTimeout was not found in the SQS attribute response")
+	}
+
+	visibilityTimeoutSeconds, err := strconv.Atoi(v)
+	if err != nil {
+		return err
+	}
+
+	workerTimeoutSeconds := c.GetWorkerTimeoutSeconds()
+	if workerTimeoutSeconds > visibilityTimeoutSeconds {
+		return fmt.Errorf(
+			"worker is allowed to run longer then visibility timeout. Which could lead to duplicate processing. worker: %v, visibility_timeout: %v",
+			workerTimeoutSeconds,
+			visibilityTimeoutSeconds,
+		)
+	}
+
 	return nil
 }
