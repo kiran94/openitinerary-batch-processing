@@ -23,6 +23,9 @@ import (
 var errConvert = errors.New("convert failed")
 var errWrite = errors.New("write failed")
 var errClose = errors.New("close failed")
+var errQueue = errors.New("queue failed")
+var errRepository = errors.New("repository failed")
+var errRead = errors.New("read failed")
 
 type trackingReadCloser struct {
 	io.Reader
@@ -78,9 +81,6 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		logger:  &MockLogger{},
 	}
 
-	harness.repository.On("Get", ticket.ID).Return(ticket, nil).Maybe()
-	harness.repository.On("Update", ticket).Return(nil).Maybe()
-
 	t.Cleanup(func() {
 		harness.config.AssertExpectations(t)
 		harness.repository.AssertExpectations(t)
@@ -109,10 +109,27 @@ func (h *workerTestHarness) expectOutputWrite(
 		Once()
 }
 
+// Needed because newWorkerTestHarness installs default successful results on the repository mocks
 func returnWriteError(err error) storageWriteFunc {
 	return func(context.Context, io.Reader, string) error {
 		return err
 	}
+}
+
+func TestNewBatchWorker(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+
+	worker := NewBatchWorker(
+		harness.config,
+		harness.repository,
+		harness.queue,
+		harness.storage,
+		harness.adapter,
+		&MockLogger{},
+	)
+
+	require.NotNil(t, worker)
+	assert.NotEmpty(t, worker.GetID())
 }
 
 func TestPollingReturnsDelivery(t *testing.T) {
@@ -137,8 +154,178 @@ func TestPollingReturnsCancelledContext(t *testing.T) {
 	harness.queue.AssertNotCalled(t, "Dequeue", mock.Anything)
 }
 
+func TestPollingContinuesWhenQueueIsEmpty(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.queue.On("Dequeue", t.Context()).Return(nil, nil).Once()
+	harness.queue.On("Dequeue", t.Context()).Return(&harness.delivery, nil).Once()
+
+	delivery, err := harness.worker.Polling(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, harness.delivery, *delivery)
+	harness.queue.AssertNumberOfCalls(t, "Dequeue", 2)
+}
+
+func TestPollingReturnsQueueError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.queue.On("Dequeue", t.Context()).Return(nil, errQueue).Once()
+
+	delivery, err := harness.worker.Polling(t.Context())
+
+	require.ErrorIs(t, err, errQueue)
+	assert.Nil(t, delivery)
+}
+
+func TestPollingReturnsContextErrorFromDequeue(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	harness.queue.
+		On("Dequeue", ctx).
+		Run(func(mock.Arguments) { cancel() }).
+		Return(nil, errQueue).
+		Once()
+
+	delivery, err := harness.worker.Polling(ctx)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, delivery)
+}
+
+func TestPollingDeletesCorruptDeliveryAndContinues(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	corruptDelivery := harness.delivery
+	harness.queue.On("Dequeue", t.Context()).Return(&corruptDelivery, errQueue).Once()
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(nil).
+		Once()
+	harness.queue.On("Dequeue", t.Context()).Return(&harness.delivery, nil).Once()
+
+	delivery, err := harness.worker.Polling(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, harness.delivery, *delivery)
+	harness.queue.AssertNumberOfCalls(t, "Dequeue", 2)
+}
+
+func TestPollingReturnsCorruptDeliveryDeleteError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	corruptDelivery := harness.delivery
+	harness.queue.On("Dequeue", t.Context()).Return(&corruptDelivery, errQueue).Once()
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(errWrite).
+		Once()
+
+	delivery, err := harness.worker.Polling(t.Context())
+
+	require.ErrorIs(t, err, errWrite)
+	assert.Nil(t, delivery)
+}
+
+func TestPollingSkipsCorruptDeliveryWithoutQueueReference(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	corruptDelivery := queue.DequeueResult{} // No Queue Reference
+	harness.queue.On("Dequeue", t.Context()).Return(&corruptDelivery, errQueue).Once()
+	harness.queue.On("Dequeue", t.Context()).Return(&harness.delivery, nil).Once()
+
+	delivery, err := harness.worker.Polling(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, harness.delivery, *delivery)
+	harness.queue.AssertNotCalled(t, "DeleteMessage", mock.Anything, mock.Anything)
+}
+
+func TestStartDeletesInvalidTicketID(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.delivery.Result.TicketID = "invalid-ticket-id"
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(nil).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.Error(t, err)
+	harness.repository.AssertNotCalled(t, "Get", mock.Anything)
+	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+}
+
+func TestStartReturnsInvalidTicketIDDeleteError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.delivery.Result.TicketID = "invalid-ticket-id"
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(errWrite).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errWrite)
+	assert.Error(t, err)
+}
+
+func TestStartReturnsTicketGetError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(nil, errRepository).Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errRepository)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+}
+
+func TestStartDeletesAlreadyCompleteTicketMessage(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.ticket.Status = job.Complete
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(nil).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.NoError(t, err)
+	assert.Zero(t, harness.ticket.AttemptCount)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+}
+
+func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.ticket.Status = job.Complete
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.queue.
+		On("DeleteMessage", t.Context(), "receipt-handle").
+		Return(errWrite).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, ErrTicketAlreadyComplete)
+	require.ErrorIs(t, err, errWrite)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+}
+
+func TestStartReturnsProcessingUpdateError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errRepository)
+	assert.Equal(t, job.Processing, harness.ticket.Status)
+	assert.Equal(t, 1, harness.ticket.AttemptCount)
+	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+}
+
 func TestStartClosesSourceAndResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString(`[{"type":"flight"}]`)}
 	var written bytes.Buffer
@@ -179,6 +366,8 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 
 func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("unused")}
 	harness.storage.
@@ -198,8 +387,31 @@ func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 	assertTicketFailure(t, harness, job.ConvertFailed, errConvert)
 }
 
+func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
+	harness.storage.
+		On("Read", t.Context(), harness.ticket.DocumentPath).
+		Return(source, nil).
+		Once()
+	harness.adapter.
+		On("Convert", t.Context(), source, harness.ticket.DocumentPath, harness.ticket.ContentType).
+		Return(nil, errConvert).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errConvert)
+	assert.True(t, source.closed)
+	assertTicketFailure(t, harness, job.ConvertFailed, errConvert)
+}
+
 func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -220,8 +432,46 @@ func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 	assertTicketFailure(t, harness, job.StorageWriteFailed, errWrite)
 }
 
+func TestStartMarksTicketFailedWhenStorageReadFails(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.storage.
+		On("Read", t.Context(), harness.ticket.DocumentPath).
+		Return(nil, errRead).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errRead)
+	harness.adapter.AssertNotCalled(t, "Convert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	assertTicketFailure(t, harness, job.StorageReadFailed, errRead)
+}
+
+func TestStartJoinsTicketFailureUpdateError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+	harness.storage.
+		On("Read", t.Context(), harness.ticket.DocumentPath).
+		Return(nil, errRead).
+		Once()
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errRead)
+	require.ErrorIs(t, err, errRepository)
+	require.NotNil(t, harness.ticket.StatusReason)
+	assert.Equal(t, job.Failed, harness.ticket.Status)
+	assert.Equal(t, job.StorageReadFailed, *harness.ticket.StatusReason)
+	harness.repository.AssertNumberOfCalls(t, "Update", 2)
+}
+
 func TestStartRejectsNilSourceReader(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, nil).
@@ -237,6 +487,8 @@ func TestStartRejectsNilSourceReader(t *testing.T) {
 
 func TestStartRejectsNilAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
@@ -257,6 +509,8 @@ func TestStartRejectsNilAdapterResponse(t *testing.T) {
 
 func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document"), closeErr: errClose}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result"), closeErr: errClose}
 	harness.storage.
@@ -282,6 +536,8 @@ func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 
 func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	responseBody := &trackingReadCloser{Reader: bytes.NewBufferString("123456")}
 	response := http.MaxBytesReader(nil, responseBody, 5)
@@ -313,6 +569,8 @@ func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 
 func TestStartReturnsDeleteMessageError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -332,6 +590,35 @@ func TestStartReturnsDeleteMessageError(t *testing.T) {
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
 	require.ErrorIs(t, err, errWrite)
+	assert.Equal(t, job.Complete, harness.ticket.Status)
+	harness.repository.AssertNumberOfCalls(t, "Update", 2)
+}
+
+func TestStartReturnsCompletionUpdateError(t *testing.T) {
+	harness := newWorkerTestHarness(t)
+	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
+	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
+	harness.storage.
+		On("Read", t.Context(), harness.ticket.DocumentPath).
+		Return(source, nil).
+		Once()
+	harness.adapter.
+		On("Convert", t.Context(), source, harness.ticket.DocumentPath, harness.ticket.ContentType).
+		Return(response, nil).
+		Once()
+	harness.expectOutputWrite(t.Context(), response, returnWriteError(nil))
+
+	err := harness.worker.Start(t.Context(), harness.delivery)
+
+	require.ErrorIs(t, err, errRepository)
+	assert.True(t, source.closed)
+	assert.True(t, response.closed)
+	assert.Equal(t, job.Complete, harness.ticket.Status)
+	harness.repository.AssertNumberOfCalls(t, "Update", 2)
+	harness.queue.AssertNotCalled(t, "DeleteMessage", mock.Anything, mock.Anything)
 }
 
 func assertTicketFailure(

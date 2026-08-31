@@ -76,7 +76,7 @@ func TestWorkReportMarksProcessedItem(t *testing.T) {
 func TestWorkReportSetsError(t *testing.T) {
 	report := NewWorkReport()
 	expectedErr := errors.New("worker failed")
-	assert.NoError(t, report.GetError())
+	require.NoError(t, report.GetError())
 
 	report.SetError(expectedErr)
 
