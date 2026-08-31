@@ -159,6 +159,15 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	parsedID, err := uuid.Parse(ticketID)
 	if err != nil {
+		w.logger.Warn("found corrupted queue message", "worker_id", w.id, "corrupted_ticket", ticketID)
+
+		// If the Ticket ID pushed into the queue is not a valid then it suggests a corrupt message
+		// We should log and delete the message from the queue to ensure that it does not repeatedly retry
+		if deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference); deleteMessageErr != nil {
+			w.logger.Error("delete message failed", "component", logging.ComponentWorker, "error", deleteMessageErr)
+			return errors.Join(err, deleteMessageErr)
+		}
+
 		return err
 	}
 
