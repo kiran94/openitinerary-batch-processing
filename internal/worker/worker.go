@@ -167,30 +167,30 @@ func (w *BatchWorker) updateTicketAndError(ticket *job.Ticket, err error, tsr jo
 var ErrTicketAlreadyComplete = errors.New("ticket already complete")
 
 func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult) error {
-	if ticket.Status == job.Complete {
-		w.logger.Warn(
-			"completed ticket was received again",
-			"component", logging.ComponentWorker,
-			"worker_id", w.id.String(),
-			"ticket_id", ticket.ID.String(),
-		)
-
-		deleteMessageErr := w.queue.DeleteMessage(ctx, *dr.QueueReference)
-		if deleteMessageErr != nil {
-			w.logger.Error(
-				"completed ticket message deletion failed",
-				"component", logging.ComponentQueue,
-				"worker_id", w.id.String(),
-				"ticket_id", ticket.ID.String(),
-				"error", deleteMessageErr,
-			)
-			return errors.Join(deleteMessageErr, ErrTicketAlreadyComplete)
-		}
-
-		return ErrTicketAlreadyComplete
+	if ticket.Status != job.Complete {
+		return nil
 	}
 
-	return nil
+	w.logger.Warn(
+		"completed ticket was received again",
+		"component", logging.ComponentWorker,
+		"worker_id", w.id.String(),
+		"ticket_id", ticket.ID.String(),
+	)
+
+	deleteMessageErr := w.queue.DeleteMessage(ctx, *dr.QueueReference)
+	if deleteMessageErr != nil {
+		w.logger.Error(
+			"completed ticket message deletion failed",
+			"component", logging.ComponentQueue,
+			"worker_id", w.id.String(),
+			"ticket_id", ticket.ID.String(),
+			"error", deleteMessageErr,
+		)
+		return errors.Join(deleteMessageErr, ErrTicketAlreadyComplete)
+	}
+
+	return ErrTicketAlreadyComplete
 }
 
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
