@@ -59,8 +59,23 @@ func main() {
 
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
-			err := startWork(ctx, config, ticketRepository, queueService, storage, adapter, logger)
-			workerErrors[i] = err
+			processingItem, err := startWork(ctx, config, ticketRepository, queueService, storage, adapter, logger)
+
+			if err != nil {
+
+				if err != context.DeadlineExceeded {
+					workerErrors[i] = err
+				}
+
+				// If a worker timeout happened and we were processing an item
+				// then it may indicate the worker timeout is too low
+				// If a worker timeout
+				if err == context.DeadlineExceeded && processingItem {
+					workerErrors[i] = err
+				}
+
+			}
+
 		})
 	}
 
@@ -81,7 +96,7 @@ func startWork(
 	storage storage.Storage,
 	adapter clients.Adapter,
 	logger logging.Logger,
-) error {
+) (bool, error) {
 	wr := worker.NewWorkReport()
 	worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger)
 
@@ -106,7 +121,7 @@ func startWork(
 	if err != nil {
 		logger.Debug("worker returned error during polling", "worker_id", worker.GetID(), "error", err)
 		wr.SetError(err)
-		return err
+		return wr.GetProcessedItem(), err
 	}
 	wr.MarkProcessedItem()
 
@@ -115,8 +130,8 @@ func startWork(
 	if err != nil {
 		logger.Debug("worker returned error during processing", "worker_id", worker.GetID(), "error", err)
 		wr.SetError(err)
-		return err
+		return wr.GetProcessedItem(), err
 	}
 
-	return nil
+	return wr.GetProcessedItem(), nil
 }
