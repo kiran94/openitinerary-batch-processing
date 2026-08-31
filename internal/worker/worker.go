@@ -129,6 +129,24 @@ func (w *BatchWorker) updateTicketAndError(ticket *job.Ticket, err error, tsr jo
 	return err
 }
 
+var ErrTicketAlreadyComplete = errors.New("ticket already complete")
+
+func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult) error {
+	if ticket.Status == job.Complete {
+		w.logger.Warn("attempted to process a ticket which was already complete, deleting message from queue", "ticket_id", ticket.ID)
+
+		deleteMessageErr := w.queue.DeleteMessage(ctx, *dr.QueueReference)
+		if deleteMessageErr != nil {
+			w.logger.Error("delete message failed", "component", logging.ComponentWorker, "error", deleteMessageErr)
+			return errors.Join(deleteMessageErr, ErrTicketAlreadyComplete)
+		}
+
+		return ErrTicketAlreadyComplete
+	}
+
+	return nil
+}
+
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
 	w.logger.Info(
 		"worker started",
@@ -148,6 +166,17 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	ticket, err := w.job.Get(parsedID)
 	if err != nil {
 		return err
+	}
+
+	// This handles a edge case where in a previous attempt, processing was marked as complete
+	// but the DeleteMessage operation failed.
+	// So we attempt to delete it again and stop processing here
+	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult); err != nil {
+		if err == ErrTicketAlreadyComplete {
+			return nil
+		} else {
+			return err
+		}
 	}
 
 	ticket.Status = job.Processing
@@ -197,14 +226,13 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		return err
 	}
 
-	// Notify User
-	// TODO
-
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference)
 	if deleteMessageErr != nil {
 		w.logger.Error("delete message failed", "component", logging.ComponentWorker, "error", deleteMessageErr)
 		return deleteMessageErr
 	}
+
+	// TODO: Notify User
 
 	w.logger.Info("worker processed successfully", "worker_id", w.id, "ticket_id", ticketID)
 	return nil
