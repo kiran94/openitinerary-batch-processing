@@ -99,7 +99,7 @@ func (ac ApplicationConfig) GetQueuePollingTime() int32 {
 }
 
 func (ac ApplicationConfig) GetWorkerTimeoutSeconds() int {
-	return getPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 180)
+	return getPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
 }
 
 func GetEnvOrDefault(envVarName, defaultValue string) string {
