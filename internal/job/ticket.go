@@ -15,7 +15,7 @@ type Ticket struct {
 	Status       TicketStatus        `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
 	StatusReason *TicketStatusReason `json:"status_reason,omitempty" gorm:"type:varchar(32)"`
 	Error        *string             `json:"-" gorm:"type:text"`
-	AttemptCount int                 `json:"-"`
+	AttemptCount uint16              `json:"-"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -318,7 +318,7 @@ func TestStartReturnsProcessingUpdateError(t *testing.T) {
 
 	require.ErrorIs(t, err, errRepository)
 	assert.Equal(t, job.Processing, harness.ticket.Status)
-	assert.Equal(t, 1, harness.ticket.AttemptCount)
+	assert.Equal(t, uint16(1), harness.ticket.AttemptCount)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
 }
 
@@ -357,7 +357,7 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 	assert.True(t, source.closed)
 	assert.True(t, response.closed)
 	assert.JSONEq(t, `[{"type":"flight"}]`, written.String())
-	assert.Equal(t, 1, harness.ticket.AttemptCount)
+	assert.Equal(t, uint16(1), harness.ticket.AttemptCount)
 	assert.Equal(t, job.Complete, harness.ticket.Status)
 	assert.Nil(t, harness.ticket.Error)
 	assert.Nil(t, harness.ticket.StatusReason)
@@ -631,7 +631,7 @@ func assertTicketFailure(
 
 	require.NotNil(t, harness.ticket.Error)
 	require.NotNil(t, harness.ticket.StatusReason)
-	assert.Equal(t, 1, harness.ticket.AttemptCount)
+	assert.Equal(t, uint16(1), harness.ticket.AttemptCount)
 	assert.Equal(t, job.Failed, harness.ticket.Status)
 	assert.Equal(t, expectedErr.Error(), *harness.ticket.Error)
 	assert.Equal(t, reason, *harness.ticket.StatusReason)
