@@ -1,7 +1,7 @@
 resource "aws_sqs_queue" "job_queue" {
   name                       = "openitinerary-batch-processing-job-queue.fifo"
   fifo_queue                 = true   # used for the deduplication features
-  visibility_timeout_seconds = 180    # 3 mins
+  visibility_timeout_seconds = 360    # 6 mins
   message_retention_seconds  = 259200 # 3 Days
 }
 
