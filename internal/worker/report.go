@@ -1,8 +1,11 @@
 package worker
 
-import "time"
+import (
+	"time"
+)
 
 type workReport struct {
+	ticketID            string
 	startTime           time.Time
 	startPollingTime    time.Time
 	startProcessingTime time.Time
@@ -30,6 +33,10 @@ func (wr *workReport) SetError(err error) {
 	wr.err = err
 }
 
+func (wr *workReport) SetTicketID(ticketID string) {
+	wr.ticketID = ticketID
+}
+
 func (wr *workReport) GetPollingDurationMs() int64 {
 	return wr.startPollingTime.Sub(wr.startTime).Milliseconds()
 }
@@ -48,4 +55,8 @@ func (wr *workReport) GetProcessedItem() bool {
 
 func (wr *workReport) GetError() error {
 	return wr.err
+}
+
+func (wr *workReport) GetTicketID() string {
+	return wr.ticketID
 }

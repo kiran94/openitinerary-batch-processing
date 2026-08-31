@@ -59,10 +59,10 @@ func main() {
 
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
-			processingItem, err := startWork(ctx, config, ticketRepository, queueService, storage, adapter, logger)
+			worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger)
+			processingItem, err := startWork(ctx, worker, config, logger)
 
 			if err != nil {
-
 				if err != context.DeadlineExceeded {
 					workerErrors[i] = err
 				}
@@ -88,22 +88,14 @@ func main() {
 	}
 }
 
-func startWork(
-	ctx context.Context,
-	config config.Config,
-	ticketRepository job.TicketRepository,
-	queueService queue.BatchQueue,
-	storage storage.Storage,
-	adapter clients.Adapter,
-	logger logging.Logger,
-) (bool, error) {
+func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.Logger) (bool, error) {
 	wr := worker.NewWorkReport()
-	worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger)
 
 	defer func() {
-		logger.Info(
+		l.Info(
 			"worker completed",
-			"worker_id", worker.GetID(),
+			"worker_id", w.GetID(),
+			"ticket_id", wr.GetTicketID(),
 			"polling_duration_ms", wr.GetPollingDurationMs(),
 			"processing_duration_ms", wr.GetProcessingTimeMs(),
 			"overall_duration_ms", wr.GetOverallTimeMs(),
@@ -112,23 +104,24 @@ func startWork(
 		)
 	}()
 
-	workerTimeout := time.Duration(config.GetWorkerTimeoutSeconds()) * time.Second
+	workerTimeout := time.Duration(c.GetWorkerTimeoutSeconds()) * time.Second
 	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(workerTimeout))
 	defer cancel()
 
-	dequeueResult, err := worker.Polling(ctx)
+	dequeueResult, err := w.Polling(ctx)
 	wr.MarkPollingTime()
 	if err != nil {
-		logger.Debug("worker returned error during polling", "worker_id", worker.GetID(), "error", err)
+		l.Debug("worker returned error during polling", "worker_id", w.GetID(), "error", err)
 		wr.SetError(err)
 		return wr.GetProcessedItem(), err
 	}
 	wr.MarkProcessedItem()
+	wr.SetTicketID(dequeueResult.Result.TicketID)
 
-	err = worker.Start(ctx, *dequeueResult)
+	err = w.Start(ctx, *dequeueResult)
 	wr.MarkProcessingTime()
 	if err != nil {
-		logger.Debug("worker returned error during processing", "worker_id", worker.GetID(), "error", err)
+		l.Debug("worker returned error during processing", "worker_id", w.GetID(), "error", err)
 		wr.SetError(err)
 		return wr.GetProcessedItem(), err
 	}
