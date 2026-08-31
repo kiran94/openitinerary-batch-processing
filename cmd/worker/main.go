@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
@@ -49,15 +52,49 @@ func main() {
 	adapter := clients.NewAdapterClient(httpClient, logger, config.GetMaximumAdapterResponseSizeBytes())
 	defer httpClient.CloseIdleConnections()
 
-	// TODO: Split workers into multiple go routiunes
+	numberWorkers := runtime.NumCPU()
+	wg := &sync.WaitGroup{}
 
+	workerErrors := make([]error, numberWorkers)
+
+	for i := 0; i < numberWorkers; i++ {
+		wg.Go(func() {
+			err := startWork(ctx, config, ticketRepository, queueService, storage, adapter, logger)
+			workerErrors[i] = err
+		})
+	}
+
+	wg.Wait()
+
+	err = errors.Join(workerErrors...)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+func startWork(
+	ctx context.Context,
+	config config.Config,
+	ticketRepository job.TicketRepository,
+	queueService queue.BatchQueue,
+	storage storage.Storage,
+	adapter clients.Adapter,
+	logger logging.Logger,
+) error {
+	wr := worker.NewWorkReport()
 	worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger)
 
-	processedItem := false
-	startTime := time.Now()
 	defer func() {
-		duration := time.Since(startTime)
-		logger.Info("worker completed", "worker_id", worker.GetID(), "duration_ms", duration.Milliseconds(), "processed_item", processedItem)
+		logger.Info(
+			"worker completed",
+			"worker_id", worker.GetID(),
+			"polling_duration_ms", wr.GetPollingDurationMs(),
+			"processing_duration_ms", wr.GetProcessingTimeMs(),
+			"overall_duration_ms", wr.GetOverallTimeMs(),
+			"processed_item", wr.GetProcessedItem(),
+			"error", wr.GetError(),
+		)
 	}()
 
 	workerTimeout := time.Duration(config.GetWorkerTimeoutSeconds()) * time.Second
@@ -65,12 +102,21 @@ func main() {
 	defer cancel()
 
 	dequeueResult, err := worker.Polling(ctx)
+	wr.MarkPollingTime()
 	if err != nil {
-		panic(err)
+		logger.Debug("worker returned error during polling", "worker_id", worker.GetID(), "error", err)
+		wr.SetError(err)
+		return err
+	}
+	wr.MarkProcessedItem()
+
+	err = worker.Start(ctx, *dequeueResult)
+	wr.MarkProcessingTime()
+	if err != nil {
+		logger.Debug("worker returned error during processing", "worker_id", worker.GetID(), "error", err)
+		wr.SetError(err)
+		return err
 	}
 
-	processedItem = true
-	if err := worker.Start(ctx, *dequeueResult); err != nil {
-		panic(err)
-	}
+	return nil
 }
