@@ -14,7 +14,7 @@ import (
 
 func TestNewLoggerUsesJSONInProduction(t *testing.T) {
 	var output bytes.Buffer
-	logger := newLogger(&output, "production")
+	logger := newLogger(&output, "production", slog.LevelDebug)
 
 	logger.Info("processed ticket", "ticket_id", "ticket-123")
 
@@ -28,7 +28,7 @@ func TestNewLoggerUsesJSONInProduction(t *testing.T) {
 
 func TestNewLoggerUsesColoredTextOutsideProduction(t *testing.T) {
 	var output bytes.Buffer
-	logger := newLogger(&output, "development")
+	logger := newLogger(&output, "development", slog.LevelDebug)
 
 	logger.Debug("processed ticket", "ticket_id", "ticket-123")
 
