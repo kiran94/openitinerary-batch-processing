@@ -21,6 +21,22 @@ type Ticket struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+func (t *Ticket) UpdateStatus(status TicketStatus, tsr *TicketStatusReason, err error) {
+	t.Status = status
+
+	if tsr != nil {
+		t.StatusReason = tsr
+	} else {
+		t.StatusReason = nil
+	}
+
+	if err != nil {
+		t.Error = new(err.Error())
+	} else {
+		t.Error = nil
+	}
+}
+
 type TicketStatus string
 
 const (

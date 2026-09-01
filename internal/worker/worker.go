@@ -143,10 +143,7 @@ func (w *BatchWorker) updateTicketAndError(ticket *job.Ticket, err error, tsr jo
 		"error", err,
 	)
 
-	ticket.Error = new(err.Error())
-	ticket.Status = job.Failed
-	ticket.StatusReason = new(tsr)
-
+	ticket.UpdateStatus(job.Failed, &tsr, err)
 	if updateErr := w.job.Update(ticket); updateErr != nil {
 		w.logger.Error(
 			"ticket failure status update failed",
@@ -253,7 +250,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		}
 	}
 
-	ticket.Status = job.Processing
+	ticket.UpdateStatus(job.Processing, nil, nil)
 	ticket.AttemptCount++
 	if err := w.job.Update(ticket); err != nil {
 		w.logger.Error(
@@ -314,9 +311,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	}
 
 	// Mark the Ticket Status
-	ticket.Status = job.Complete
-	ticket.Error = nil
-	ticket.StatusReason = nil
+	ticket.UpdateStatus(job.Complete, nil, nil)
 	if err := w.job.Update(ticket); err != nil {
 		w.logger.Error(
 			"ticket completion status update failed",
