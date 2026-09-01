@@ -65,7 +65,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.Warn(
+			w.logger.Debug(
 				"worker polling stopped",
 				"component", logging.ComponentWorker,
 				"worker_id", w.id.String(),
@@ -89,7 +89,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 
 		if err != nil {
 			if ctx.Err() != nil {
-				w.logger.Warn(
+				w.logger.Debug(
 					"worker polling stopped",
 					"component", logging.ComponentWorker,
 					"worker_id", w.id.String(),
