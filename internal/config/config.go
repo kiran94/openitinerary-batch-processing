@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 type Config interface {
 	GetEnvironment() string
 	GetPort() string
+	GetLoggingLevel() slog.Level
 
 	GetServerReadTimeout() time.Duration
 	GetServerWriteTimeout() time.Duration
@@ -40,6 +42,17 @@ func (ac ApplicationConfig) GetEnvironment() string {
 
 func (ac ApplicationConfig) GetPort() string {
 	return ":8080"
+}
+
+func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
+	rawLevel := GetEnvOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo.String())
+
+	levelParsed := slog.LevelInfo
+	if err := levelParsed.UnmarshalText([]byte(rawLevel)); err != nil {
+		panic(err)
+	}
+
+	return levelParsed
 }
 
 func (ac ApplicationConfig) GetServerReadTimeout() time.Duration {
