@@ -249,7 +249,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
 
 	jobCreateError := errors.New("error creating job")
-	mockTicketRepository.On("Create", mock.Anything).Return(jobCreateError).Once()
+	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(jobCreateError).Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
@@ -289,13 +289,14 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
-	mockTicketRepository.On("Create", mock.Anything).Return(nil).Once()
+	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
 	mockQueue.On("Enqueue", mock.Anything).Return(queueError).Once()
 	mockTicketRepository.
 		On(
 			"MarkFailed",
+			t.Context(),
 			mock.AnythingOfType("uuid.UUID"),
 			job.EnqueueFailed,
 			"enqueue failed. err: enqueue error",
@@ -367,9 +368,9 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 	var generatedTicketID uuid.UUID
 	mockTicketRepository.
-		On("Create", mock.AnythingOfType("*job.Ticket")).
+		On("Create", t.Context(), mock.AnythingOfType("*job.Ticket")).
 		Run(func(args mock.Arguments) {
-			passedTicket := args.Get(0).(*job.Ticket)
+			passedTicket := args.Get(1).(*job.Ticket)
 			generatedTicketID = passedTicket.ID
 
 			assert.Equal(t, documentPath, passedTicket.DocumentPath)
@@ -570,12 +571,12 @@ type MockTicketRepository struct {
 	mock.Mock
 }
 
-func (m *MockTicketRepository) Create(ticket *job.Ticket) error {
-	return m.Called(ticket).Error(0)
+func (m *MockTicketRepository) Create(ctx context.Context, ticket *job.Ticket) error {
+	return m.Called(ctx, ticket).Error(0)
 }
 
-func (m *MockTicketRepository) Get(id uuid.UUID) (*job.Ticket, error) {
-	args := m.Called(id)
+func (m *MockTicketRepository) Get(ctx context.Context, id uuid.UUID) (*job.Ticket, error) {
+	args := m.Called(ctx, id)
 
 	var ticket *job.Ticket
 	if value := args.Get(0); value != nil {
@@ -585,12 +586,17 @@ func (m *MockTicketRepository) Get(id uuid.UUID) (*job.Ticket, error) {
 	return ticket, args.Error(1)
 }
 
-func (m *MockTicketRepository) Update(ticket *job.Ticket) error {
-	return m.Called(ticket).Error(0)
+func (m *MockTicketRepository) Update(ctx context.Context, ticket *job.Ticket) error {
+	return m.Called(ctx, ticket).Error(0)
 }
 
-func (m *MockTicketRepository) MarkFailed(id uuid.UUID, reason job.TicketStatusReason, detail string) (bool, error) {
-	args := m.Called(id, reason, detail)
+func (m *MockTicketRepository) MarkFailed(
+	ctx context.Context,
+	id uuid.UUID,
+	reason job.TicketStatusReason,
+	detail string,
+) (bool, error) {
+	args := m.Called(ctx, id, reason, detail)
 	return args.Bool(0), args.Error(1)
 }
 
