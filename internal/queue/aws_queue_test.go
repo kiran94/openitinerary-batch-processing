@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,6 +26,57 @@ func TestNewQueue(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, queue)
+}
+
+func TestCheckVisibilityTimeout(t *testing.T) {
+
+	tests := []struct {
+		name                     string
+		visibilityTimeoutSeconds int
+		workerTimeoutSeconds     int
+		ready                    bool
+	}{
+		{name: "larger", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 1800, ready: false},
+		{name: "same", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 180, ready: false},
+		{name: "same_on_buffer+1", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 121, ready: false},
+		{name: "same_on_buffer", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 120, ready: true},
+		{name: "smaller", visibilityTimeoutSeconds: 180, workerTimeoutSeconds: 60, ready: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			mockConfig := MockConfig{}
+			mockConfig.On("GetQueueURL").Return("my_queue").Twice()
+			mockConfig.On("GetWorkerTimeoutSeconds").Return(tt.workerTimeoutSeconds).Once()
+
+			queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
+			require.NoError(t, err)
+
+			q, ok := queue.(*Queue)
+			require.True(t, ok)
+
+			mockBatchQueue := MockBatchQueue{}
+			mockBatchQueue.On("GetQueueAttributes", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				a, ok := args.Get(1).(*sqs.GetQueueAttributesInput)
+				require.True(t, ok)
+
+				assert.Equal(t, "my_queue", *a.QueueUrl)
+				assert.Contains(t, a.AttributeNames, types.QueueAttributeNameVisibilityTimeout)
+			}).Return(&sqs.GetQueueAttributesOutput{
+				Attributes: map[string]string{"VisibilityTimeout": strconv.Itoa(tt.visibilityTimeoutSeconds)},
+			})
+			q.Queue = &mockBatchQueue
+
+			readyErr := queue.Ready(t.Context())
+			if tt.ready {
+				assert.NoError(t, readyErr)
+			} else {
+				assert.Error(t, readyErr)
+			}
+
+		})
+	}
 }
 
 func TestEnqueue(t *testing.T) {
@@ -430,6 +482,10 @@ func (m *MockConfig) GetQueuePollingTime() int32 {
 	return m.Called().Get(0).(int32)
 }
 
+func (m *MockConfig) GetWorkerTimeoutSeconds() int {
+	return m.Called().Int(0)
+}
+
 type MockBatchQueue struct {
 	mock.Mock
 }
@@ -464,6 +520,17 @@ func (m *MockBatchQueue) DeleteMessage(ctx context.Context, params *sqs.DeleteMe
 
 	if args.Get(0) != nil {
 		return args.Get(0).(*sqs.DeleteMessageOutput), args.Error(1)
+	}
+
+	return nil, args.Error(1)
+}
+
+func (m *MockBatchQueue) GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error) {
+	args := m.Called(ctx, params, optFns)
+
+	r := args.Get(0)
+	if r != nil {
+		return r.(*sqs.GetQueueAttributesOutput), nil
 	}
 
 	return nil, args.Error(1)

@@ -562,6 +562,10 @@ func (m *MockConfig) GetQueuePollingTime() int32 {
 	return m.Called().Get(0).(int32)
 }
 
+func (m *MockConfig) GetWorkerTimeoutSeconds() int {
+	return m.Called().Int(0)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }
@@ -611,6 +615,10 @@ func (m *MockBatchQueue) Dequeue(ctx context.Context) (*queue.DequeueResult, err
 func (m *MockBatchQueue) DeleteMessage(ctx context.Context, queueReference string) error {
 	args := m.Called(ctx, queueReference)
 	return args.Error(0)
+}
+
+func (m *MockBatchQueue) Ready(ctx context.Context) error {
+	return m.Called(ctx).Error(0)
 }
 
 type MockStorage struct {

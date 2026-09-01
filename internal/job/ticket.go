@@ -15,10 +15,26 @@ type Ticket struct {
 	Status       TicketStatus        `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
 	StatusReason *TicketStatusReason `json:"status_reason,omitempty" gorm:"type:varchar(32)"`
 	Error        *string             `json:"-" gorm:"type:text"`
-	AttemptCount int                 `json:"-"`
+	AttemptCount uint16              `json:"-"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (t *Ticket) UpdateStatus(status TicketStatus, tsr *TicketStatusReason, err error) {
+	t.Status = status
+
+	if tsr != nil {
+		t.StatusReason = tsr
+	} else {
+		t.StatusReason = nil
+	}
+
+	if err != nil {
+		t.Error = new(err.Error())
+	} else {
+		t.Error = nil
+	}
 }
 
 type TicketStatus string
@@ -33,9 +49,13 @@ const (
 type TicketStatusReason string
 
 const (
-
 	// FAILED REASONS
-	EnqueueFailed TicketStatusReason = "enqueue_failed"
+	EnqueueFailed      TicketStatusReason = "enqueue_failed"
+	StorageReadFailed  TicketStatusReason = "storage_read_failed"
+	StorageReadNil     TicketStatusReason = "storage_read_nil"
+	ConvertFailed      TicketStatusReason = "convert_failed"
+	ResponseReaderNil  TicketStatusReason = "response_reader_nil"
+	StorageWriteFailed TicketStatusReason = "storage_write_failed"
 )
 
 func NewTicket() *Ticket {

@@ -11,6 +11,8 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 )
 
 type Adapter interface {
@@ -21,13 +23,15 @@ type AdapterClient struct {
 	adapterAPIURL                   string
 	maximumAdapterResponseSizeBytes int64
 	http                            *http.Client
+	logger                          logging.Logger
 }
 
-func NewAdapterClient(http *http.Client, maximumAdapterResponseSizeBytes int64) Adapter {
+func NewAdapterClient(http *http.Client, logger logging.Logger, maximumAdapterResponseSizeBytes int64) Adapter {
 	return &AdapterClient{
 		adapterAPIURL:                   getAdapterAPIURL(),
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http:                            http,
+		logger:                          logger,
 	}
 }
 
@@ -63,6 +67,7 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 		uploadDone <- uploadErr
 	}()
 
+	a.logger.Debug("calling adapter api", "endpoint", a.adapterAPIURL)
 	response, requestErr := a.http.Do(request)
 
 	// Ensure the producer is released if the server or transport stops

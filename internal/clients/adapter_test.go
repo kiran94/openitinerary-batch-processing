@@ -45,6 +45,7 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 func newAdapterResponseClient(statusCode int, contentLength int64, responseBody io.ReadCloser) Adapter {
 	return &AdapterClient{
 		adapterAPIURL:                   "http://adapter.test",
+		logger:                          &mockLogger{},
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -71,6 +72,7 @@ func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 
 	return &AdapterClient{
 		adapterAPIURL:                   server.URL,
+		logger:                          &mockLogger{},
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http:                            server.Client(),
 	}
@@ -78,7 +80,7 @@ func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 
 func TestNewAdapterClient(t *testing.T) {
 	http := &http.Client{}
-	adapter := NewAdapterClient(http, maximumAdapterResponseSizeBytes)
+	adapter := NewAdapterClient(http, &mockLogger{}, maximumAdapterResponseSizeBytes)
 
 	client, ok := adapter.(*AdapterClient)
 
@@ -115,6 +117,7 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 	adapter := &AdapterClient{
 		adapterAPIURL:                   "http://adapter.test",
+		logger:                          &mockLogger{},
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http: &http.Client{
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -255,3 +258,10 @@ func TestConvertDocumentReadError(t *testing.T) {
 	assert.Nil(t, response)
 	assert.True(t, responseBody.closed)
 }
+
+type mockLogger struct{}
+
+func (*mockLogger) Debug(string, ...any) {}
+func (*mockLogger) Info(string, ...any)  {}
+func (*mockLogger) Warn(string, ...any)  {}
+func (*mockLogger) Error(string, ...any) {}
