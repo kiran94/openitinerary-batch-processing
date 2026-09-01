@@ -8,7 +8,7 @@ import (
 )
 
 type Ticket struct {
-	ID           uuid.UUID `json:"id"`
+	ID           uuid.UUID `json:"id" gorm:"type:uuid;default:(gen_random_uuid())"`
 	DocumentPath string    `json:"document_path"`
 	ContentType  string    `json:"content_type"`
 
