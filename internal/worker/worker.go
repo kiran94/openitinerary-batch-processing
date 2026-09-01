@@ -133,7 +133,12 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 	}
 }
 
-func (w *BatchWorker) updateTicketAndError(ticket *job.Ticket, err error, tsr job.TicketStatusReason) error {
+func (w *BatchWorker) updateTicketAndError(
+	ctx context.Context,
+	ticket *job.Ticket,
+	err error,
+	tsr job.TicketStatusReason,
+) error {
 	w.logger.Error(
 		"ticket processing failed",
 		"component", logging.ComponentWorker,
@@ -144,7 +149,7 @@ func (w *BatchWorker) updateTicketAndError(ticket *job.Ticket, err error, tsr jo
 	)
 
 	ticket.UpdateStatus(job.Failed, &tsr, err)
-	if updateErr := w.job.Update(ticket); updateErr != nil {
+	if updateErr := w.job.Update(ctx, ticket); updateErr != nil {
 		w.logger.Error(
 			"ticket failure status update failed",
 			"component", logging.ComponentDatabase,
@@ -227,7 +232,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	}
 
 	// Get the Ticket for that Job Database
-	ticket, err := w.job.Get(parsedID)
+	ticket, err := w.job.Get(ctx, parsedID)
 	if err != nil {
 		w.logger.Error(
 			"ticket lookup failed",
@@ -252,7 +257,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	ticket.UpdateStatus(job.Processing, nil, nil)
 	ticket.AttemptCount++
-	if err := w.job.Update(ticket); err != nil {
+	if err := w.job.Update(ctx, ticket); err != nil {
 		w.logger.Error(
 			"ticket processing status update failed",
 			"component", logging.ComponentDatabase,
@@ -273,11 +278,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
-		return w.updateTicketAndError(ticket, err, job.StorageReadFailed)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed)
 	}
 	if reader == nil {
 		err := errors.New("storage returned a nil document reader")
-		return w.updateTicketAndError(ticket, err, job.StorageReadNil)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil)
 	}
 
 	// Stream from Storage to the Adapter and stream the result from the adapter back to storage
@@ -287,12 +292,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		w.closeStream(response, "adapter_response", w.id, ticket.ID)
 
 		err := w.classifyAdapterResponseSizeError(convertErr, ticket.ID)
-		return w.updateTicketAndError(ticket, err, job.ConvertFailed)
+		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed)
 	}
 
 	if response == nil {
 		err := errors.New("adapter returned a nil response reader")
-		return w.updateTicketAndError(ticket, err, job.ResponseReaderNil)
+		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil)
 	}
 
 	resultOutputPath := w.config.GetOutputPath(w.config.GetBucket(), w.config.GetBucketPath(), ticket.ID.String())
@@ -307,12 +312,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	w.closeStream(response, "adapter_response", w.id, ticket.ID)
 	if writeErr != nil {
 		err := w.classifyAdapterResponseSizeError(writeErr, ticket.ID)
-		return w.updateTicketAndError(ticket, err, job.StorageWriteFailed)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed)
 	}
 
 	// Mark the Ticket Status
 	ticket.UpdateStatus(job.Complete, nil, nil)
-	if err := w.job.Update(ticket); err != nil {
+	if err := w.job.Update(ctx, ticket); err != nil {
 		w.logger.Error(
 			"ticket completion status update failed",
 			"component", logging.ComponentDatabase,

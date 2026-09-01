@@ -247,7 +247,7 @@ func TestStartDeletesInvalidTicketID(t *testing.T) {
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
 	require.Error(t, err)
-	harness.repository.AssertNotCalled(t, "Get", mock.Anything)
+	harness.repository.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
 }
 
@@ -267,19 +267,19 @@ func TestStartReturnsInvalidTicketIDDeleteError(t *testing.T) {
 
 func TestStartReturnsTicketGetError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(nil, errRepository).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(nil, errRepository).Once()
 
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
 	require.ErrorIs(t, err, errRepository)
-	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
 }
 
 func TestStartDeletesAlreadyCompleteTicketMessage(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.ticket.Status = job.Complete
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
 	harness.queue.
 		On("DeleteMessage", t.Context(), "receipt-handle").
 		Return(nil).
@@ -289,14 +289,14 @@ func TestStartDeletesAlreadyCompleteTicketMessage(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Zero(t, harness.ticket.AttemptCount)
-	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
 }
 
 func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.ticket.Status = job.Complete
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
 	harness.queue.
 		On("DeleteMessage", t.Context(), "receipt-handle").
 		Return(errWrite).
@@ -306,13 +306,13 @@ func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrTicketAlreadyComplete)
 	require.ErrorIs(t, err, errWrite)
-	harness.repository.AssertNotCalled(t, "Update", mock.Anything)
+	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 }
 
 func TestStartReturnsProcessingUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
@@ -324,8 +324,8 @@ func TestStartReturnsProcessingUpdateError(t *testing.T) {
 
 func TestStartClosesSourceAndResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString(`[{"type":"flight"}]`)}
 	var written bytes.Buffer
@@ -366,8 +366,8 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 
 func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("unused")}
 	harness.storage.
@@ -389,8 +389,8 @@ func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 
 func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
@@ -410,8 +410,8 @@ func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
 
 func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -434,8 +434,8 @@ func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 
 func TestStartMarksTicketFailedWhenStorageReadFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, errRead).
@@ -450,9 +450,9 @@ func TestStartMarksTicketFailedWhenStorageReadFails(t *testing.T) {
 
 func TestStartJoinsTicketFailureUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, errRead).
@@ -470,8 +470,8 @@ func TestStartJoinsTicketFailureUpdateError(t *testing.T) {
 
 func TestStartRejectsNilSourceReader(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, nil).
@@ -487,8 +487,8 @@ func TestStartRejectsNilSourceReader(t *testing.T) {
 
 func TestStartRejectsNilAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
@@ -509,8 +509,8 @@ func TestStartRejectsNilAdapterResponse(t *testing.T) {
 
 func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document"), closeErr: errClose}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result"), closeErr: errClose}
 	harness.storage.
@@ -536,8 +536,8 @@ func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 
 func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	responseBody := &trackingReadCloser{Reader: bytes.NewBufferString("123456")}
 	response := http.MaxBytesReader(nil, responseBody, 5)
@@ -569,8 +569,8 @@ func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 
 func TestStartReturnsDeleteMessageError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -596,9 +596,9 @@ func TestStartReturnsDeleteMessageError(t *testing.T) {
 
 func TestStartReturnsCompletionUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
-	harness.repository.On("Get", harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(nil).Once()
-	harness.repository.On("Update", harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -671,12 +671,12 @@ type MockTicketRepository struct {
 	mock.Mock
 }
 
-func (m *MockTicketRepository) Create(ticket *job.Ticket) error {
-	return m.Called(ticket).Error(0)
+func (m *MockTicketRepository) Create(ctx context.Context, ticket *job.Ticket) error {
+	return m.Called(ctx, ticket).Error(0)
 }
 
-func (m *MockTicketRepository) Get(id uuid.UUID) (*job.Ticket, error) {
-	args := m.Called(id)
+func (m *MockTicketRepository) Get(ctx context.Context, id uuid.UUID) (*job.Ticket, error) {
+	args := m.Called(ctx, id)
 	if value := args.Get(0); value != nil {
 		return value.(*job.Ticket), args.Error(1)
 	}
@@ -684,16 +684,17 @@ func (m *MockTicketRepository) Get(id uuid.UUID) (*job.Ticket, error) {
 	return nil, args.Error(1)
 }
 
-func (m *MockTicketRepository) Update(ticket *job.Ticket) error {
-	return m.Called(ticket).Error(0)
+func (m *MockTicketRepository) Update(ctx context.Context, ticket *job.Ticket) error {
+	return m.Called(ctx, ticket).Error(0)
 }
 
 func (m *MockTicketRepository) MarkFailed(
+	ctx context.Context,
 	id uuid.UUID,
 	reason job.TicketStatusReason,
 	detail string,
 ) (bool, error) {
-	args := m.Called(id, reason, detail)
+	args := m.Called(ctx, id, reason, detail)
 	return args.Bool(0), args.Error(1)
 }
 

@@ -1,7 +1,7 @@
 package job
 
 import (
-	"errors"
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,6 +31,10 @@ func (m *MockDatabase) Model(value interface{}) (tx *gorm.DB) {
 	return m.Called(value).Get(0).(*gorm.DB).Model(value)
 }
 
+func (m *MockDatabase) WithContext(ctx context.Context) *gorm.DB {
+	return m.Called(ctx).Get(0).(*gorm.DB)
+}
+
 func TestNewTicketRepository(t *testing.T) {
 	repository := NewTicketRepository(&MockDatabase{})
 	require.NotNil(t, repository)
@@ -38,30 +42,43 @@ func TestNewTicketRepository(t *testing.T) {
 }
 
 func TestTicketRepositoryCreate(t *testing.T) {
+	db := newInMemoryDatabase(t)
 	ticket := NewTicket()
+	repository := NewTicketRepository(db)
 
-	mockDatabase := MockDatabase{}
-	mockDatabase.On("Create", ticket).Return(&gorm.DB{})
-
-	repository := NewTicketRepository(&mockDatabase)
-	err := repository.Create(ticket)
+	err := repository.Create(t.Context(), ticket)
 
 	require.NoError(t, err)
-	mockDatabase.AssertExpectations(t)
+
+	var createdTicket Ticket
+	require.NoError(t, db.First(&createdTicket, "id = ?", ticket.ID).Error)
+	assert.Equal(t, ticket.ID, createdTicket.ID)
 }
 
 func TestTicketRepositoryCreateError(t *testing.T) {
+	db := newInMemoryDatabase(t)
+	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 	ticket := NewTicket()
-	simulatedErr := errors.New("simulated")
+	repository := NewTicketRepository(db)
 
-	mockDatabase := MockDatabase{}
-	mockDatabase.On("Create", ticket).Return(&gorm.DB{Error: simulatedErr})
+	err := repository.Create(t.Context(), ticket)
 
-	repository := NewTicketRepository(&mockDatabase)
-	err := repository.Create(ticket)
+	require.Error(t, err)
+}
 
-	assert.Equal(t, simulatedErr, err)
-	mockDatabase.AssertExpectations(t)
+func TestTicketRepositoryCreateCanceled(t *testing.T) {
+	db := newInMemoryDatabase(t)
+	repository := NewTicketRepository(db)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := repository.Create(ctx, NewTicket())
+
+	require.ErrorIs(t, err, context.Canceled)
+
+	var ticketCount int64
+	require.NoError(t, db.Model(&Ticket{}).Count(&ticketCount).Error)
+	assert.Zero(t, ticketCount)
 }
 
 func TestTicketRepositoryMarkFailedEnqueueFailed(t *testing.T) {
@@ -74,7 +91,7 @@ func TestTicketRepositoryMarkFailedEnqueueFailed(t *testing.T) {
 	require.NoError(t, db.Create(ticket).Error)
 
 	repository := NewTicketRepository(db)
-	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
+	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
 	assert.True(t, updated)
@@ -102,7 +119,7 @@ func TestTicketRepositoryMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
 	require.NoError(t, db.Create(ticket).Error)
 
 	repository := NewTicketRepository(db)
-	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
+	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
 	assert.False(t, updated)
@@ -122,10 +139,32 @@ func TestTicketRepositoryMarkFailedEnqueueFailedError(t *testing.T) {
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 
 	repository := NewTicketRepository(db)
-	updated, err := repository.MarkFailed(id, EnqueueFailed, detail)
+	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.Error(t, err)
 	assert.False(t, updated)
+}
+
+func TestTicketRepositoryMarkFailedCanceled(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	db := newInMemoryDatabase(t)
+	ticket := NewTicket()
+	ticket.ID = id
+	require.NoError(t, db.Create(ticket).Error)
+	repository := NewTicketRepository(db)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	updated, err := repository.MarkFailed(ctx, id, EnqueueFailed, "enqueue failed")
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, updated)
+
+	var unchangedTicket Ticket
+	require.NoError(t, db.First(&unchangedTicket, "id = ?", id).Error)
+	assert.Equal(t, Queued, unchangedTicket.Status)
+	assert.Nil(t, unchangedTicket.StatusReason)
+	assert.Nil(t, unchangedTicket.Error)
 }
 
 func TestTicketRepositoryMarkFailedUnsupportedReason(t *testing.T) {
@@ -135,11 +174,11 @@ func TestTicketRepositoryMarkFailedUnsupportedReason(t *testing.T) {
 
 	m := MockDatabase{}
 	repository := NewTicketRepository(&m)
-	updated, err := repository.MarkFailed(id, reason, "simulated")
+	updated, err := repository.MarkFailed(t.Context(), id, reason, "simulated")
 
 	require.ErrorIs(t, err, ErrUnsupportedTicketStatusReason)
 	assert.False(t, updated)
-	m.AssertNotCalled(t, "Model", mock.Anything)
+	m.AssertNotCalled(t, "WithContext", mock.Anything)
 }
 
 func newInMemoryDatabase(t *testing.T) *gorm.DB {
@@ -160,52 +199,51 @@ func newInMemoryDatabase(t *testing.T) *gorm.DB {
 }
 
 func TestTicketRepositoryGetError(t *testing.T) {
+	db := newInMemoryDatabase(t)
+	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	repository := NewTicketRepository(db)
 
-	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
-	expectedErr := errors.New("record not found")
+	ticket, err := repository.Get(t.Context(), id)
 
-	m := MockDatabase{}
-	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{Error: expectedErr})
-
-	repository := NewTicketRepository(&m)
-	ticket, err := repository.Get(id)
-
-	m.AssertExpectations(t)
-	assert.Equal(t, expectedErr, err)
+	require.Error(t, err)
 	assert.Nil(t, ticket)
 }
 
 func TestTicketRepositoryGetRecordNotFound(t *testing.T) {
-	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	repository := NewTicketRepository(newInMemoryDatabase(t))
 
-	m := MockDatabase{}
-	m.On("Find", mock.Anything, []string{id.String()}).Return(&gorm.DB{RowsAffected: 0})
+	ticket, err := repository.Get(t.Context(), id)
 
-	repository := NewTicketRepository(&m)
-	ticket, err := repository.Get(id)
-
-	m.AssertExpectations(t)
-	assert.Equal(t, ErrRecordNotFound, err)
+	require.ErrorIs(t, err, ErrRecordNotFound)
 	assert.Nil(t, ticket)
 }
 
 func TestTicketRepositoryGet(t *testing.T) {
-	id, _ := uuid.Parse("e6f26180-9b63-4799-815b-e67b3795bf53")
-
+	db := newInMemoryDatabase(t)
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
 	expectedTicket := NewTicket()
+	expectedTicket.ID = id
 	expectedTicket.DocumentPath = "example.pdf"
+	require.NoError(t, db.Create(expectedTicket).Error)
+	repository := NewTicketRepository(db)
 
-	m := MockDatabase{}
-	m.On("Find", mock.AnythingOfType("*job.Ticket"), []string{id.String()}).Run(func(args mock.Arguments) {
-		ticket := args.Get(0).(*Ticket)
-		*ticket = *expectedTicket
-	}).Return(&gorm.DB{RowsAffected: 1})
-
-	repository := NewTicketRepository(&m)
-	ticket, err := repository.Get(id)
+	ticket, err := repository.Get(t.Context(), id)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTicket, ticket)
+}
+
+func TestTicketRepositoryGetCanceled(t *testing.T) {
+	repository := NewTicketRepository(newInMemoryDatabase(t))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	ticket, err := repository.Get(ctx, uuid.New())
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, ticket)
 }
 
 func TestTicketRepositoryUpdate(t *testing.T) {
@@ -217,7 +255,7 @@ func TestTicketRepositoryUpdate(t *testing.T) {
 
 	ticket.Status = Processing
 	repository := NewTicketRepository(db)
-	require.NoError(t, repository.Update(ticket))
+	require.NoError(t, repository.Update(t.Context(), ticket))
 
 	var updatedTicket Ticket
 	require.NoError(t, db.First(&updatedTicket, "id = ?", id).Error)
@@ -227,7 +265,7 @@ func TestTicketRepositoryUpdate(t *testing.T) {
 func TestTicketRepositoryUpdateRecordNotFound(t *testing.T) {
 	repository := NewTicketRepository(newInMemoryDatabase(t))
 
-	err := repository.Update(NewTicket())
+	err := repository.Update(t.Context(), NewTicket())
 
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
@@ -237,7 +275,27 @@ func TestTicketRepositoryUpdateError(t *testing.T) {
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 
 	repository := NewTicketRepository(db)
-	err := repository.Update(NewTicket())
+	err := repository.Update(t.Context(), NewTicket())
 
 	require.Error(t, err)
+}
+
+func TestTicketRepositoryUpdateCanceled(t *testing.T) {
+	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
+	db := newInMemoryDatabase(t)
+	ticket := NewTicket()
+	ticket.ID = id
+	require.NoError(t, db.Create(ticket).Error)
+	repository := NewTicketRepository(db)
+	ticket.Status = Processing
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := repository.Update(ctx, ticket)
+
+	require.ErrorIs(t, err, context.Canceled)
+
+	var unchangedTicket Ticket
+	require.NoError(t, db.First(&unchangedTicket, "id = ?", id).Error)
+	assert.Equal(t, Queued, unchangedTicket.Status)
 }

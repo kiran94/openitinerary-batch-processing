@@ -1,6 +1,7 @@
 package job
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -9,16 +10,17 @@ import (
 )
 
 type TicketRepository interface {
-	Create(ticket *Ticket) error
-	Get(id uuid.UUID) (*Ticket, error)
-	Update(ticket *Ticket) error
-	MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error)
+	Create(ctx context.Context, ticket *Ticket) error
+	Get(ctx context.Context, id uuid.UUID) (*Ticket, error)
+	Update(ctx context.Context, ticket *Ticket) error
+	MarkFailed(ctx context.Context, id uuid.UUID, reason TicketStatusReason, detail string) (bool, error)
 }
 
 type Database interface {
 	Create(value interface{}) (tx *gorm.DB)
 	Find(dest interface{}, conditions ...interface{}) (tx *gorm.DB)
 	Model(value interface{}) (tx *gorm.DB)
+	WithContext(ctx context.Context) *gorm.DB
 }
 
 func NewTicketRepository(db Database) TicketRepository {
@@ -29,8 +31,8 @@ type ticketRepository struct {
 	db Database
 }
 
-func (r *ticketRepository) Create(ticket *Ticket) error {
-	if result := r.db.Create(ticket); result.Error != nil {
+func (r *ticketRepository) Create(ctx context.Context, ticket *Ticket) error {
+	if result := r.db.WithContext(ctx).Create(ticket); result.Error != nil {
 		return result.Error
 	}
 
@@ -39,10 +41,15 @@ func (r *ticketRepository) Create(ticket *Ticket) error {
 
 var ErrUnsupportedTicketStatusReason = errors.New("unsupported ticket status reason")
 
-func (r *ticketRepository) MarkFailed(id uuid.UUID, reason TicketStatusReason, detail string) (bool, error) {
+func (r *ticketRepository) MarkFailed(
+	ctx context.Context,
+	id uuid.UUID,
+	reason TicketStatusReason,
+	detail string,
+) (bool, error) {
 	switch reason {
 	case EnqueueFailed:
-		return r.markEnqueueFailed(id, detail)
+		return r.markEnqueueFailed(ctx, id, detail)
 	default:
 		return false, fmt.Errorf("%w: %s", ErrUnsupportedTicketStatusReason, reason)
 	}
@@ -53,9 +60,10 @@ func (r *ticketRepository) MarkFailed(id uuid.UUID, reason TicketStatusReason, d
 // worker that may have received the message before the enqueue error returned.
 // On the queue side, it's possible for an acknowledgement to be lost even
 // if the message was actually submitted to the queue.
-func (r *ticketRepository) markEnqueueFailed(id uuid.UUID, detail string) (bool, error) {
+func (r *ticketRepository) markEnqueueFailed(ctx context.Context, id uuid.UUID, detail string) (bool, error) {
 
 	result := r.db.
+		WithContext(ctx).
 		Model(&Ticket{}).
 		Where("id = ? AND status = ?", id, Queued).
 		Updates(map[string]interface{}{
@@ -72,10 +80,10 @@ func (r *ticketRepository) markEnqueueFailed(id uuid.UUID, detail string) (bool,
 
 var ErrRecordNotFound = errors.New("record not found")
 
-func (r *ticketRepository) Get(id uuid.UUID) (*Ticket, error) {
+func (r *ticketRepository) Get(ctx context.Context, id uuid.UUID) (*Ticket, error) {
 	ticket := &Ticket{}
 
-	result := r.db.Find(ticket, []string{id.String()})
+	result := r.db.WithContext(ctx).Find(ticket, []string{id.String()})
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -87,8 +95,8 @@ func (r *ticketRepository) Get(id uuid.UUID) (*Ticket, error) {
 	return ticket, nil
 }
 
-func (r *ticketRepository) Update(ticket *Ticket) error {
-	result := r.db.Model(ticket).Select("*").Updates(ticket)
+func (r *ticketRepository) Update(ctx context.Context, ticket *Ticket) error {
+	result := r.db.WithContext(ctx).Model(ticket).Select("*").Updates(ticket)
 	if result.Error != nil {
 		return result.Error
 	}

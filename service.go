@@ -100,7 +100,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.job.Create(ticket); err != nil {
+	if err := s.job.Create(r.Context(), ticket); err != nil {
 		s.logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "error", err)
 		obscureError(w, "submit")
 		return
@@ -108,7 +108,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.queue.Enqueue(r.Context(), ticket); err != nil {
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
-		updated, updateErr := s.job.MarkFailed(ticket.ID, job.EnqueueFailed, detail)
+		updated, updateErr := s.job.MarkFailed(r.Context(), ticket.ID, job.EnqueueFailed, detail)
 		if updateErr != nil {
 			s.logger.Error("ticket failure update failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed, "error", updateErr)
 		} else if !updated {
@@ -165,7 +165,7 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticket, err := s.job.Get(ticketIDParsed)
+	ticket, err := s.job.Get(r.Context(), ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketID), http.StatusNotFound)
