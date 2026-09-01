@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -115,4 +116,31 @@ func TestApplicationConfigQueueDefaults(t *testing.T) {
 	config := ApplicationConfig{}
 
 	assert.Equal(t, int32(20), config.GetQueuePollingTime())
+}
+
+func TestGetLoggingLevelDefault(t *testing.T) {
+	t.Setenv("OIBP_LOG_LEVEL", "")
+
+	config := ApplicationConfig{}
+	l := config.GetLoggingLevel()
+
+	assert.Equal(t, slog.LevelInfo, l)
+}
+
+func TestGetLoggingLevelSet(t *testing.T) {
+	t.Setenv("OIBP_LOG_LEVEL", "ERROR")
+
+	config := ApplicationConfig{}
+	l := config.GetLoggingLevel()
+
+	assert.Equal(t, slog.LevelError, l)
+}
+
+func TestGetLoggingLevelSetInvalid(t *testing.T) {
+	t.Setenv("OIBP_LOG_LEVEL", "HELLO")
+
+	config := ApplicationConfig{}
+	assert.Panics(t, func() {
+		config.GetLoggingLevel()
+	})
 }
