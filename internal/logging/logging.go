@@ -31,14 +31,14 @@ type SlogLogger struct {
 }
 
 func New(config config.Config) Logger {
-	return newLogger(os.Stdout, config.GetEnvironment())
+	return newLogger(os.Stdout, config.GetEnvironment(), config.GetLoggingLevel())
 }
 
-func newLogger(output io.Writer, environment string) Logger {
+func newLogger(output io.Writer, environment string, level slog.Level) Logger {
 	var handler slog.Handler
 	if environment == "production" {
 		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
+			Level: level,
 			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
 				// Ensure that Production logs always output in UTC time.
 				if attr.Key == slog.TimeKey {
@@ -49,7 +49,7 @@ func newLogger(output io.Writer, environment string) Logger {
 			},
 		})
 	} else {
-		handler = tint.NewTextHandler(output, &tint.Options{Level: slog.LevelDebug})
+		handler = tint.NewTextHandler(output, &tint.Options{Level: level})
 	}
 
 	return &SlogLogger{logger: slog.New(handler)}

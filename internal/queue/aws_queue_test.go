@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strconv"
 	"testing"
 	"time"
@@ -428,6 +429,10 @@ func (m *MockConfig) GetEnvironment() string {
 
 func (m *MockConfig) GetPort() string {
 	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetLoggingLevel() slog.Level {
+	return m.Called().Get(0).(slog.Level)
 }
 
 func (m *MockConfig) GetServerReadTimeout() time.Duration {
