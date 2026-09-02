@@ -13,6 +13,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,7 @@ type workerTestHarness struct {
 	queue      *MockBatchQueue
 	storage    *MockStorage
 	adapter    *MockAdapter
+	notifier   *MockNotifier
 	ticket     *job.Ticket
 	delivery   queue.DequeueResult
 }
@@ -65,6 +67,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		queue:      new(MockBatchQueue),
 		storage:    new(MockStorage),
 		adapter:    new(MockAdapter),
+		notifier:   new(MockNotifier),
 		ticket:     ticket,
 		delivery: queue.DequeueResult{
 			Result:         queue.EnqueuePayload{TicketID: ticket.ID.String()},
@@ -72,13 +75,14 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		},
 	}
 	harness.worker = &BatchWorker{
-		id:      uuid.New(),
-		config:  harness.config,
-		job:     harness.repository,
-		queue:   harness.queue,
-		storage: harness.storage,
-		adapter: harness.adapter,
-		logger:  &MockLogger{},
+		id:       uuid.New(),
+		config:   harness.config,
+		job:      harness.repository,
+		queue:    harness.queue,
+		storage:  harness.storage,
+		adapter:  harness.adapter,
+		logger:   &MockLogger{},
+		notifier: harness.notifier,
 	}
 
 	t.Cleanup(func() {
@@ -126,6 +130,7 @@ func TestNewBatchWorker(t *testing.T) {
 		harness.storage,
 		harness.adapter,
 		&MockLogger{},
+		harness.notifier,
 	)
 
 	require.NotNil(t, worker)
@@ -350,6 +355,7 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 		On("DeleteMessage", t.Context(), "receipt-handle").
 		Return(nil).
 		Once()
+	harness.notifier.On("Notify", mock.Anything, "Processing Success", mock.Anything, mock.Anything).Return(nil)
 
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
@@ -642,12 +648,13 @@ func assertTicketFailure(
 // MOCKS
 
 var (
-	_ config.Config        = (*MockConfig)(nil)
-	_ job.TicketRepository = (*MockTicketRepository)(nil)
-	_ queue.BatchQueue     = (*MockBatchQueue)(nil)
-	_ storage.Storage      = (*MockStorage)(nil)
-	_ clients.Adapter      = (*MockAdapter)(nil)
-	_ logging.Logger       = (*MockLogger)(nil)
+	_ config.Config         = (*MockConfig)(nil)
+	_ job.TicketRepository  = (*MockTicketRepository)(nil)
+	_ queue.BatchQueue      = (*MockBatchQueue)(nil)
+	_ storage.Storage       = (*MockStorage)(nil)
+	_ clients.Adapter       = (*MockAdapter)(nil)
+	_ logging.Logger        = (*MockLogger)(nil)
+	_ notification.Notifier = (*MockNotifier)(nil)
 )
 
 type MockConfig struct {
@@ -766,3 +773,11 @@ func (*MockLogger) Debug(string, ...any) {}
 func (*MockLogger) Info(string, ...any)  {}
 func (*MockLogger) Warn(string, ...any)  {}
 func (*MockLogger) Error(string, ...any) {}
+
+type MockNotifier struct {
+	mock.Mock
+}
+
+func (m *MockNotifier) Notify(ctx context.Context, subject string, destination []string, content *string) error {
+	return m.Called(ctx, subject, destination, content).Error(0)
+}

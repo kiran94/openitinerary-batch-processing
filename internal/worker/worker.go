@@ -12,6 +12,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 )
@@ -23,13 +24,14 @@ type Worker interface {
 }
 
 type BatchWorker struct {
-	id      uuid.UUID
-	config  config.Config
-	job     job.TicketRepository
-	queue   queue.BatchQueue
-	storage storage.Storage
-	adapter clients.Adapter
-	logger  logging.Logger
+	id       uuid.UUID
+	config   config.Config
+	job      job.TicketRepository
+	queue    queue.BatchQueue
+	storage  storage.Storage
+	adapter  clients.Adapter
+	logger   logging.Logger
+	notifier notification.Notifier
 }
 
 func NewBatchWorker(
@@ -39,15 +41,17 @@ func NewBatchWorker(
 	storage storage.Storage,
 	adapter clients.Adapter,
 	logger logging.Logger,
+	notifier notification.Notifier,
 ) Worker {
 	return &BatchWorker{
-		id:      uuid.New(),
-		config:  config,
-		job:     job,
-		queue:   queue,
-		storage: storage,
-		adapter: adapter,
-		logger:  logger,
+		id:       uuid.New(),
+		config:   config,
+		job:      job,
+		queue:    queue,
+		storage:  storage,
+		adapter:  adapter,
+		logger:   logger,
+		notifier: notifier,
 	}
 }
 
@@ -340,7 +344,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		return deleteMessageErr
 	}
 
-	// TODO: Notify User
+	// Notify User
+	notificationContent := fmt.Sprintf("Successfully processed ticket %v", ticket.ID)
+	if err := w.notifier.Notify(ctx, "Processing Success", ticket.NotificationEmails, &notificationContent); err != nil {
+		w.logger.Warn("issue notifying", "error", err, "ticket_id", ticketID)
+	}
 
 	w.logger.Info(
 		"ticket processed successfully",
