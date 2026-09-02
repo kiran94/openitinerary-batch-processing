@@ -177,6 +177,7 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 
 	body, contentType := createTestMultipartFormBuffer(t, []byte("image data"), "image/png")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
@@ -203,6 +204,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 	mockConfig.On("GetBucket").Return("bucket").Once()
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
@@ -244,6 +246,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 	mockConfig.On("GetBucket").Return("bucket").Once()
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
@@ -285,6 +288,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 	mockConfig.On("GetBucket").Return("bucket").Once()
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
@@ -332,6 +336,31 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockQueue.AssertExpectations(t)
 }
 
+func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(1).Once()
+
+	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
+	request.Header.Set("Content-Type", contentType)
+
+	writer := httptest.NewRecorder()
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
+	service.submit(writer, request)
+
+	response := writer.Result()
+	defer response.Body.Close()
+
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
+	assert.Contains(t, string(responseBody), "only 1 emails are allowed per job")
+	mockConfig.AssertExpectations(t)
+}
+
 // HELPERS
 
 type submitSuccessCase struct {
@@ -357,6 +386,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 	mockConfig.On("GetBucket").Return("bucket").Once()
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, test.fileType).Return(documentPath).Once()
@@ -584,6 +614,10 @@ func (m *MockConfig) GetSESConfigurationSetName() string {
 
 func (m *MockConfig) GetSESAddressFrom() string {
 	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetNotificationEmailLimit() int {
+	return m.Called().Int(0)
 }
 
 func (m *MockConfig) GetWorkerTimeoutSeconds() int {

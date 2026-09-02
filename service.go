@@ -84,6 +84,12 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	notificationEmailLimit := s.config.GetNotificationEmailLimit()
+	if len(emails) > notificationEmailLimit {
+		http.Error(w, fmt.Sprintf("only %v emails are allowed per job", notificationEmailLimit), http.StatusBadRequest)
+		return
+	}
+
 	var fileType string
 	switch contentType {
 	case "application/pdf":

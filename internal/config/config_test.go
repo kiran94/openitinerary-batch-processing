@@ -148,6 +148,32 @@ func TestApplicationConfigGetSESAddressFromUnset(t *testing.T) {
 	})
 }
 
+func TestApplicationConfigGetNotificationEmailLimitDefault(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 5, config.GetNotificationEmailLimit())
+}
+
+func TestApplicationConfigGetNotificationEmailLimitEnvironmentOverride(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "10")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 10, config.GetNotificationEmailLimit())
+}
+
+func TestApplicationConfigGetNotificationEmailLimitRejectsInvalidValue(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "0")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "OIBP_NOTIFICATION_EMAIL_LIMIT must be a positive integer", func() {
+		config.GetNotificationEmailLimit()
+	})
+}
+
 func TestApplicationConfigQueueDefaults(t *testing.T) {
 	config := ApplicationConfig{}
 

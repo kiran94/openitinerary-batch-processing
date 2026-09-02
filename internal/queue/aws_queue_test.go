@@ -495,6 +495,10 @@ func (m *MockConfig) GetSESAddressFrom() string {
 	return m.Called().String(0)
 }
 
+func (m *MockConfig) GetNotificationEmailLimit() int {
+	return m.Called().Int(0)
+}
+
 func (m *MockConfig) GetWorkerTimeoutSeconds() int {
 	return m.Called().Int(0)
 }

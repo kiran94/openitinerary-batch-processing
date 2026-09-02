@@ -33,6 +33,7 @@ type Config interface {
 
 	GetSESConfigurationSetName() string
 	GetSESAddressFrom() string
+	GetNotificationEmailLimit() int
 
 	GetWorkerTimeoutSeconds() int
 }
@@ -120,6 +121,10 @@ func (ac ApplicationConfig) GetSESConfigurationSetName() string {
 
 func (ac ApplicationConfig) GetSESAddressFrom() string {
 	return GetEnvOrPanic("SES_NOTIFICATION_ADDRESS_FROM")
+}
+
+func (ac ApplicationConfig) GetNotificationEmailLimit() int {
+	return getPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
 }
 
 func GetEnvOrDefault(name, defaultValue string) string {

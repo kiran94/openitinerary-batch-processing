@@ -712,6 +712,10 @@ func (m *MockConfig) GetOutputPath(bucket, bucketPath, jobID string) string {
 	return m.Called(bucket, bucketPath, jobID).String(0)
 }
 
+func (m *MockConfig) GetNotificationEmailLimit() int {
+	return m.Called().Int(0)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }
