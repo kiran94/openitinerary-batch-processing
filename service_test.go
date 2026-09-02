@@ -341,6 +341,11 @@ type submitSuccessCase struct {
 	data        []byte
 }
 
+var testNotificationEmails = []string{
+	"traveller@example.com",
+	"companion@example.com",
+}
+
 func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	t.Helper()
 
@@ -376,6 +381,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 			assert.Equal(t, documentPath, passedTicket.DocumentPath)
 			assert.Equal(t, test.contentType, passedTicket.ContentType)
+			assert.Equal(t, testNotificationEmails, passedTicket.NotificationEmails)
 		}).
 		Return(nil).
 		Once()
@@ -419,6 +425,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	assert.Equal(t, generatedTicketID, ticket.ID)
 	assert.Equal(t, documentPath, ticket.DocumentPath)
 	assert.Equal(t, test.contentType, ticket.ContentType)
+	assert.Equal(t, testNotificationEmails, ticket.NotificationEmails)
 	assert.Equal(t, job.Queued, ticket.Status)
 
 	mockConfig.AssertExpectations(t)
@@ -432,6 +439,9 @@ func createTestMultipartFormBuffer(t *testing.T, data []byte, contentType string
 
 	var body bytes.Buffer
 	multipartWriter := multipart.NewWriter(&body)
+	notificationEmails, err := json.Marshal(testNotificationEmails)
+	require.NoError(t, err)
+	require.NoError(t, multipartWriter.WriteField("notification_emails", string(notificationEmails)))
 
 	headers := make(textproto.MIMEHeader)
 	headers.Set(
