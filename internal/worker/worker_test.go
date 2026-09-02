@@ -312,7 +312,7 @@ func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
 func TestStartReturnsProcessingUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
@@ -325,7 +325,7 @@ func TestStartReturnsProcessingUpdateError(t *testing.T) {
 func TestStartClosesSourceAndResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString(`[{"type":"flight"}]`)}
 	var written bytes.Buffer
@@ -367,7 +367,7 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("unused")}
 	harness.storage.
@@ -390,7 +390,7 @@ func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
@@ -411,7 +411,7 @@ func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
 func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -435,7 +435,7 @@ func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 func TestStartMarksTicketFailedWhenStorageReadFails(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, errRead).
@@ -451,8 +451,8 @@ func TestStartMarksTicketFailedWhenStorageReadFails(t *testing.T) {
 func TestStartJoinsTicketFailureUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, errRead).
@@ -471,7 +471,7 @@ func TestStartJoinsTicketFailureUpdateError(t *testing.T) {
 func TestStartRejectsNilSourceReader(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
 		Return(nil, nil).
@@ -488,7 +488,7 @@ func TestStartRejectsNilSourceReader(t *testing.T) {
 func TestStartRejectsNilAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	harness.storage.
 		On("Read", t.Context(), harness.ticket.DocumentPath).
@@ -510,7 +510,7 @@ func TestStartRejectsNilAdapterResponse(t *testing.T) {
 func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document"), closeErr: errClose}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result"), closeErr: errClose}
 	harness.storage.
@@ -537,7 +537,7 @@ func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	responseBody := &trackingReadCloser{Reader: bytes.NewBufferString("123456")}
 	response := http.MaxBytesReader(nil, responseBody, 5)
@@ -570,7 +570,7 @@ func TestStartClassifiesOversizedAdapterResponse(t *testing.T) {
 func TestStartReturnsDeleteMessageError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Times(2)
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Times(2)
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
@@ -597,8 +597,8 @@ func TestStartReturnsDeleteMessageError(t *testing.T) {
 func TestStartReturnsCompletionUpdateError(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	harness.repository.On("Get", t.Context(), harness.ticket.ID).Return(harness.ticket, nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(nil).Once()
-	harness.repository.On("Update", mock.Anything, harness.ticket).Return(errRepository).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(nil).Once()
+	harness.repository.On("Update", t.Context(), harness.ticket).Return(errRepository).Once()
 	source := &trackingReadCloser{Reader: bytes.NewBufferString("document")}
 	response := &trackingReadCloser{Reader: bytes.NewBufferString("result")}
 	harness.storage.
