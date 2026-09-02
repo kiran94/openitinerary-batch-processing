@@ -14,6 +14,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/worker"
@@ -50,6 +51,13 @@ func main() {
 	}
 	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
+	notifier, err := notification.NewNotifier(ctx, config, logger)
+	if err != nil {
+		logger.Error("notifier readiness check failed", "component", logging.ComponentNotifier, "backend", "ses", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("notifier ready", "component", logging.ComponentNotifier, "backend", "ses")
+
 	ticketRepository := job.NewTicketRepository(db)
 
 	httpClient := &http.Client{Timeout: time.Duration(60) * time.Second}
@@ -69,7 +77,7 @@ func main() {
 
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
-			worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger)
+			worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger, notifier)
 			processingItem, err := startWork(ctx, worker, config, logger)
 
 			if err != nil {
