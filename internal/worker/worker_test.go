@@ -532,6 +532,7 @@ func TestStartIgnoresStreamCloseErrors(t *testing.T) {
 		On("DeleteMessage", t.Context(), "receipt-handle").
 		Return(nil).
 		Once()
+	harness.notifier.On("Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	err := harness.worker.Start(t.Context(), harness.delivery)
 
