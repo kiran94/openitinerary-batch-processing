@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
@@ -152,8 +153,19 @@ func (w *BatchWorker) updateTicketAndError(
 		"error", err,
 	)
 
+	// Wipe out the cancellation from the parent context and apply a small one now
+	// In the case that the parent worker context timed out, we don't want the error
+	// reporting datbase update to see that cancellation and immeditately fail.
+	// There we create a fresh one.
+	// We are adding a small timeout here because, in the case that there is some issue
+	// communicating with the db then we don't want this thread to indefinitely stay running
+	// The log above also acts as backup to ensure we capture the error somewhere.
+	cleanupCtx := context.WithoutCancel(ctx)
+	cleanupCtx, cancel := context.WithDeadline(cleanupCtx, time.Now().Add(time.Second*60))
+	defer cancel()
+
 	ticket.UpdateStatus(job.Failed, &tsr, err)
-	if updateErr := w.job.Update(ctx, ticket); updateErr != nil {
+	if updateErr := w.job.Update(cleanupCtx, ticket); updateErr != nil {
 		w.logger.Error(
 			"ticket failure status update failed",
 			"component", logging.ComponentDatabase,
