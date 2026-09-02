@@ -31,6 +31,9 @@ type Config interface {
 	GetQueueURL() string
 	GetQueuePollingTime() int32
 
+	GetSESConfigurationSetName() string
+	GetSESAddressFrom() string
+
 	GetWorkerTimeoutSeconds() int
 }
 
@@ -100,11 +103,7 @@ func (ac ApplicationConfig) GetOutputPath(bucket, bucketPath, jobId string) stri
 }
 
 func (ac ApplicationConfig) GetQueueURL() string {
-	url := os.Getenv("SQS_QUEUE_URL")
-	if url == "" {
-		panic("SQS_QUEUE_URL must be set")
-	}
-	return url
+	return GetEnvOrPanic("SQS_QUEUE_URL")
 }
 
 func (ac ApplicationConfig) GetQueuePollingTime() int32 {
@@ -115,13 +114,29 @@ func (ac ApplicationConfig) GetWorkerTimeoutSeconds() int {
 	return getPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
 }
 
-func GetEnvOrDefault(envVarName, defaultValue string) string {
-	value := os.Getenv(envVarName)
+func (ac ApplicationConfig) GetSESConfigurationSetName() string {
+	return GetEnvOrPanic("SES_NOTIFICATION_CONFIGURATION_SET_NAME")
+}
+
+func (ac ApplicationConfig) GetSESAddressFrom() string {
+	return GetEnvOrPanic("SES_NOTIFICATION_ADDRESS_FROM")
+}
+
+func GetEnvOrDefault(name, defaultValue string) string {
+	value := os.Getenv(name)
 	if value == "" {
 		value = defaultValue
 	}
 
 	return value
+}
+
+func GetEnvOrPanic(name string) string {
+	if v := os.Getenv(name); v == "" {
+		panic(fmt.Sprintf("env var %v must be defined", name))
+	} else {
+		return v
+	}
 }
 
 func getPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {

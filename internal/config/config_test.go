@@ -107,8 +107,44 @@ func TestApplicationConfigGetQueueURLUnset(t *testing.T) {
 	t.Setenv("SQS_QUEUE_URL", "")
 
 	ac := ApplicationConfig{}
-	assert.PanicsWithValue(t, "SQS_QUEUE_URL must be set", func() {
+	assert.PanicsWithValue(t, "env var SQS_QUEUE_URL must be defined", func() {
 		ac.GetQueueURL()
+	})
+}
+
+func TestApplicationConfigGetSESConfigurationSetName(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_CONFIGURATION_SET_NAME", "notifications")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "notifications", config.GetSESConfigurationSetName())
+}
+
+func TestApplicationConfigGetSESConfigurationSetNameUnset(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_CONFIGURATION_SET_NAME", "")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "env var SES_NOTIFICATION_CONFIGURATION_SET_NAME must be defined", func() {
+		config.GetSESConfigurationSetName()
+	})
+}
+
+func TestApplicationConfigGetSESAddressFrom(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_ADDRESS_FROM", "notifications@example.com")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "notifications@example.com", config.GetSESAddressFrom())
+}
+
+func TestApplicationConfigGetSESAddressFromUnset(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_ADDRESS_FROM", "")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "env var SES_NOTIFICATION_ADDRESS_FROM must be defined", func() {
+		config.GetSESAddressFrom()
 	})
 }
 

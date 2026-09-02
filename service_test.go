@@ -578,6 +578,14 @@ func (m *MockConfig) GetQueuePollingTime() int32 {
 	return m.Called().Get(0).(int32)
 }
 
+func (m *MockConfig) GetSESConfigurationSetName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetSESAddressFrom() string {
+	return m.Called().String(0)
+}
+
 func (m *MockConfig) GetWorkerTimeoutSeconds() int {
 	return m.Called().Int(0)
 }
