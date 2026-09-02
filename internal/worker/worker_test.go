@@ -92,6 +92,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		harness.queue.AssertExpectations(t)
 		harness.storage.AssertExpectations(t)
 		harness.adapter.AssertExpectations(t)
+		harness.notifier.AssertExpectations(t)
 	})
 
 	return harness
@@ -350,7 +351,6 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 		}).
 		Return(nil).
 		Once()
-
 	err := harness.worker.updateTicketAndError(parentCtx, harness.ticket, errRead, job.StorageReadFailed)
 
 	require.ErrorIs(t, parentCtx.Err(), context.Canceled)
@@ -361,6 +361,7 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 	remaining := time.Until(cleanupDeadline)
 	assert.Positive(t, remaining)
 	assert.LessOrEqual(t, remaining, time.Minute)
+	harness.notifier.AssertNotCalled(t, "Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestStartClosesSourceAndResponse(t *testing.T) {

@@ -165,7 +165,8 @@ func (w *BatchWorker) updateTicketAndError(
 	defer cancel()
 
 	ticket.UpdateStatus(job.Failed, &tsr, err)
-	if updateErr := w.job.Update(cleanupCtx, ticket); updateErr != nil {
+	updateErr := w.job.Update(cleanupCtx, ticket)
+	if updateErr != nil {
 		w.logger.Error(
 			"ticket failure status update failed",
 			"component", logging.ComponentDatabase,
@@ -176,10 +177,9 @@ func (w *BatchWorker) updateTicketAndError(
 			"original_error", err,
 		)
 
-		return errors.Join(err, updateErr)
 	}
 
-	return err
+	return errors.Join(err, updateErr)
 }
 
 var ErrTicketAlreadyComplete = errors.New("ticket already complete")
