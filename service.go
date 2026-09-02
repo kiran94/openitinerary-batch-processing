@@ -77,6 +77,19 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	emailRaw := r.Form.Get("notification_emails")
+	var emails []string
+	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
+		http.Error(w, "notification_emails were not provided in the correct format", http.StatusBadRequest)
+		return
+	}
+
+	notificationEmailLimit := s.config.GetNotificationEmailLimit()
+	if len(emails) > notificationEmailLimit {
+		http.Error(w, fmt.Sprintf("only %v emails are allowed per job", notificationEmailLimit), http.StatusBadRequest)
+		return
+	}
+
 	var fileType string
 	switch contentType {
 	case "application/pdf":
@@ -93,6 +106,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket := job.NewTicket()
 	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), fileType)
 	ticket.ContentType = contentType
+	ticket.NotificationEmails = emails
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
 		s.logger.Error("document storage failed", "component", logging.ComponentStorage, "ticket_id", ticket.ID.String(), "content_type", contentType, "error", err)

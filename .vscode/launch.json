@@ -7,7 +7,8 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "Debug Worker",

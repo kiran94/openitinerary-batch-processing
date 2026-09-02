@@ -24,6 +24,7 @@ const (
 	ComponentQueue    Component = "queue"
 	ComponentStorage  Component = "storage"
 	ComponentWorker   Component = "worker"
+	ComponentNotifier Component = "notifier"
 )
 
 type SlogLogger struct {

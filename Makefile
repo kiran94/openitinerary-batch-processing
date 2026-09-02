@@ -54,3 +54,6 @@ install_tools:
 
 login_db:
 	uvx pgcli "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
+
+terraform_output:
+	terraform -chdir=terraform output

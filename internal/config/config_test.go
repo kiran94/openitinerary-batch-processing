@@ -107,8 +107,70 @@ func TestApplicationConfigGetQueueURLUnset(t *testing.T) {
 	t.Setenv("SQS_QUEUE_URL", "")
 
 	ac := ApplicationConfig{}
-	assert.PanicsWithValue(t, "SQS_QUEUE_URL must be set", func() {
+	assert.PanicsWithValue(t, "env var SQS_QUEUE_URL must be defined", func() {
 		ac.GetQueueURL()
+	})
+}
+
+func TestApplicationConfigGetSESConfigurationSetName(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_CONFIGURATION_SET_NAME", "notifications")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "notifications", config.GetSESConfigurationSetName())
+}
+
+func TestApplicationConfigGetSESConfigurationSetNameUnset(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_CONFIGURATION_SET_NAME", "")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "env var SES_NOTIFICATION_CONFIGURATION_SET_NAME must be defined", func() {
+		config.GetSESConfigurationSetName()
+	})
+}
+
+func TestApplicationConfigGetSESAddressFrom(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_ADDRESS_FROM", "notifications@example.com")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "notifications@example.com", config.GetSESAddressFrom())
+}
+
+func TestApplicationConfigGetSESAddressFromUnset(t *testing.T) {
+	t.Setenv("SES_NOTIFICATION_ADDRESS_FROM", "")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "env var SES_NOTIFICATION_ADDRESS_FROM must be defined", func() {
+		config.GetSESAddressFrom()
+	})
+}
+
+func TestApplicationConfigGetNotificationEmailLimitDefault(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 5, config.GetNotificationEmailLimit())
+}
+
+func TestApplicationConfigGetNotificationEmailLimitEnvironmentOverride(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "10")
+
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 10, config.GetNotificationEmailLimit())
+}
+
+func TestApplicationConfigGetNotificationEmailLimitRejectsInvalidValue(t *testing.T) {
+	t.Setenv("OIBP_NOTIFICATION_EMAIL_LIMIT", "0")
+
+	config := ApplicationConfig{}
+
+	assert.PanicsWithValue(t, "OIBP_NOTIFICATION_EMAIL_LIMIT must be a positive integer", func() {
+		config.GetNotificationEmailLimit()
 	})
 }
 

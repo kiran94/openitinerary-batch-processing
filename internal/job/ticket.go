@@ -8,9 +8,10 @@ import (
 )
 
 type Ticket struct {
-	ID           uuid.UUID `json:"id" gorm:"type:uuid;default:(gen_random_uuid())"`
-	DocumentPath string    `json:"document_path"`
-	ContentType  string    `json:"content_type"`
+	ID                 uuid.UUID `json:"id" gorm:"type:uuid;default:(gen_random_uuid())"`
+	DocumentPath       string    `json:"document_path"`
+	ContentType        string    `json:"content_type"`
+	NotificationEmails []string  `json:"notification_emails" gorm:"serializer:json"`
 
 	Status       TicketStatus        `json:"status" gorm:"type:varchar(16);default:'queued';not null"`
 	StatusReason *TicketStatusReason `json:"status_reason,omitempty" gorm:"type:varchar(32)"`
