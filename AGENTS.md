@@ -15,7 +15,6 @@ The README is the canonical source for project context. This document only conta
 * Do not comment routine test construction, mock configuration, method calls, or assertions when the test name and code make their purpose clear.
 * Use UTC for timestamps created or persisted by application code.
 * Whenever you execute Go commands, you must isolate the environment. Always set a temporary, workspace-local cache by prefixing your commands with GOCACHE=$(pwd)/.go-cache GOMODCACHE=$(pwd)/.go-mod-cache or by exporting these variables before running go tasks
-* After completing each change, run `make ci` and fix any issues introduced with your change only.
 
 # Restricted Operations
 
