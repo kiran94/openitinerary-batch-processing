@@ -93,16 +93,22 @@ func (a *ApplicationOtelMetrics) RecordSubmission(ctx context.Context, m metrics
 	}
 
 	a.apiSubmissionsCounter.Add(ctx, 1, metric.WithAttributes(submissionAttributes...))
-	contentTypeAttribute := metric.WithAttributes(attribute.String("content_type", string(m.ContentType)))
+	contentTypeAttributes := []attribute.KeyValue{}
+	if m.ContentType != nil {
+		contentTypeAttributes = append(
+			contentTypeAttributes,
+			attribute.String("content_type", string(*m.ContentType)),
+		)
+	}
 
 	// oibp.jobs.enqueued
 	if m.Enqueued {
-		a.jobsEnqueuedCounter.Add(ctx, 1, contentTypeAttribute)
+		a.jobsEnqueuedCounter.Add(ctx, 1, metric.WithAttributes(contentTypeAttributes...))
 	}
 
 	// oibp.document.input.size
 	if m.InputBytes != nil {
-		a.documentInputSizeHisto.Record(ctx, *m.InputBytes, contentTypeAttribute)
+		a.documentInputSizeHisto.Record(ctx, *m.InputBytes, metric.WithAttributes(contentTypeAttributes...))
 	}
 }
 

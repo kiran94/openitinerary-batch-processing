@@ -19,7 +19,7 @@ type SubmissionRecorder interface {
 type SubmissionObservation struct {
 	Outcome     SubmissionOutcome
 	Reason      *SubmissionReason
-	ContentType ContentType
+	ContentType *ContentType
 	InputBytes  *int64
 	Enqueued    bool
 }
