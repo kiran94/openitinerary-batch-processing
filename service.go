@@ -28,13 +28,13 @@ type ServiceV1 struct {
 // @Description  Upload a PDF, HTML, or RFC 822 email document, create and enqueue a processing ticket, and return the accepted ticket.
 // @Tags         batch
 // @Accept       multipart/form-data
-// @Produce      json,plain
+// @Produce      json
 // @Param        file  formData  file  true  "Document to process"
 // @Success      202  {object}  job.Ticket
-// @Failure      400  {string}  string  "Invalid multipart form, missing file, or missing Content-Type"
-// @Failure      413  {string}  string  "Request body exceeds 10 MiB"
-// @Failure      415  {string}  string  "Invalid or unsupported media type"
-// @Failure      500  {string}  string  "Document submission failed"
+// @Failure      400  {object}  apiError  "Invalid multipart form, missing file, or missing Content-Type"
+// @Failure      413  {object}  apiError  "Request body exceeds the configured limit"
+// @Failure      415  {object}  apiError  "Invalid or unsupported media type"
+// @Failure      500  {object}  apiError  "Document submission failed"
 // @Router       /api/v1/submit [post]
 func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	startedAt := time.Now().UTC()
@@ -45,9 +45,9 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(s.config.GetMaximumBufferMultipartForm()); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			http.Error(w, "request body is too large", http.StatusRequestEntityTooLarge)
+			s.writeAPIError(w, http.StatusRequestEntityTooLarge, "request body is too large")
 		} else {
-			http.Error(w, "invalid multipart form", http.StatusBadRequest)
+			s.writeAPIError(w, http.StatusBadRequest, "invalid multipart form")
 		}
 
 		return
@@ -61,32 +61,36 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	file, uploadedFileHeader, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "file must be provided")
 		return
 	}
 	defer file.Close()
 
 	contentType := uploadedFileHeader.Header.Get("Content-Type")
 	if contentType == "" {
-		http.Error(w, "Content-Type must be provided", http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "file content type must be provided")
 		return
 	}
 	contentType, _, err = mime.ParseMediaType(contentType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		s.writeAPIError(w, http.StatusUnsupportedMediaType, "file content type is invalid")
 		return
 	}
 
 	emailRaw := r.Form.Get("notification_emails")
 	var emails []string
 	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
-		http.Error(w, "notification_emails were not provided in the correct format", http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "notification_emails must be a JSON array of strings")
 		return
 	}
 
 	notificationEmailLimit := s.config.GetNotificationEmailLimit()
 	if len(emails) > notificationEmailLimit {
-		http.Error(w, fmt.Sprintf("only %v emails are allowed per job", notificationEmailLimit), http.StatusBadRequest)
+		s.writeAPIError(
+			w,
+			http.StatusBadRequest,
+			fmt.Sprintf("notification_emails must contain at most %v entries", notificationEmailLimit),
+		)
 		return
 	}
 
@@ -99,7 +103,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	case "message/rfc822":
 		fileType = "eml"
 	default:
-		http.Error(w, fmt.Sprintf("unsupported file format: %v", contentType), http.StatusUnsupportedMediaType)
+		s.writeAPIError(
+			w,
+			http.StatusUnsupportedMediaType,
+			fmt.Sprintf("unsupported file content type: %v", contentType),
+		)
 		return
 	}
 
@@ -110,13 +118,13 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
 		s.logger.Error("document storage failed", "component", logging.ComponentStorage, "ticket_id", ticket.ID.String(), "content_type", contentType, "error", err)
-		obscureError(w, "submit")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
 
 	if err := s.job.Create(r.Context(), ticket); err != nil {
 		s.logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "error", err)
-		obscureError(w, "submit")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
 
@@ -132,14 +140,14 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "ticket_id", ticket.ID.String(), "error", err)
-		obscureError(w, "submit")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
 		s.logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "error", err)
-		obscureError(w, "submit")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
 
@@ -158,89 +166,95 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 // @Summary      Get ticket status
 // @Description  Retrieve the current processing state of a ticket by its UUID.
 // @Tags         batch
-// @Produce      json,plain
+// @Produce      json
 // @Param        id  path      string      true  "Ticket UUID"
 // @Success      200 {object}  job.Ticket
-// @Failure      400 {string}  string      "Missing or invalid ticket UUID"
-// @Failure      404 {string}  string      "Ticket not found"
-// @Failure      500 {string}  string      "Failed to retrieve ticket status"
+// @Failure      400 {object}  apiError   "Missing or invalid ticket UUID"
+// @Failure      404 {object}  apiError   "Ticket not found"
+// @Failure      500 {object}  apiError   "Failed to retrieve ticket status"
 // @Router       /api/v1/status/{id} [get]
 func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		http.Error(w, "id parameter must be provided", http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "id parameter must be provided")
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("provided id was not a valid guid. Got: '%v'", ticketID), http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "id must be a valid UUID")
 		return
 	}
 
 	ticket, err := s.job.Get(r.Context(), ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
-			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketID), http.StatusNotFound)
+			s.writeAPIError(w, http.StatusNotFound, "ticket was not found")
 		} else {
 			s.logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "ticket_id", ticketIDParsed.String(), "error", err)
-			obscureError(w, "status")
+			s.writeAPIError(w, http.StatusInternalServerError, "failed to retrieve ticket status")
 		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(&ticket); err != nil {
-		s.logger.Error("ticket status response encoding failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "error", err)
-		obscureError(w, "status")
+	responseBody, err := json.Marshal(ticket)
+	if err != nil {
+		s.logger.Error("ticket status response serialization failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "error", err)
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to retrieve ticket status")
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(responseBody); err != nil {
+		s.logger.Warn("response write failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "status_code", http.StatusOK, "error", err)
 	}
 }
 
-func obscureError(w http.ResponseWriter, errorSource string) {
-	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
+type resultOutput struct {
+	Link    string    `json:"link"`
+	Expires time.Time `json:"expires"`
 }
 
 // result returns a temporary download link for a successfully completed ticket.
 // @Summary      Get processing result
 // @Description  Generate a temporary download link for the result of a successfully completed ticket.
 // @Tags         batch
-// @Produce      json,plain
+// @Produce      json
 // @Param        id  path      string        true  "Ticket UUID"
 // @Success      200 {object}  resultOutput  "Temporary result download link"
-// @Success      204 {string}  string        "Ticket has not successfully completed"
-// @Failure      400 {string}  string        "Missing or invalid ticket UUID"
-// @Failure      404 {string}  string        "Ticket not found"
-// @Failure      500 {string}  string        "Failed to retrieve the processing result"
+// @Success      204 "Ticket has not successfully completed"
+// @Failure      400 {object}  apiError     "Missing or invalid ticket UUID"
+// @Failure      404 {object}  apiError     "Ticket not found"
+// @Failure      500 {object}  apiError     "Failed to retrieve the processing result"
 // @Router       /api/v1/result/{id} [get]
 func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		http.Error(w, "id parameter must be provided", http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "id parameter must be provided")
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("provided id was not a valid guid. Got: '%v'", ticketID), http.StatusBadRequest)
+		s.writeAPIError(w, http.StatusBadRequest, "id must be a valid UUID")
 		return
 	}
 
 	ticket, err := s.job.Get(r.Context(), ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
-			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketID), http.StatusNotFound)
+			s.writeAPIError(w, http.StatusNotFound, "ticket was not found")
 		} else {
 			s.logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "ticket_id", ticketIDParsed.String(), "error", err)
-			obscureError(w, "result")
+			s.writeAPIError(w, http.StatusInternalServerError, "failed to retrieve processing result")
 		}
 		return
 	}
 
 	if ticket.Status != job.Complete {
-		http.Error(w, fmt.Sprintf("ticket %v has not successfully completed", ticketID), http.StatusNoContent)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -249,7 +263,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 	link, expiration, err := s.storage.GetLink(r.Context(), outputPath)
 	if err != nil {
 		s.logger.Error("failed to generate presigned link", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
-		obscureError(w, "result")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to retrieve processing result")
 		return
 	}
 
@@ -258,20 +272,33 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 		Expires: expiration,
 	}
 
-	if b, err := json.Marshal(result); err != nil {
+	b, err := json.Marshal(result)
+	if err != nil {
 		s.logger.Error("failed to marshal presigned result obj", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
-		obscureError(w, "result")
+		s.writeAPIError(w, http.StatusInternalServerError, "failed to retrieve processing result")
 		return
-	} else {
-		w.Header().Add("Content-Type", "application/json")
-		if _, err := w.Write(b); err != nil {
-			s.logger.Error("failed to write response", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
-			obscureError(w, "result")
-		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(b); err != nil {
+		s.logger.Error("failed to write response", "component", logging.ComponentHTTP, "ticket_id", ticketIDParsed.String(), "status_code", http.StatusOK, "error", err)
 	}
 }
 
-type resultOutput struct {
-	Link    string    `json:"link"`
-	Expires time.Time `json:"expires"`
+type apiError struct {
+	Detail string `json:"detail"`
+}
+
+func (s *ServiceV1) writeAPIError(w http.ResponseWriter, statusCode int, detail string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	if err := json.NewEncoder(w).Encode(apiError{Detail: detail}); err != nil {
+		s.logger.Warn(
+			"error response write failed",
+			"component", logging.ComponentHTTP,
+			"status_code", statusCode,
+			"error", err,
+		)
+	}
 }

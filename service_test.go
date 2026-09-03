@@ -73,7 +73,7 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	assert.Equal(t, http.StatusRequestEntityTooLarge, response.StatusCode)
+	assertAPIError(t, response, http.StatusRequestEntityTooLarge, "request body is too large")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -95,11 +95,7 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	b, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
-	assert.Contains(t, string(b), "invalid multipart form")
+	assertAPIError(t, response, http.StatusBadRequest, "invalid multipart form")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -119,11 +115,7 @@ func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	b, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
-	assert.Contains(t, string(b), "no such file")
+	assertAPIError(t, response, http.StatusBadRequest, "file must be provided")
 
 	mockConfig.AssertExpectations(t)
 }
@@ -144,11 +136,7 @@ func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	b, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
-	assert.Contains(t, string(b), "Content-Type must be provided")
+	assertAPIError(t, response, http.StatusBadRequest, "file content type must be provided")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -169,7 +157,7 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	assert.Equal(t, http.StatusUnsupportedMediaType, response.StatusCode)
+	assertAPIError(t, response, http.StatusUnsupportedMediaType, "file content type is invalid")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -190,11 +178,7 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	responseBody, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusUnsupportedMediaType, response.StatusCode)
-	assert.Contains(t, string(responseBody), "unsupported file format: image/png")
+	assertAPIError(t, response, http.StatusUnsupportedMediaType, "unsupported file content type: image/png")
 	mockConfig.AssertExpectations(t)
 }
 
@@ -229,11 +213,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	b, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Contains(t, string(b), "failed to perform 'submit'")
-	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
@@ -273,7 +253,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
@@ -328,7 +308,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
@@ -353,26 +333,118 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	response := writer.Result()
 	defer response.Body.Close()
 
-	responseBody, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
-	assert.Contains(t, string(responseBody), "only 1 emails are allowed per job")
+	assertAPIError(t, response, http.StatusBadRequest, "notification_emails must contain at most 1 entries")
 	mockConfig.AssertExpectations(t)
+}
+
+func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
+	mockConfig := new(MockConfig)
+	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+
+	body, contentType := createTestMultipartFormBufferWithNotificationEmails(
+		t,
+		[]byte("my pdf data"),
+		"application/pdf",
+		"not-json",
+	)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
+	request.Header.Set("Content-Type", contentType)
+
+	writer := httptest.NewRecorder()
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
+	service.submit(writer, request)
+
+	response := writer.Result()
+	defer response.Body.Close()
+
+	assertAPIError(t, response, http.StatusBadRequest, "notification_emails must be a JSON array of strings")
+	mockConfig.AssertExpectations(t)
+}
+
+func TestServiceStatusInvalidTicket(t *testing.T) {
+	tests := []struct {
+		name           string
+		inputTicket    string
+		expectedDetail string
+	}{
+		{name: "missing", inputTicket: "", expectedDetail: "id parameter must be provided"},
+		{name: "invalid", inputTicket: "123", expectedDetail: "id must be a valid UUID"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writer := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
+			request.SetPathValue("id", tt.inputTicket)
+
+			service := ServiceV1{logger: &MockLogger{}}
+			service.status(writer, request)
+
+			response := writer.Result()
+			defer response.Body.Close()
+
+			assertAPIError(t, response, http.StatusBadRequest, tt.expectedDetail)
+		})
+	}
+}
+
+func TestServiceStatusTicketLookupFailure(t *testing.T) {
+	inputTicket := uuid.New()
+	tests := []struct {
+		name           string
+		getJobError    error
+		expectedStatus int
+		expectedDetail string
+	}{
+		{
+			name:           "ticket_not_found",
+			getJobError:    job.ErrRecordNotFound,
+			expectedStatus: http.StatusNotFound,
+			expectedDetail: "ticket was not found",
+		},
+		{
+			name:           "repository_failure",
+			getJobError:    errors.New("failed to get ticket"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedDetail: "failed to retrieve ticket status",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobRepo := new(MockTicketRepository)
+			jobRepo.On("Get", t.Context(), inputTicket).Return(nil, tt.getJobError).Once()
+
+			writer := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
+			request.SetPathValue("id", inputTicket.String())
+
+			service := ServiceV1{job: jobRepo, logger: &MockLogger{}}
+			service.status(writer, request)
+
+			response := writer.Result()
+			defer response.Body.Close()
+
+			assertAPIError(t, response, tt.expectedStatus, tt.expectedDetail)
+			jobRepo.AssertExpectations(t)
+		})
+	}
 }
 
 func TestServiceResultInvalidTicket(t *testing.T) {
 
 	tests := []struct {
-		inputTicket   string
-		expectedError string
+		name           string
+		inputTicket    string
+		expectedDetail string
 	}{
-		{inputTicket: "", expectedError: "id parameter must be provided\n"},
-		{inputTicket: "123", expectedError: "provided id was not a valid guid. Got: '123'\n"},
+		{name: "missing", inputTicket: "", expectedDetail: "id parameter must be provided"},
+		{name: "invalid", inputTicket: "123", expectedDetail: "id must be a valid UUID"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.inputTicket, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 
 			config := new(MockConfig)
 			logger := new(MockLogger)
@@ -387,13 +459,9 @@ func TestServiceResultInvalidTicket(t *testing.T) {
 			service.result(w, r)
 
 			result := w.Result()
+			defer result.Body.Close()
 
-			assert.Equal(t, http.StatusBadRequest, result.StatusCode)
-
-			b, err := io.ReadAll(result.Body)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.expectedError, string(b))
+			assertAPIError(t, result, http.StatusBadRequest, tt.expectedDetail)
 		})
 	}
 }
@@ -401,12 +469,23 @@ func TestServiceResultInvalidTicket(t *testing.T) {
 func TestServiceResultTicketNotFound(t *testing.T) {
 	inputTicket := uuid.New()
 	tests := []struct {
-		name                   string
-		getJobError            error
-		expectedHTTPStatusCode int
+		name           string
+		getJobError    error
+		expectedStatus int
+		expectedDetail string
 	}{
-		{name: "ticket_not_found", getJobError: job.ErrRecordNotFound, expectedHTTPStatusCode: http.StatusNotFound},
-		{name: "failed_ticket_get", getJobError: errors.New("failed to get ticket"), expectedHTTPStatusCode: http.StatusInternalServerError},
+		{
+			name:           "ticket_not_found",
+			getJobError:    job.ErrRecordNotFound,
+			expectedStatus: http.StatusNotFound,
+			expectedDetail: "ticket was not found",
+		},
+		{
+			name:           "failed_ticket_get",
+			getJobError:    errors.New("failed to get ticket"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedDetail: "failed to retrieve processing result",
+		},
 	}
 
 	for _, tt := range tests {
@@ -427,7 +506,9 @@ func TestServiceResultTicketNotFound(t *testing.T) {
 			service.result(w, r)
 
 			result := w.Result()
-			assert.Equal(t, tt.expectedHTTPStatusCode, result.StatusCode)
+			defer result.Body.Close()
+
+			assertAPIError(t, result, tt.expectedStatus, tt.expectedDetail)
 
 			jobRepo.AssertExpectations(t)
 		})
@@ -454,6 +535,10 @@ func TestServiceResultTicketNotComplete(t *testing.T) {
 	defer result.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, result.StatusCode)
+	assert.Empty(t, result.Header.Get("Content-Type"))
+	responseBody, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	assert.Empty(t, responseBody)
 	jobRepo.AssertExpectations(t)
 	storage.AssertNotCalled(t, "GetLink", mock.Anything, mock.Anything)
 }
@@ -482,7 +567,9 @@ func TestServiceResultFailedGetLink(t *testing.T) {
 	service.result(w, r)
 
 	result := w.Result()
-	assert.Equal(t, http.StatusInternalServerError, result.StatusCode)
+	defer result.Body.Close()
+
+	assertAPIError(t, result, http.StatusInternalServerError, "failed to retrieve processing result")
 
 	jobRepo.AssertExpectations(t)
 	storage.AssertExpectations(t)
@@ -545,6 +632,17 @@ type submitSuccessCase struct {
 var testNotificationEmails = []string{
 	"traveller@example.com",
 	"companion@example.com",
+}
+
+func assertAPIError(t *testing.T, response *http.Response, expectedStatus int, expectedDetail string) {
+	t.Helper()
+
+	assert.Equal(t, expectedStatus, response.StatusCode)
+	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+
+	var responseError apiError
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&responseError))
+	assert.Equal(t, apiError{Detail: expectedDetail}, responseError)
 }
 
 func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
@@ -639,11 +737,23 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 func createTestMultipartFormBuffer(t *testing.T, data []byte, contentType string) (*bytes.Buffer, string) {
 	t.Helper()
 
-	var body bytes.Buffer
-	multipartWriter := multipart.NewWriter(&body)
 	notificationEmails, err := json.Marshal(testNotificationEmails)
 	require.NoError(t, err)
-	require.NoError(t, multipartWriter.WriteField("notification_emails", string(notificationEmails)))
+
+	return createTestMultipartFormBufferWithNotificationEmails(t, data, contentType, string(notificationEmails))
+}
+
+func createTestMultipartFormBufferWithNotificationEmails(
+	t *testing.T,
+	data []byte,
+	contentType string,
+	notificationEmails string,
+) (*bytes.Buffer, string) {
+	t.Helper()
+
+	var body bytes.Buffer
+	multipartWriter := multipart.NewWriter(&body)
+	require.NoError(t, multipartWriter.WriteField("notification_emails", notificationEmails))
 
 	headers := make(textproto.MIMEHeader)
 	headers.Set(
