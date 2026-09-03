@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"time"
 )
 
 type LocalStorage struct {
@@ -44,4 +45,8 @@ func (l LocalStorage) Write(ctx context.Context, reader io.Reader, output string
 
 func (l LocalStorage) Read(_ context.Context, input string) (io.ReadCloser, error) {
 	return l.openFile(input)
+}
+
+func (l LocalStorage) GetLink(ctx context.Context, input string) (string, time.Time, error) {
+	panic("not implemented")
 }

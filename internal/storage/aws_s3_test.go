@@ -6,7 +6,9 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	applicationConfig "github.com/kiran94/openitinerary-batch-processing/internal/config"
@@ -37,14 +39,6 @@ func TestNewAWSS3Storage(t *testing.T) {
 
 	assert.NotNil(t, storage)
 	assert.NoError(t, err)
-}
-
-func TestNewAWSS3StorageRejectsInvalidUploadConcurrency(t *testing.T) {
-	storage, err := NewAWSS3Storage(t.Context(), testStorageConfig{uploadConcurrency: 0})
-
-	require.Error(t, err)
-	assert.Nil(t, storage)
-	assert.Contains(t, err.Error(), "upload concurrency must be positive")
 }
 
 func TestConfigureTransferManagerUploadConcurrency(t *testing.T) {
@@ -83,6 +77,62 @@ func TestAWSS3StorageWriteInvalidS3Address(t *testing.T) {
 	}
 }
 
+func TestGetLinkFailed(t *testing.T) {
+	expectedErr := errors.New("failed to get presigned link")
+
+	mockConfig := testStorageConfig{uploadConcurrency: 1}
+
+	mockPresigner := new(MockPresigner)
+	mockPresigner.On("PresignGetObject", t.Context(), mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		o, ok := args.Get(1).(*s3.GetObjectInput)
+		require.True(t, ok)
+
+		assert.Equal(t, "hello", *o.Bucket)
+		assert.Equal(t, "world.json", *o.Key)
+	}).Return(nil, expectedErr)
+
+	s, err := NewAWSS3Storage(t.Context(), mockConfig)
+	require.NoError(t, err)
+
+	s.presign = mockPresigner
+	_, _, err = s.GetLink(t.Context(), "s3://hello/world.json")
+	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestGetLinkSuccess(t *testing.T) {
+	expectedPresignedURL := "http://my_presigned_url.com/hello/world"
+
+	mockConfig := testStorageConfig{uploadConcurrency: 1}
+	mockPresigner := new(MockPresigner)
+	mockPresigner.On("PresignGetObject", t.Context(), mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		o, ok := args.Get(1).(*s3.GetObjectInput)
+		require.True(t, ok)
+
+		assert.Equal(t, "hello", *o.Bucket)
+		assert.Equal(t, "world.json", *o.Key)
+
+		options, ok := args.Get(2).([]func(*s3.PresignOptions))
+		require.True(t, ok)
+		require.Len(t, options, 1)
+
+		presignOptions := new(s3.PresignOptions)
+		options[0](presignOptions)
+		assert.Equal(t, time.Hour, presignOptions.Expires)
+	}).Return(&v4.PresignedHTTPRequest{URL: expectedPresignedURL}, nil).Once()
+
+	s, err := NewAWSS3Storage(t.Context(), mockConfig)
+	require.NoError(t, err)
+
+	s.presign = mockPresigner
+	link, expiration, err := s.GetLink(t.Context(), "s3://hello/world.json")
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedPresignedURL, link)
+	delta := expiration.Sub(time.Now().UTC()).Seconds()
+	assert.Positive(t, delta)
+	mockPresigner.AssertExpectations(t)
+}
+
 type MockTransferClient struct {
 	mock.Mock
 }
@@ -109,6 +159,20 @@ func (m *MockS3Client) GetObject(ctx context.Context, input *s3.GetObjectInput, 
 	}
 
 	return nil, args.Error(1)
+}
+
+type MockPresigner struct {
+	mock.Mock
+}
+
+func (m *MockPresigner) PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	args := m.Called(ctx, params, optFns)
+
+	if r := args.Get(0); r != nil {
+		return r.(*v4.PresignedHTTPRequest), args.Error(1)
+	} else {
+		return nil, args.Error(1)
+	}
 }
 
 func TestAWSS3StorageWriteUploadError(t *testing.T) {

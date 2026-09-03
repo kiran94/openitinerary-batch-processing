@@ -789,6 +789,11 @@ func (m *MockStorage) Read(ctx context.Context, input string) (io.ReadCloser, er
 	return nil, args.Error(1)
 }
 
+func (m *MockStorage) GetLink(ctx context.Context, input string) (string, time.Time, error) {
+	args := m.Called(ctx, input)
+	return args.String(0), args.Get(1).(time.Time), args.Error(2)
+}
+
 func (m *MockStorage) Write(ctx context.Context, reader io.Reader, output string) error {
 	args := m.Called(ctx, reader, output)
 	write := args.Get(0).(storageWriteFunc)
