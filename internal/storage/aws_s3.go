@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	applicationConfig "github.com/kiran94/openitinerary-batch-processing/internal/config"
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 )
 
 type TransferClient interface {
@@ -21,19 +23,21 @@ type S3Client interface {
 	GetObject(ctx context.Context, input *s3.GetObjectInput, opts ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
+type S3Presigner interface {
+	PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+}
+
 type AWSS3Storage struct {
 	transferClient TransferClient
 	s3Client       S3Client
+	presign        S3Presigner
+	config         config.Config
 }
 
 var _ Storage = (*AWSS3Storage)(nil)
 
-func NewAWSS3Storage(ctx context.Context, config applicationConfig.Config) (*AWSS3Storage, error) {
+func NewAWSS3Storage(ctx context.Context, config config.Config) (*AWSS3Storage, error) {
 	uploadConcurrency := config.GetS3UploadConcurrency()
-	if uploadConcurrency < 1 {
-		return nil, fmt.Errorf("S3 upload concurrency must be positive. Got %d", uploadConcurrency)
-	}
-
 	sdkConfig, err := awsConfig.LoadDefaultConfig(ctx)
 
 	if err != nil {
@@ -41,8 +45,9 @@ func NewAWSS3Storage(ctx context.Context, config applicationConfig.Config) (*AWS
 	}
 
 	s3Client := s3.NewFromConfig(sdkConfig)
+	psc := s3.NewPresignClient(s3Client)
 	transferClient := transfermanager.New(s3Client, configureTransferManager(uploadConcurrency))
-	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client}, nil
+	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client, presign: psc, config: config}, nil
 }
 
 func configureTransferManager(uploadConcurrency int) func(*transfermanager.Options) {
@@ -90,6 +95,29 @@ func (a *AWSS3Storage) Read(ctx context.Context, input string) (io.ReadCloser, e
 	}
 
 	return output.Body, nil
+}
+
+func (a *AWSS3Storage) GetLink(ctx context.Context, input string) (string, time.Time, error) {
+	bucket, key, err := a.extractBucketKey(input)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	expirationSeconds := a.config.GetS3PresignedExpirationSeconds()
+
+	result, err := a.presign.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}, func(po *s3.PresignOptions) {
+		po.Expires = time.Second * time.Duration(expirationSeconds)
+	})
+
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	expires := time.Now().UTC().Add(time.Duration(expirationSeconds) * time.Second)
+	return result.URL, expires, nil
 }
 
 func (a AWSS3Storage) extractBucketKey(s string) (bucket string, key string, err error) {

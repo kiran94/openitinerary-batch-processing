@@ -51,6 +51,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/submit", service.submit)
 	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
+	mux.HandleFunc("GET /api/v1/result/{id}", service.result)
 
 	server := &http.Server{
 		Handler:      mux,

@@ -708,6 +708,10 @@ func (m *MockConfig) GetBucketPath() string {
 	return m.Called().String(0)
 }
 
+func (m *MockConfig) GetS3PresignedExpirationSeconds() int {
+	return m.Called().Int(0)
+}
+
 func (m *MockConfig) GetOutputPath(bucket, bucketPath, jobID string) string {
 	return m.Called(bucket, bucketPath, jobID).String(0)
 }
@@ -783,6 +787,11 @@ func (m *MockStorage) Read(ctx context.Context, input string) (io.ReadCloser, er
 	}
 
 	return nil, args.Error(1)
+}
+
+func (m *MockStorage) GetLink(ctx context.Context, input string) (string, time.Time, error) {
+	args := m.Called(ctx, input)
+	return args.String(0), args.Get(1).(time.Time), args.Error(2)
 }
 
 func (m *MockStorage) Write(ctx context.Context, reader io.Reader, output string) error {

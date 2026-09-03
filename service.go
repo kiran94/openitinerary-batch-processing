@@ -201,3 +201,77 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 func obscureError(w http.ResponseWriter, errorSource string) {
 	http.Error(w, fmt.Sprintf("failed to perform '%v'", errorSource), http.StatusInternalServerError)
 }
+
+// result returns a temporary download link for a successfully completed ticket.
+// @Summary      Get processing result
+// @Description  Generate a temporary download link for the result of a successfully completed ticket.
+// @Tags         batch
+// @Produce      json,plain
+// @Param        id  path      string        true  "Ticket UUID"
+// @Success      200 {object}  resultOutput  "Temporary result download link"
+// @Success      204 {string}  string        "Ticket has not successfully completed"
+// @Failure      400 {string}  string        "Missing or invalid ticket UUID"
+// @Failure      404 {string}  string        "Ticket not found"
+// @Failure      500 {string}  string        "Failed to retrieve the processing result"
+// @Router       /api/v1/result/{id} [get]
+func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
+
+	ticketID := r.PathValue("id")
+	if ticketID == "" {
+		http.Error(w, "id parameter must be provided", http.StatusBadRequest)
+		return
+	}
+
+	ticketIDParsed, err := uuid.Parse(ticketID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("provided id was not a valid guid. Got: '%v'", ticketID), http.StatusBadRequest)
+		return
+	}
+
+	ticket, err := s.job.Get(r.Context(), ticketIDParsed)
+	if err != nil {
+		if errors.Is(err, job.ErrRecordNotFound) {
+			http.Error(w, fmt.Sprintf("Ticket '%v' was not found", ticketID), http.StatusNotFound)
+		} else {
+			s.logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "ticket_id", ticketIDParsed.String(), "error", err)
+			obscureError(w, "result")
+		}
+		return
+	}
+
+	if ticket.Status != job.Complete {
+		http.Error(w, fmt.Sprintf("ticket %v has not successfully completed", ticketID), http.StatusNoContent)
+		return
+	}
+
+	outputPath := s.config.GetOutputPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String())
+
+	link, expiration, err := s.storage.GetLink(r.Context(), outputPath)
+	if err != nil {
+		s.logger.Error("failed to generate presigned link", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
+		obscureError(w, "result")
+		return
+	}
+
+	result := resultOutput{
+		Link:    link,
+		Expires: expiration,
+	}
+
+	if b, err := json.Marshal(result); err != nil {
+		s.logger.Error("failed to marshal presigned result obj", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
+		obscureError(w, "result")
+		return
+	} else {
+		w.Header().Add("Content-Type", "application/json")
+		if _, err := w.Write(b); err != nil {
+			s.logger.Error("failed to write response", "component", logging.ComponentStorage, "ticket_id", ticketIDParsed.String(), "error", err)
+			obscureError(w, "result")
+		}
+	}
+}
+
+type resultOutput struct {
+	Link    string    `json:"link"`
+	Expires time.Time `json:"expires"`
+}
