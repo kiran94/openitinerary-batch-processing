@@ -17,6 +17,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 	appConfig := config.ApplicationConfig{}
 	logger := logging.New(appConfig)
@@ -24,21 +30,21 @@ func main() {
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {
 		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
-		os.Exit(1)
+		return err
 	}
 	logger.Info("database ready", "component", logging.ComponentDatabase)
 
 	s3, err := storage.NewAWSS3Storage(ctx, appConfig)
 	if err != nil {
 		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
-		os.Exit(1)
+		return err
 	}
 	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
 	batchQueue, err := queue.NewQueue(ctx, appConfig, logger)
 	if err != nil {
 		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
-		os.Exit(1)
+		return err
 	}
 	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
@@ -86,7 +92,9 @@ func main() {
 	)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
-		os.Exit(1)
+		return err
 	}
+
 	logger.Info("server stopped", "component", logging.ComponentHTTP)
+	return nil
 }
