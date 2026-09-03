@@ -115,7 +115,7 @@ func (a *ApplicationOtelMetrics) RecordStorageUpload(ctx context.Context, m metr
 	)
 }
 
-func (a *ApplicationOtelMetrics) RecordResponseWriteErrorObservation(ctx context.Context, m metrics.ResponseObservation) {
+func (a *ApplicationOtelMetrics) RecordResponseWriteError(ctx context.Context, m metrics.ResponseObservation) {
 	a.apiWriteResponseErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("route", string(m.Endpoint))))
 }
 

@@ -15,7 +15,7 @@ type ResponseWriteErrorRecorder interface {
 		contributes to:
 		* oibp.api.response_write.errors
 	*/
-	RecordResponseWriteErrorObservation(context.Context, ResponseObservation)
+	RecordResponseWriteError(context.Context, ResponseObservation)
 }
 
 type EndpointV1 string
