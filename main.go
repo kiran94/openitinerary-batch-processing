@@ -60,12 +60,19 @@ func run() error {
 		}
 	}()
 
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	if err != nil {
+		logger.Error("metrics initialization failed", "error", err)
+		return err
+	}
+
 	service := ServiceV1{
 		config:  appConfig,
 		job:     job.NewTicketRepository(db),
 		logger:  logger,
 		queue:   batchQueue,
 		storage: s3,
+		metrics: serviceMetrics,
 	}
 
 	mux := http.NewServeMux()

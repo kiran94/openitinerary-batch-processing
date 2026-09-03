@@ -14,6 +14,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 )
 
 type ServiceV1 struct {
@@ -22,6 +24,7 @@ type ServiceV1 struct {
 	logger  logging.Logger
 	queue   queue.BatchQueue
 	storage storage.Storage
+	metrics telemetry.ServiceMetrics
 }
 
 // @Summary      Submit a document for processing
@@ -116,11 +119,28 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket.ContentType = contentType
 	ticket.NotificationEmails = emails
 
+	storageStart := time.Now()
 	if err := s.storage.Write(r.Context(), file, ticket.DocumentPath); err != nil {
+		s.metrics.RecordStorageUpload(
+			r.Context(),
+			metrics.StorageUploadObservation{
+				Duration: time.Since(storageStart),
+				Purpose:  metrics.StorageUploadPurposeDocument,
+				Outcome:  metrics.StorageUploadFailed,
+			},
+		)
 		s.logger.Error("document storage failed", "component", logging.ComponentStorage, "ticket_id", ticket.ID.String(), "content_type", contentType, "error", err)
 		s.writeAPIError(w, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
+	s.metrics.RecordStorageUpload(
+		r.Context(),
+		metrics.StorageUploadObservation{
+			Duration: time.Since(storageStart),
+			Purpose:  metrics.StorageUploadPurposeDocument,
+			Outcome:  metrics.StorageUploadSuccess,
+		},
+	)
 
 	if err := s.job.Create(r.Context(), ticket); err != nil {
 		s.logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "error", err)

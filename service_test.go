@@ -19,6 +19,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -184,6 +186,7 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 
 func TestServiceSubmitStorageWriteError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockStorage := new(MockStorage)
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -195,10 +198,14 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 	storageErr := errors.New("could not write")
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(storageErr).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadFailed)).
+		Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		storage: mockStorage,
 	}
 
@@ -216,11 +223,13 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 }
 
 func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockStorage := new(MockStorage)
 
@@ -231,6 +240,9 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
 
 	jobCreateError := errors.New("error creating job")
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(jobCreateError).Once()
@@ -239,6 +251,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		storage: mockStorage,
 	}
 
@@ -256,12 +269,14 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 }
 
 func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
@@ -274,6 +289,9 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
@@ -293,6 +311,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
@@ -311,6 +330,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
@@ -649,6 +669,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	t.Helper()
 
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
@@ -670,6 +691,9 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 			assert.Equal(t, test.data, data)
 		}).
 		Return(nil).
+		Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
 
 	var generatedTicketID uuid.UUID
@@ -699,6 +723,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
@@ -729,6 +754,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	assert.Equal(t, job.Queued, ticket.Status)
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
@@ -816,10 +842,11 @@ func createTestMultipartFormWithoutContentType(t *testing.T) (*bytes.Buffer, str
 // Compile Time Interface Assertions
 // Ensure that each of the mocks implement the interfaces they target.
 var (
-	_ config.Config        = (*MockConfig)(nil)
-	_ job.TicketRepository = (*MockTicketRepository)(nil)
-	_ queue.BatchQueue     = (*MockBatchQueue)(nil)
-	_ storage.Storage      = (*MockStorage)(nil)
+	_ config.Config            = (*MockConfig)(nil)
+	_ job.TicketRepository     = (*MockTicketRepository)(nil)
+	_ queue.BatchQueue         = (*MockBatchQueue)(nil)
+	_ storage.Storage          = (*MockStorage)(nil)
+	_ telemetry.ServiceMetrics = (*MockServiceMetrics)(nil)
 )
 
 type MockConfig struct {
@@ -988,6 +1015,34 @@ func (m *MockBatchQueue) Ready(ctx context.Context) error {
 
 type MockStorage struct {
 	mock.Mock
+}
+
+type MockServiceMetrics struct {
+	mock.Mock
+}
+
+func (m *MockServiceMetrics) RecordSubmission(ctx context.Context, observation telemetrymetrics.SubmissionObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordStorageUpload(ctx context.Context, observation telemetrymetrics.StorageUploadObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordResponseWriteError(ctx context.Context, observation telemetrymetrics.ResponseObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordJobTerminal(ctx context.Context, observation telemetrymetrics.TerminalObservation) {
+	m.Called(ctx, observation)
+}
+
+func matchesDocumentStorageUpload(outcome telemetrymetrics.StorageUploadOutcome) any {
+	return mock.MatchedBy(func(observation telemetrymetrics.StorageUploadObservation) bool {
+		return observation.Duration >= 0 &&
+			observation.Purpose == telemetrymetrics.StorageUploadPurposeDocument &&
+			observation.Outcome == outcome
+	})
 }
 
 func (m *MockStorage) Write(ctx context.Context, reader io.Reader, output string) error {
