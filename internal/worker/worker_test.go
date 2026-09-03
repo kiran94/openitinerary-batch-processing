@@ -720,6 +720,22 @@ func (m *MockConfig) GetNotificationEmailLimit() int {
 	return m.Called().Int(0)
 }
 
+func (m *MockConfig) GetOtelServiceName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelWorkerName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelServiceVersion() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelMetricExportInterval() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }

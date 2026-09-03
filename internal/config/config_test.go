@@ -180,6 +180,15 @@ func TestApplicationConfigQueueDefaults(t *testing.T) {
 	assert.Equal(t, int32(20), config.GetQueuePollingTime())
 }
 
+func TestApplicationConfigOtelDefaults(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "openitinerary-batch-api", config.GetOtelServiceName())
+	assert.Equal(t, "openitinerary-batch-worker", config.GetOtelWorkerName())
+	assert.Equal(t, "0.0.1", config.GetOtelServiceVersion())
+	assert.Equal(t, 15*time.Second, config.GetOtelMetricExportInterval())
+}
+
 func TestGetLoggingLevelDefault(t *testing.T) {
 	t.Setenv("OIBP_LOG_LEVEL", "")
 

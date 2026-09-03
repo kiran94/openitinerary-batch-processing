@@ -37,6 +37,11 @@ type Config interface {
 	GetNotificationEmailLimit() int
 
 	GetWorkerTimeoutSeconds() int
+
+	GetOtelServiceName() string
+	GetOtelWorkerName() string
+	GetOtelServiceVersion() string
+	GetOtelMetricExportInterval() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -137,6 +142,22 @@ func (ac ApplicationConfig) GetSESAddressFrom() string {
 
 func (ac ApplicationConfig) GetNotificationEmailLimit() int {
 	return getPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
+}
+
+func (ac ApplicationConfig) GetOtelServiceName() string {
+	return "openitinerary-batch-api"
+}
+
+func (ac ApplicationConfig) GetOtelWorkerName() string {
+	return "openitinerary-batch-worker"
+}
+
+func (ac ApplicationConfig) GetOtelServiceVersion() string {
+	return "0.0.1"
+}
+
+func (ac ApplicationConfig) GetOtelMetricExportInterval() time.Duration {
+	return time.Duration(15) * time.Second
 }
 
 func GetEnvOrDefault(name, defaultValue string) string {
