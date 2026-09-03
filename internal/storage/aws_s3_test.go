@@ -24,6 +24,10 @@ func (c testStorageConfig) GetS3UploadConcurrency() int {
 	return c.uploadConcurrency
 }
 
+func (c testStorageConfig) GetS3PresignedExpirationSeconds() int {
+	return 3600
+}
+
 func newTestStorageConfig() applicationConfig.Config {
 	return testStorageConfig{uploadConcurrency: 1}
 }

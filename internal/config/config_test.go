@@ -206,3 +206,30 @@ func TestGetLoggingLevelSetInvalid(t *testing.T) {
 		config.GetLoggingLevel()
 	})
 }
+
+func TestGetS3PresignedExpirationSecondsDefault(t *testing.T) {
+	t.Setenv("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", "")
+
+	config := ApplicationConfig{}
+	value := config.GetS3PresignedExpirationSeconds()
+
+	assert.Equal(t, 3600, value)
+}
+
+func TestGetS3PresignedExpirationSecondsSet(t *testing.T) {
+	t.Setenv("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", "60")
+
+	config := ApplicationConfig{}
+	value := config.GetS3PresignedExpirationSeconds()
+
+	assert.Equal(t, 60, value)
+}
+
+func TestGetS3PresignedExpirationSecondsSetAboveMaximum(t *testing.T) {
+	t.Setenv("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", "604801")
+
+	config := ApplicationConfig{}
+	assert.Panics(t, func() {
+		config.GetS3PresignedExpirationSeconds()
+	})
+}

@@ -25,6 +25,7 @@ type Config interface {
 	GetBucket() string
 	GetBucketPath() string
 	GetS3UploadConcurrency() int
+	GetS3PresignedExpirationSeconds() int
 	GetDocumentPath(bucket, bucketPath, jobId, fileType string) string
 	GetOutputPath(bucket, bucketPath, jobId string) string
 
@@ -93,6 +94,17 @@ func (ac ApplicationConfig) GetBucketPath() string {
 
 func (ac ApplicationConfig) GetS3UploadConcurrency() int {
 	return getPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1)
+}
+
+func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
+	v := getPositiveIntEnvOrDefault("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", 3600)
+
+	// https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-query-string-auth.html
+	if v > 604800 {
+		panic("OIBP_S3_PRESIGNED_EXPIRE_SECONDS exceeded the maximum allowed by AWS")
+	}
+
+	return v
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {

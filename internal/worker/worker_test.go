@@ -708,6 +708,10 @@ func (m *MockConfig) GetBucketPath() string {
 	return m.Called().String(0)
 }
 
+func (m *MockConfig) GetS3PresignedExpirationSeconds() int {
+	return m.Called().Int(0)
+}
+
 func (m *MockConfig) GetOutputPath(bucket, bucketPath, jobID string) string {
 	return m.Called(bucket, bucketPath, jobID).String(0)
 }
