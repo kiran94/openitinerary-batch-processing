@@ -12,6 +12,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/otel"
 )
 
 func main() {
@@ -39,6 +41,18 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
+
+	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig)
+	if err != nil {
+		logger.Error("otel initialization failed", "error", err)
+		return err
+	}
+	otel.SetMeterProvider(otelMetricProvider.GetProvider())
+	defer func() {
+		if err := otelMetricProvider.Close(ctx); err != nil {
+			logger.Error("failed to cleanup otel", "error", err)
+		}
+	}()
 
 	service := ServiceV1{
 		config:  appConfig,
