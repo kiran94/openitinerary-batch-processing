@@ -301,6 +301,23 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		}
 	}
 
+	// Start the processing observation after the ticket has been validated and
+	// duplicate completed deliveries have been excluded. Keep the end time
+	// separate so queue acknowledgement and notification are not measured.
+	processingStartedAt := time.Now()
+	processingOutcome := metrics.WorkerProcessingOutcomeFailed
+	processingEndedAt := time.Time{}
+	defer func() {
+		end := processingEndedAt
+		if end.IsZero() {
+			end = time.Now()
+		}
+		w.metrics.RecordWorkerProcessing(ctx, metrics.WorkerProcessingObservation{
+			Duration: end.Sub(processingStartedAt),
+			Outcome:  processingOutcome,
+		})
+	}()
+
 	ticket.UpdateStatus(job.Processing, nil, nil)
 	ticket.AttemptCount++
 	if err := w.job.Update(ctx, ticket); err != nil {
@@ -336,7 +353,16 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	}
 
 	// Stream from Storage to the Adapter and stream the result from the adapter back to storage
+	conversionStartedAt := time.Now()
 	response, convertErr := w.adapter.Convert(ctx, reader, ticket.DocumentPath, ticket.ContentType)
+	conversionOutcome := metrics.AdapterConversionOutcomeSuccess
+	if convertErr != nil || response == nil {
+		conversionOutcome = metrics.AdapterConversionOutcomeFailed
+	}
+	w.metrics.RecordAdapterConversion(ctx, metrics.AdapterConversionObservation{
+		Duration: time.Since(conversionStartedAt),
+		Outcome:  conversionOutcome,
+	})
 	w.closeStream(reader, "source_document", w.id, ticket.ID)
 	if convertErr != nil {
 		w.closeStream(response, "adapter_response", w.id, ticket.ID)
@@ -362,7 +388,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	)
 
 	storageUploadStartedAt := time.Now()
-	writeErr := w.storage.Write(ctx, response, resultOutputPath)
+	countedResponse := &byteCountingReadCloser{ReadCloser: response}
+	writeErr := w.storage.Write(ctx, countedResponse, resultOutputPath)
 	w.closeStream(response, "adapter_response", w.id, ticket.ID)
 	if writeErr != nil {
 		w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
@@ -381,6 +408,10 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		Purpose:  metrics.StorageUploadPurposeResult,
 		Outcome:  metrics.StorageUploadSuccess,
 	})
+	w.metrics.RecordAdapterResponse(ctx, metrics.AdapterResponseObservation{
+		SizeBytes:   countedResponse.BytesRead(),
+		ContentType: metrics.ContentType(ticket.ContentType),
+	})
 
 	// Mark the Ticket Status
 	ticket.UpdateStatus(job.Complete, nil, nil)
@@ -395,6 +426,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
+	processingOutcome = metrics.WorkerProcessingOutcomeSuccess
+	processingEndedAt = time.Now()
 
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference)
 	if deleteMessageErr != nil {
@@ -441,6 +474,24 @@ func (w *BatchWorker) classifyAdapterResponseSizeError(err error, ticketID uuid.
 		"error", err,
 	)
 	return fmt.Errorf("adapter response exceeded maximum size: %w", err)
+}
+
+// byteCountingReadCloser counts bytes as the storage implementation consumes
+// the adapter response. Counting at this boundary measures the bytes actually
+// written to result storage without buffering the response in memory.
+type byteCountingReadCloser struct {
+	io.ReadCloser
+	bytesRead int64
+}
+
+func (r *byteCountingReadCloser) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.bytesRead += int64(n)
+	return n, err
+}
+
+func (r *byteCountingReadCloser) BytesRead() int64 {
+	return r.bytesRead
 }
 
 func (w *BatchWorker) closeStream(stream io.Closer, streamName string, workerID, ticketID uuid.UUID) {

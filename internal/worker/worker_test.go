@@ -38,15 +38,31 @@ type trackingReadCloser struct {
 
 type storageWriteFunc func(context.Context, io.Reader, string) error
 
-type noopWorkerMetrics struct{}
+type noopWorkerMetrics struct {
+	workerProcessingObservations  []telemetrymetrics.WorkerProcessingObservation
+	adapterConversionObservations []telemetrymetrics.AdapterConversionObservation
+	adapterResponseObservations   []telemetrymetrics.AdapterResponseObservation
+}
 
 func (noopWorkerMetrics) RecordStorageUpload(context.Context, telemetrymetrics.StorageUploadObservation) {
+}
+
+func (m *noopWorkerMetrics) RecordAdapterConversion(_ context.Context, o telemetrymetrics.AdapterConversionObservation) {
+	m.adapterConversionObservations = append(m.adapterConversionObservations, o)
+}
+
+func (m *noopWorkerMetrics) RecordAdapterResponse(_ context.Context, o telemetrymetrics.AdapterResponseObservation) {
+	m.adapterResponseObservations = append(m.adapterResponseObservations, o)
 }
 
 func (noopWorkerMetrics) RecordWorkerRun(context.Context, telemetrymetrics.WorkerRunObservation) {
 }
 
 func (noopWorkerMetrics) RecordWorkerPolling(context.Context, telemetrymetrics.WorkerPollingObservation) {
+}
+
+func (m *noopWorkerMetrics) RecordWorkerProcessing(_ context.Context, o telemetrymetrics.WorkerProcessingObservation) {
+	m.workerProcessingObservations = append(m.workerProcessingObservations, o)
 }
 
 func (r *trackingReadCloser) Close() error {
@@ -62,7 +78,7 @@ type workerTestHarness struct {
 	storage    *MockStorage
 	adapter    *MockAdapter
 	notifier   *MockNotifier
-	metrics    noopWorkerMetrics
+	metrics    *noopWorkerMetrics
 	ticket     *job.Ticket
 	delivery   queue.DequeueResult
 }
@@ -82,6 +98,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		storage:    new(MockStorage),
 		adapter:    new(MockAdapter),
 		notifier:   new(MockNotifier),
+		metrics:    new(noopWorkerMetrics),
 		ticket:     ticket,
 		delivery: queue.DequeueResult{
 			Result:         queue.EnqueuePayload{TicketID: ticket.ID.String()},
@@ -114,7 +131,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 
 func (h *workerTestHarness) expectOutputWrite(
 	ctx context.Context,
-	response io.Reader,
+	_ io.Reader,
 	write storageWriteFunc,
 ) {
 	h.config.On("GetBucket").Return("bucket").Once()
@@ -124,7 +141,7 @@ func (h *workerTestHarness) expectOutputWrite(
 		Return("s3://bucket/result.json").
 		Once()
 	h.storage.
-		On("Write", ctx, response, "s3://bucket/result.json").
+		On("Write", ctx, mock.Anything, "s3://bucket/result.json").
 		Return(write).
 		Once()
 }
@@ -296,6 +313,7 @@ func TestStartReturnsTicketGetError(t *testing.T) {
 	require.ErrorIs(t, err, errRepository)
 	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+	assert.Empty(t, harness.metrics.workerProcessingObservations)
 }
 
 func TestStartDeletesAlreadyCompleteTicketMessage(t *testing.T) {
@@ -313,6 +331,7 @@ func TestStartDeletesAlreadyCompleteTicketMessage(t *testing.T) {
 	assert.Zero(t, harness.ticket.AttemptCount)
 	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	harness.storage.AssertNotCalled(t, "Read", mock.Anything, mock.Anything)
+	assert.Empty(t, harness.metrics.workerProcessingObservations)
 }
 
 func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
@@ -329,6 +348,7 @@ func TestStartReturnsAlreadyCompleteTicketDeleteError(t *testing.T) {
 	require.ErrorIs(t, err, ErrTicketAlreadyComplete)
 	require.ErrorIs(t, err, errWrite)
 	harness.repository.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	assert.Empty(t, harness.metrics.workerProcessingObservations)
 }
 
 func TestStartReturnsProcessingUpdateError(t *testing.T) {
@@ -419,6 +439,15 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 	assert.Equal(t, job.Complete, harness.ticket.Status)
 	assert.Nil(t, harness.ticket.Error)
 	assert.Nil(t, harness.ticket.StatusReason)
+	require.Len(t, harness.metrics.adapterConversionObservations, 1)
+	assert.Equal(t, telemetrymetrics.AdapterConversionOutcomeSuccess, harness.metrics.adapterConversionObservations[0].Outcome)
+	assert.Positive(t, harness.metrics.adapterConversionObservations[0].Duration)
+	require.Len(t, harness.metrics.adapterResponseObservations, 1)
+	assert.Equal(t, int64(len(`[{"type":"flight"}]`)), harness.metrics.adapterResponseObservations[0].SizeBytes)
+	assert.Equal(t, telemetrymetrics.ContentTypePDF, harness.metrics.adapterResponseObservations[0].ContentType)
+	require.Len(t, harness.metrics.workerProcessingObservations, 1)
+	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeSuccess, harness.metrics.workerProcessingObservations[0].Outcome)
+	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 }
 
@@ -442,6 +471,9 @@ func TestStartClosesStreamsWhenConvertFails(t *testing.T) {
 	require.ErrorIs(t, err, errConvert)
 	assert.True(t, source.closed)
 	assert.True(t, response.closed)
+	require.Len(t, harness.metrics.adapterConversionObservations, 1)
+	assert.Equal(t, telemetrymetrics.AdapterConversionOutcomeFailed, harness.metrics.adapterConversionObservations[0].Outcome)
+	assert.Empty(t, harness.metrics.adapterResponseObservations)
 	assertTicketFailure(t, harness, job.ConvertFailed, errConvert)
 }
 
@@ -463,6 +495,9 @@ func TestStartHandlesNilResponseWhenConvertFails(t *testing.T) {
 
 	require.ErrorIs(t, err, errConvert)
 	assert.True(t, source.closed)
+	require.Len(t, harness.metrics.adapterConversionObservations, 1)
+	assert.Equal(t, telemetrymetrics.AdapterConversionOutcomeFailed, harness.metrics.adapterConversionObservations[0].Outcome)
+	assert.Empty(t, harness.metrics.adapterResponseObservations)
 	assertTicketFailure(t, harness, job.ConvertFailed, errConvert)
 }
 
@@ -487,6 +522,9 @@ func TestStartClosesStreamsWhenWriteFails(t *testing.T) {
 	require.ErrorIs(t, err, errWrite)
 	assert.True(t, source.closed)
 	assert.True(t, response.closed)
+	require.Len(t, harness.metrics.adapterConversionObservations, 1)
+	assert.Equal(t, telemetrymetrics.AdapterConversionOutcomeSuccess, harness.metrics.adapterConversionObservations[0].Outcome)
+	assert.Empty(t, harness.metrics.adapterResponseObservations)
 	assertTicketFailure(t, harness, job.StorageWriteFailed, errWrite)
 }
 
@@ -562,6 +600,9 @@ func TestStartRejectsNilAdapterResponse(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nil response reader")
 	assert.True(t, source.closed)
+	require.Len(t, harness.metrics.adapterConversionObservations, 1)
+	assert.Equal(t, telemetrymetrics.AdapterConversionOutcomeFailed, harness.metrics.adapterConversionObservations[0].Outcome)
+	assert.Empty(t, harness.metrics.adapterResponseObservations)
 	assertTicketFailure(t, harness, job.ResponseReaderNil, err)
 }
 
@@ -650,6 +691,8 @@ func TestStartReturnsDeleteMessageError(t *testing.T) {
 
 	require.ErrorIs(t, err, errWrite)
 	assert.Equal(t, job.Complete, harness.ticket.Status)
+	require.Len(t, harness.metrics.workerProcessingObservations, 1)
+	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeSuccess, harness.metrics.workerProcessingObservations[0].Outcome)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 }
 
@@ -678,6 +721,9 @@ func TestStartReturnsCompletionUpdateError(t *testing.T) {
 	assert.Equal(t, job.Complete, harness.ticket.Status)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 	harness.queue.AssertNotCalled(t, "DeleteMessage", mock.Anything, mock.Anything)
+	require.Len(t, harness.metrics.workerProcessingObservations, 1)
+	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeFailed, harness.metrics.workerProcessingObservations[0].Outcome)
+	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
 }
 
 func assertTicketFailure(
@@ -696,6 +742,9 @@ func assertTicketFailure(
 	assert.Equal(t, reason, *harness.ticket.StatusReason)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 	harness.queue.AssertNotCalled(t, "DeleteMessage", mock.Anything, mock.Anything)
+	require.Len(t, harness.metrics.workerProcessingObservations, 1)
+	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeFailed, harness.metrics.workerProcessingObservations[0].Outcome)
+	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
 }
 
 // MOCKS
