@@ -47,6 +47,7 @@ func run() error {
 		logger.Error("metrics initialization failed", "error", err)
 		return err
 	}
+	logger.Info("telemtry ready", "component", logging.ComponentTelemetry)
 
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {
