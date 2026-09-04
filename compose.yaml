@@ -37,10 +37,17 @@ services:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
 
-
+  opentelemetry_grafana:
+    image: grafana/grafana:13.0.8
+    container_name: oibp-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./infra/grafana_datasource.yml:/etc/grafana/provisioning/datasources/grafana_datasource.yml:ro
+      - grafana_data:/var/lib/grafana
 
 
 volumes:
   postgres_data:
   prometheus_data:
-
+  grafana_data:
