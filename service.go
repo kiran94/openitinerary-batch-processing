@@ -218,6 +218,10 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 			ContentType: &metricContentType,
 			InputBytes:  &uploadedFileHeader.Size,
 		})
+		s.metrics.RecordJobTerminal(r.Context(), metrics.TerminalObservation{
+			Outcome: metrics.TerminalFailed,
+			Reason:  new(metrics.TerminalReasonEnqueueFailed),
+		})
 		return
 	}
 

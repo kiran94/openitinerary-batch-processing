@@ -409,6 +409,16 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 			},
 		).
 		Once()
+	mockMetrics.
+		On(
+			"RecordJobTerminal",
+			t.Context(),
+			telemetrymetrics.TerminalObservation{
+				Outcome: telemetrymetrics.TerminalFailed,
+				Reason:  new(telemetrymetrics.TerminalReasonEnqueueFailed),
+			},
+		).
+		Once()
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
