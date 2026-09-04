@@ -330,12 +330,26 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"ticket_id", ticketID,
 		"output_path", resultOutputPath,
 	)
+
+	storageUploadStartedAt := time.Now()
 	writeErr := w.storage.Write(ctx, response, resultOutputPath)
 	w.closeStream(response, "adapter_response", w.id, ticket.ID)
 	if writeErr != nil {
+		w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
+			Duration: time.Since(storageUploadStartedAt),
+			Purpose:  metrics.StorageUploadPurposeResult,
+			Outcome:  metrics.StorageUploadFailed,
+		})
+
 		err := w.classifyAdapterResponseSizeError(writeErr, ticket.ID)
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed)
 	}
+
+	w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
+		Duration: time.Since(storageUploadStartedAt),
+		Purpose:  metrics.StorageUploadPurposeResult,
+		Outcome:  metrics.StorageUploadSuccess,
+	})
 
 	// Mark the Ticket Status
 	ticket.UpdateStatus(job.Complete, nil, nil)
