@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -53,4 +55,10 @@ func createResource(cfg config.Config) (*resource.Resource, error) {
 	}
 
 	return resource, nil
+}
+
+func SetLogger(l logging.Logger) {
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(cause error) {
+		l.Error("otel error", "error", cause.Error(), "component", logging.ComponentTelemetry)
+	}))
 }

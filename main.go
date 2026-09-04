@@ -13,6 +13,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 )
 
@@ -26,6 +27,26 @@ func run() error {
 	ctx := context.Background()
 	appConfig := config.ApplicationConfig{}
 	logger := logging.New(appConfig)
+
+	telemetry.SetLogger(logger)
+	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig)
+	if err != nil {
+		logger.Error("otel initialization failed", "error", err)
+		return err
+	}
+	otel.SetMeterProvider(otelMetricProvider.GetProvider())
+
+	defer func() {
+		if err := otelMetricProvider.Close(ctx); err != nil {
+			logger.Error("failed to cleanup otel", "error", err)
+		}
+	}()
+
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	if err != nil {
+		logger.Error("metrics initialization failed", "error", err)
+		return err
+	}
 
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {
@@ -48,24 +69,6 @@ func run() error {
 	}
 	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig)
-	if err != nil {
-		logger.Error("otel initialization failed", "error", err)
-		return err
-	}
-	otel.SetMeterProvider(otelMetricProvider.GetProvider())
-	defer func() {
-		if err := otelMetricProvider.Close(ctx); err != nil {
-			logger.Error("failed to cleanup otel", "error", err)
-		}
-	}()
-
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
-	if err != nil {
-		logger.Error("metrics initialization failed", "error", err)
-		return err
-	}
-
 	service := ServiceV1{
 		config:  appConfig,
 		job:     job.NewTicketRepository(db),
@@ -76,9 +79,9 @@ func run() error {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/submit", service.submit)
-	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
-	mux.HandleFunc("GET /api/v1/result/{id}", service.result)
+	mux.Handle("POST /api/v1/submit", otelhttp.NewHandler(http.HandlerFunc(service.submit), "http-handler"))
+	mux.Handle("GET /api/v1/status/{id}", otelhttp.NewHandler(http.HandlerFunc(service.status), "http-handler"))
+	mux.Handle("GET /api/v1/result/{id}", otelhttp.NewHandler(http.HandlerFunc(service.result), "http-handler"))
 
 	server := &http.Server{
 		Handler:      mux,
