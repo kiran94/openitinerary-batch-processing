@@ -116,8 +116,10 @@ func (a *ApplicationOtelMetrics) RecordStorageUpload(ctx context.Context, m metr
 	a.storageUploadDurationHisto.Record(
 		ctx,
 		m.Duration.Seconds(),
-		metric.WithAttributes(attribute.String("purpose", string(m.Purpose))),
-		metric.WithAttributes(attribute.String("outcome", string(m.Outcome))),
+		metric.WithAttributeSet(attribute.NewSet(
+			attribute.String("purpose", string(m.Purpose)),
+			attribute.String("outcome", string(m.Outcome)),
+		)),
 	)
 }
 
