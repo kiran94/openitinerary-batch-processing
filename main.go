@@ -14,7 +14,6 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
 )
 
 func main() {
@@ -34,7 +33,10 @@ func run() error {
 		logger.Error("otel initialization failed", "error", err)
 		return err
 	}
-	otel.SetMeterProvider(otelMetricProvider.GetProvider())
+	if err := otelMetricProvider.Ready(); err != nil {
+		logger.Error("otel ready failed", "error", err)
+		return err
+	}
 
 	defer func() {
 		if err := otelMetricProvider.Close(ctx); err != nil {
