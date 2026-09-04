@@ -17,6 +17,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,11 @@ type trackingReadCloser struct {
 
 type storageWriteFunc func(context.Context, io.Reader, string) error
 
+type noopWorkerMetrics struct{}
+
+func (noopWorkerMetrics) RecordStorageUpload(context.Context, telemetrymetrics.StorageUploadObservation) {
+}
+
 func (r *trackingReadCloser) Close() error {
 	r.closed = true
 	return r.closeErr
@@ -50,6 +56,7 @@ type workerTestHarness struct {
 	storage    *MockStorage
 	adapter    *MockAdapter
 	notifier   *MockNotifier
+	metrics    noopWorkerMetrics
 	ticket     *job.Ticket
 	delivery   queue.DequeueResult
 }
@@ -84,6 +91,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		adapter:  harness.adapter,
 		logger:   &MockLogger{},
 		notifier: harness.notifier,
+		metrics:  harness.metrics,
 	}
 
 	t.Cleanup(func() {
@@ -133,6 +141,7 @@ func TestNewBatchWorker(t *testing.T) {
 		harness.adapter,
 		&MockLogger{},
 		harness.notifier,
+		harness.metrics,
 	)
 
 	require.NotNil(t, worker)

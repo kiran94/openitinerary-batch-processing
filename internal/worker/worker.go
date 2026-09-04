@@ -16,6 +16,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 )
 
 type Worker interface {
@@ -33,6 +35,7 @@ type BatchWorker struct {
 	adapter  clients.Adapter
 	logger   logging.Logger
 	notifier notification.Notifier
+	metrics  telemetry.WorkerMetrics
 }
 
 func NewBatchWorker(
@@ -43,6 +46,8 @@ func NewBatchWorker(
 	adapter clients.Adapter,
 	logger logging.Logger,
 	notifier notification.Notifier,
+	metrics telemetry.WorkerMetrics,
+
 ) Worker {
 	return &BatchWorker{
 		id:       uuid.New(),
@@ -53,6 +58,7 @@ func NewBatchWorker(
 		adapter:  adapter,
 		logger:   logger,
 		notifier: notifier,
+		metrics:  metrics,
 	}
 }
 

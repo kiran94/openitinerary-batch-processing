@@ -17,6 +17,10 @@ type ServiceMetrics interface {
 	metrics.JobTerminalRecorder
 }
 
+type WorkerMetrics interface {
+	metrics.StorageUploadRecorder
+}
+
 type ApplicationOtelMetrics struct {
 	apiSubmissionsCounter        metric.Int64Counter
 	jobsEnqueuedCounter          metric.Int64Counter
