@@ -19,12 +19,13 @@ type Logger interface {
 type Component string
 
 const (
-	ComponentDatabase Component = "database"
-	ComponentHTTP     Component = "http"
-	ComponentQueue    Component = "queue"
-	ComponentStorage  Component = "storage"
-	ComponentWorker   Component = "worker"
-	ComponentNotifier Component = "notifier"
+	ComponentDatabase  Component = "database"
+	ComponentHTTP      Component = "http"
+	ComponentQueue     Component = "queue"
+	ComponentStorage   Component = "storage"
+	ComponentWorker    Component = "worker"
+	ComponentNotifier  Component = "notifier"
+	ComponentTelemetry Component = "telemetry"
 )
 
 type SlogLogger struct {

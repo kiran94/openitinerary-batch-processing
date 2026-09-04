@@ -37,6 +37,12 @@ type Config interface {
 	GetNotificationEmailLimit() int
 
 	GetWorkerTimeoutSeconds() int
+
+	GetOtelEnabled() bool
+	GetOtelServiceName() string
+	GetOtelWorkerName() string
+	GetOtelServiceVersion() string
+	GetOtelMetricExportInterval() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -139,6 +145,26 @@ func (ac ApplicationConfig) GetNotificationEmailLimit() int {
 	return getPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
 }
 
+func (ac ApplicationConfig) GetOtelServiceName() string {
+	return "openitinerary-batch-api"
+}
+
+func (ac ApplicationConfig) GetOtelWorkerName() string {
+	return "openitinerary-batch-worker"
+}
+
+func (ac ApplicationConfig) GetOtelServiceVersion() string {
+	return "0.0.1"
+}
+
+func (ac ApplicationConfig) GetOtelMetricExportInterval() time.Duration {
+	return time.Duration(15) * time.Second
+}
+
+func (ac ApplicationConfig) GetOtelEnabled() bool {
+	return getBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+}
+
 func GetEnvOrDefault(name, defaultValue string) string {
 	value := os.Getenv(name)
 	if value == "" {
@@ -154,6 +180,20 @@ func GetEnvOrPanic(name string) string {
 	} else {
 		return v
 	}
+}
+
+func getBoolOrDefault(name string, defaultValue bool) bool {
+	v := os.Getenv(name)
+	if v == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
 }
 
 func getPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {

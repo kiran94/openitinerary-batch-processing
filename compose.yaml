@@ -19,5 +19,14 @@ services:
     ports:
       - "8000:8000"
 
+  opentelemetry_collector:
+    image: otel/opentelemetry-collector:0.160.0
+    container_name: oibp-otel-collector
+    ports:
+      - "4318:4318"
+      - "8889:8889"
+    volumes:
+      - ./infra/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+
 volumes:
   postgres_data:

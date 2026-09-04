@@ -19,6 +19,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -58,8 +60,19 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 	maximumAllowedBytes := int64(14)     // 14 bytes
 
 	mockConfig := MockConfig{}
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(maximumAllowedBytes).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonRequestBodyTooLarge),
+			},
+		).
+		Once()
 
 	writer := httptest.NewRecorder()
 
@@ -67,7 +80,7 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -75,12 +88,24 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusRequestEntityTooLarge, "request body is too large")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitBadMultipartForm(t *testing.T) {
 	mockConfig := MockConfig{}
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonInvalidMultipartForm),
+			},
+		).
+		Once()
 
 	writer := httptest.NewRecorder()
 	body, _ := createTestMultipartFormBuffer(t, []byte("data"), "application/pdf")
@@ -89,7 +114,7 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 	// Skip adding the content type to make this an invalid multipart form
 	// request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -97,19 +122,31 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusBadRequest, "invalid multipart form")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 	mockConfig := MockConfig{}
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonFileNotProvided),
+			},
+		).
+		Once()
 
 	writer := httptest.NewRecorder()
 	body, contentType := createTestMultipartFormWithoutFileBuffer(t)
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -118,19 +155,31 @@ func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 	assertAPIError(t, response, http.StatusBadRequest, "file must be provided")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 	mockConfig := MockConfig{}
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonContentTypeNotProvided),
+			},
+		).
+		Once()
 
 	writer := httptest.NewRecorder()
 	body, contentType := createTestMultipartFormWithoutContentType(t)
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -138,20 +187,32 @@ func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusBadRequest, "file content type must be provided")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 
 	mockConfig := MockConfig{}
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonInvalidContentType),
+			},
+		).
+		Once()
 
 	writer := httptest.NewRecorder()
 	body, contentType := createTestMultipartFormBuffer(t, []byte("data"), "NOT A MIME TYPE")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -159,20 +220,32 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusUnsupportedMediaType, "file content type is invalid")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
 	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonUnsupportedContentType),
+			},
+		).
+		Once()
 
 	body, contentType := createTestMultipartFormBuffer(t, []byte("image data"), "image/png")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -180,11 +253,16 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusUnsupportedMediaType, "unsupported file content type: image/png")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitStorageWriteError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockStorage := new(MockStorage)
+	document := []byte("my pdf data")
+	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
@@ -195,16 +273,32 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 	storageErr := errors.New("could not write")
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(storageErr).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadFailed)).
+		Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome:     telemetrymetrics.SubmissionFailed,
+				Reason:      new(telemetrymetrics.SubmissionReasonStorageWriteFailed),
+				ContentType: &expectedContentType,
+				InputBytes:  &expectedInputBytes,
+			},
+		).
+		Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		storage: mockStorage,
 	}
 
 	writer := httptest.NewRecorder()
 
-	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
+	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
@@ -216,13 +310,18 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 }
 
 func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockStorage := new(MockStorage)
+	document := []byte("my pdf data")
+	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
@@ -231,6 +330,21 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig.On("GetBucketPath").Return("path").Once()
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome:     telemetrymetrics.SubmissionFailed,
+				Reason:      new(telemetrymetrics.SubmissionReasonTicketCreationFailed),
+				ContentType: &expectedContentType,
+				InputBytes:  &expectedInputBytes,
+			},
+		).
+		Once()
 
 	jobCreateError := errors.New("error creating job")
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(jobCreateError).Once()
@@ -239,12 +353,13 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		storage: mockStorage,
 	}
 
 	writer := httptest.NewRecorder()
 
-	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
+	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
@@ -256,15 +371,20 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 }
 
 func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
+	document := []byte("my pdf data")
+	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
@@ -274,6 +394,21 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome:     telemetrymetrics.SubmissionFailed,
+				Reason:      new(telemetrymetrics.SubmissionReasonQueueEnqueueFailed),
+				ContentType: &expectedContentType,
+				InputBytes:  &expectedInputBytes,
+			},
+		).
+		Once()
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
@@ -293,13 +428,14 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
 
 	writer := httptest.NewRecorder()
 
-	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
+	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
@@ -311,6 +447,76 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	assertAPIError(t, response, http.StatusInternalServerError, "failed to submit document")
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+}
+
+func TestServiceSubmitResponseWriteError(t *testing.T) {
+	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
+	mockTicketRepository := new(MockTicketRepository)
+	mockQueue := new(MockBatchQueue)
+	mockStorage := new(MockStorage)
+	document := []byte("my pdf data")
+	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedInputBytes := int64(len(document))
+
+	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
+	mockConfig.On("GetBucket").Return("bucket").Once()
+	mockConfig.On("GetBucketPath").Return("path").Once()
+	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
+
+	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
+	mockTicketRepository.On("Create", t.Context(), mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
+	mockQueue.On("Enqueue", mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome:     telemetrymetrics.SubmissionAccepted,
+				ContentType: &expectedContentType,
+				InputBytes:  &expectedInputBytes,
+				Enqueued:    true,
+			},
+		).
+		Once()
+	mockMetrics.
+		On(
+			"RecordResponseWriteError",
+			t.Context(),
+			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointSubmit},
+		).
+		Once()
+
+	service := ServiceV1{
+		config:  mockConfig,
+		job:     mockTicketRepository,
+		logger:  &MockLogger{},
+		metrics: mockMetrics,
+		queue:   mockQueue,
+		storage: mockStorage,
+	}
+
+	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
+	request.Header.Set("Content-Type", contentType)
+	writer := &responseWriteErrorRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		err:              errors.New("response write failed"),
+	}
+
+	service.submit(writer, request)
+
+	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
@@ -318,16 +524,27 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
 	mockConfig.On("GetNotificationEmailLimit").Return(1).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonTooManyNotificationEmails),
+			},
+		).
+		Once()
 
 	body, contentType := createTestMultipartFormBuffer(t, []byte("my pdf data"), "application/pdf")
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -335,12 +552,24 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusBadRequest, "notification_emails must contain at most 1 entries")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome: telemetrymetrics.SubmissionRejected,
+				Reason:  new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
+			},
+		).
+		Once()
 
 	body, contentType := createTestMultipartFormBufferWithNotificationEmails(
 		t,
@@ -352,7 +581,7 @@ func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -360,6 +589,7 @@ func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
 
 	assertAPIError(t, response, http.StatusBadRequest, "notification_emails must be a JSON array of strings")
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 }
 
 func TestServiceStatusInvalidTicket(t *testing.T) {
@@ -430,6 +660,37 @@ func TestServiceStatusTicketLookupFailure(t *testing.T) {
 			jobRepo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestServiceStatusResponseWriteError(t *testing.T) {
+	inputTicket := uuid.New()
+	ticket := job.NewTicket()
+	ticket.ID = inputTicket
+
+	jobRepo := new(MockTicketRepository)
+	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
+
+	serviceMetrics := new(MockServiceMetrics)
+	serviceMetrics.
+		On(
+			"RecordResponseWriteError",
+			t.Context(),
+			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointStatus},
+		).
+		Once()
+
+	writer := &responseWriteErrorRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		err:              errors.New("response write failed"),
+	}
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
+	request.SetPathValue("id", inputTicket.String())
+
+	service := ServiceV1{job: jobRepo, logger: &MockLogger{}, metrics: serviceMetrics}
+	service.status(writer, request)
+
+	jobRepo.AssertExpectations(t)
+	serviceMetrics.AssertExpectations(t)
 }
 
 func TestServiceResultInvalidTicket(t *testing.T) {
@@ -620,6 +881,97 @@ func TestServiceGetLinkSuccess(t *testing.T) {
 	storage.AssertExpectations(t)
 }
 
+func TestServiceResultResponseWriteError(t *testing.T) {
+	inputTicket := uuid.New()
+	ticket := job.NewTicket()
+	ticket.ID = inputTicket
+	ticket.Status = job.Complete
+
+	config := new(MockConfig)
+	config.On("GetBucket").Return("bucket").Once()
+	config.On("GetBucketPath").Return("path").Once()
+	config.On("GetOutputPath", "bucket", "path", inputTicket.String()).Return("s3://bucket/path").Once()
+
+	jobRepo := new(MockTicketRepository)
+	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
+
+	storage := new(MockStorage)
+	storage.On("GetLink", t.Context(), "s3://bucket/path").Return("http://s3-presigned-link", time.Now(), nil).Once()
+
+	serviceMetrics := new(MockServiceMetrics)
+	serviceMetrics.
+		On(
+			"RecordResponseWriteError",
+			t.Context(),
+			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointResults},
+		).
+		Once()
+
+	writer := &responseWriteErrorRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		err:              errors.New("response write failed"),
+	}
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
+	request.SetPathValue("id", inputTicket.String())
+
+	service := ServiceV1{
+		config:  config,
+		job:     jobRepo,
+		logger:  &MockLogger{},
+		metrics: serviceMetrics,
+		storage: storage,
+	}
+	service.result(writer, request)
+
+	config.AssertExpectations(t)
+	jobRepo.AssertExpectations(t)
+	serviceMetrics.AssertExpectations(t)
+	storage.AssertExpectations(t)
+}
+
+func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint telemetrymetrics.EndpointV1
+	}{
+		{name: "submit", endpoint: telemetrymetrics.EndpointSubmit},
+		{name: "status", endpoint: telemetrymetrics.EndpointStatus},
+		{name: "results", endpoint: telemetrymetrics.EndpointResults},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceMetrics := new(MockServiceMetrics)
+			serviceMetrics.
+				On(
+					"RecordResponseWriteError",
+					t.Context(),
+					telemetrymetrics.ResponseObservation{Endpoint: tt.endpoint},
+				).
+				Once()
+
+			responseRecorder := httptest.NewRecorder()
+			writer := &responseWriteErrorRecorder{
+				ResponseRecorder: responseRecorder,
+				err:              errors.New("response write failed"),
+			}
+			service := ServiceV1{logger: new(MockLogger), metrics: serviceMetrics}
+
+			service.writeAPIError(
+				t.Context(),
+				writer,
+				tt.endpoint,
+				http.StatusBadRequest,
+				"bad request",
+			)
+
+			assert.Equal(t, http.StatusBadRequest, responseRecorder.Code)
+			assert.Equal(t, "application/json", responseRecorder.Header().Get("Content-Type"))
+			serviceMetrics.AssertExpectations(t)
+		})
+	}
+}
+
 // HELPERS
 
 type submitSuccessCase struct {
@@ -649,6 +1001,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	t.Helper()
 
 	mockConfig := new(MockConfig)
+	mockMetrics := new(MockServiceMetrics)
 	mockTicketRepository := new(MockTicketRepository)
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
@@ -670,6 +1023,23 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 			assert.Equal(t, test.data, data)
 		}).
 		Return(nil).
+		Once()
+	mockMetrics.
+		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		Once()
+	expectedContentType := telemetrymetrics.ContentType(test.contentType)
+	expectedInputBytes := int64(len(test.data))
+	mockMetrics.
+		On(
+			"RecordSubmission",
+			t.Context(),
+			telemetrymetrics.SubmissionObservation{
+				Outcome:     telemetrymetrics.SubmissionAccepted,
+				ContentType: &expectedContentType,
+				InputBytes:  &expectedInputBytes,
+				Enqueued:    true,
+			},
+		).
 		Once()
 
 	var generatedTicketID uuid.UUID
@@ -699,6 +1069,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		config:  mockConfig,
 		job:     mockTicketRepository,
 		logger:  &MockLogger{},
+		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
 	}
@@ -729,6 +1100,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	assert.Equal(t, job.Queued, ticket.Status)
 
 	mockConfig.AssertExpectations(t)
+	mockMetrics.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 	mockQueue.AssertExpectations(t)
@@ -816,10 +1188,11 @@ func createTestMultipartFormWithoutContentType(t *testing.T) (*bytes.Buffer, str
 // Compile Time Interface Assertions
 // Ensure that each of the mocks implement the interfaces they target.
 var (
-	_ config.Config        = (*MockConfig)(nil)
-	_ job.TicketRepository = (*MockTicketRepository)(nil)
-	_ queue.BatchQueue     = (*MockBatchQueue)(nil)
-	_ storage.Storage      = (*MockStorage)(nil)
+	_ config.Config            = (*MockConfig)(nil)
+	_ job.TicketRepository     = (*MockTicketRepository)(nil)
+	_ queue.BatchQueue         = (*MockBatchQueue)(nil)
+	_ storage.Storage          = (*MockStorage)(nil)
+	_ telemetry.ServiceMetrics = (*MockServiceMetrics)(nil)
 )
 
 type MockConfig struct {
@@ -910,6 +1283,26 @@ func (m *MockConfig) GetWorkerTimeoutSeconds() int {
 	return m.Called().Int(0)
 }
 
+func (m *MockConfig) GetOtelEnabled() bool {
+	return m.Called().Bool(0)
+}
+
+func (m *MockConfig) GetOtelServiceName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelWorkerName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelServiceVersion() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelMetricExportInterval() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }
@@ -972,6 +1365,43 @@ func (m *MockBatchQueue) Ready(ctx context.Context) error {
 
 type MockStorage struct {
 	mock.Mock
+}
+
+type MockServiceMetrics struct {
+	mock.Mock
+}
+
+type responseWriteErrorRecorder struct {
+	*httptest.ResponseRecorder
+	err error
+}
+
+func (r *responseWriteErrorRecorder) Write([]byte) (int, error) {
+	return 0, r.err
+}
+
+func (m *MockServiceMetrics) RecordSubmission(ctx context.Context, observation telemetrymetrics.SubmissionObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordStorageUpload(ctx context.Context, observation telemetrymetrics.StorageUploadObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordResponseWriteError(ctx context.Context, observation telemetrymetrics.ResponseObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordJobTerminal(ctx context.Context, observation telemetrymetrics.TerminalObservation) {
+	m.Called(ctx, observation)
+}
+
+func matchesDocumentStorageUpload(outcome telemetrymetrics.StorageUploadOutcome) any {
+	return mock.MatchedBy(func(observation telemetrymetrics.StorageUploadObservation) bool {
+		return observation.Duration >= 0 &&
+			observation.Purpose == telemetrymetrics.StorageUploadPurposeDocument &&
+			observation.Outcome == outcome
+	})
 }
 
 func (m *MockStorage) Write(ctx context.Context, reader io.Reader, output string) error {

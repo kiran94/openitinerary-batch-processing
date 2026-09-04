@@ -180,6 +180,52 @@ func TestApplicationConfigQueueDefaults(t *testing.T) {
 	assert.Equal(t, int32(20), config.GetQueuePollingTime())
 }
 
+func TestApplicationConfigOtelDefaults(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "openitinerary-batch-api", config.GetOtelServiceName())
+	assert.Equal(t, "openitinerary-batch-worker", config.GetOtelWorkerName())
+	assert.Equal(t, "0.0.1", config.GetOtelServiceVersion())
+	assert.Equal(t, 15*time.Second, config.GetOtelMetricExportInterval())
+}
+
+func TestApplicationConfigOtelEnabledDefault(t *testing.T) {
+	t.Setenv("OIBP_TELEMETRY_ENABLED", "")
+
+	config := ApplicationConfig{}
+
+	assert.True(t, config.GetOtelEnabled())
+}
+
+func TestApplicationConfigOtelEnabledEnvironmentOverride(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected bool
+	}{
+		{name: "enabled", value: "true", expected: true},
+		{name: "disabled", value: "false", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OIBP_TELEMETRY_ENABLED", tt.value)
+
+			config := ApplicationConfig{}
+
+			assert.Equal(t, tt.expected, config.GetOtelEnabled())
+		})
+	}
+}
+
+func TestApplicationConfigOtelEnabledInvalidValueUsesDefault(t *testing.T) {
+	t.Setenv("OIBP_TELEMETRY_ENABLED", "not-a-bool")
+
+	config := ApplicationConfig{}
+
+	assert.True(t, config.GetOtelEnabled())
+}
+
 func TestGetLoggingLevelDefault(t *testing.T) {
 	t.Setenv("OIBP_LOG_LEVEL", "")
 
