@@ -80,12 +80,12 @@ func run() error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /api/v1/submit", otelhttp.NewHandler(http.HandlerFunc(service.submit), "http-handler"))
-	mux.Handle("GET /api/v1/status/{id}", otelhttp.NewHandler(http.HandlerFunc(service.status), "http-handler"))
-	mux.Handle("GET /api/v1/result/{id}", otelhttp.NewHandler(http.HandlerFunc(service.result), "http-handler"))
+	mux.HandleFunc("POST /api/v1/submit", service.submit)
+	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
+	mux.HandleFunc("GET /api/v1/result/{id}", service.result)
 
 	server := &http.Server{
-		Handler:      mux,
+		Handler:      otelhttp.NewHandler(mux, "api"),
 		Addr:         service.config.GetPort(),
 		ReadTimeout:  service.config.GetServerReadTimeout(),
 		WriteTimeout: service.config.GetServerWriteTimeout(),
