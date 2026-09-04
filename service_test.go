@@ -1283,6 +1283,10 @@ func (m *MockConfig) GetWorkerTimeoutSeconds() int {
 	return m.Called().Int(0)
 }
 
+func (m *MockConfig) GetOtelEnabled() bool {
+	return m.Called().Bool(0)
+}
+
 func (m *MockConfig) GetOtelServiceName() string {
 	return m.Called().String(0)
 }

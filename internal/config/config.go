@@ -38,6 +38,7 @@ type Config interface {
 
 	GetWorkerTimeoutSeconds() int
 
+	GetOtelEnabled() bool
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
@@ -160,6 +161,10 @@ func (ac ApplicationConfig) GetOtelMetricExportInterval() time.Duration {
 	return time.Duration(15) * time.Second
 }
 
+func (ac ApplicationConfig) GetOtelEnabled() bool {
+	return getBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+}
+
 func GetEnvOrDefault(name, defaultValue string) string {
 	value := os.Getenv(name)
 	if value == "" {
@@ -175,6 +180,20 @@ func GetEnvOrPanic(name string) string {
 	} else {
 		return v
 	}
+}
+
+func getBoolOrDefault(name string, defaultValue bool) bool {
+	v := os.Getenv(name)
+	if v == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
 }
 
 func getPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {
