@@ -95,5 +95,6 @@ func (m *MeterManager) Ready() error {
 		return err
 	}
 
+	m.ready = true
 	return nil
 }
