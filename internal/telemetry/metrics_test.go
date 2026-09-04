@@ -69,6 +69,8 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 	storageUploadDurationHistogram := &noop.Float64Histogram{}
 	apiResponseWriteErrorsCounter := &noop.Int64Counter{}
 	jobTerminalCounter := &noop.Int64Counter{}
+	workerRunCounter := &noop.Int64Counter{}
+	workerPollingDurationHistogram := &noop.Float64Histogram{}
 
 	provider.On("Meter", applicationInstrumentationScope, mock.Anything).Return(meter).Once()
 	meter.
@@ -137,6 +139,28 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 		).
 		Return(jobTerminalCounter, nil).
 		Once()
+	meter.
+		On(
+			"Int64Counter",
+			string(otelMetricWorkerRuns),
+			mock.MatchedBy(func(options []metric.Int64CounterOption) bool {
+				config := metric.NewInt64CounterConfig(options...)
+				return config.Unit() == "1"
+			}),
+		).
+		Return(workerRunCounter, nil).
+		Once()
+	meter.
+		On(
+			"Float64Histogram",
+			string(otelMetricWorkerPollingDuration),
+			mock.MatchedBy(func(options []metric.Float64HistogramOption) bool {
+				config := metric.NewFloat64HistogramConfig(options...)
+				return config.Unit() == "s"
+			}),
+		).
+		Return(workerPollingDurationHistogram, nil).
+		Once()
 
 	got, err := NewApplicationOtelMetrics(provider)
 
@@ -148,6 +172,8 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 	assert.Same(t, storageUploadDurationHistogram, got.storageUploadDurationHisto)
 	assert.Same(t, apiResponseWriteErrorsCounter, got.apiWriteResponseErrorCounter)
 	assert.Same(t, jobTerminalCounter, got.jobTerminalCounter)
+	assert.Same(t, workerRunCounter, got.workerRunCounter)
+	assert.Same(t, workerPollingDurationHistogram, got.workerPollingDuration)
 	provider.AssertExpectations(t)
 	meter.AssertExpectations(t)
 }

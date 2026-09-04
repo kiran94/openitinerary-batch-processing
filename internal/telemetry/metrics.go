@@ -19,6 +19,8 @@ type ServiceMetrics interface {
 
 type WorkerMetrics interface {
 	metrics.StorageUploadRecorder
+	metrics.WorkerRunRecorder
+	metrics.WorkerPollingRecorder
 }
 
 type ApplicationOtelMetrics struct {
@@ -28,6 +30,8 @@ type ApplicationOtelMetrics struct {
 	storageUploadDurationHisto   metric.Float64Histogram
 	apiWriteResponseErrorCounter metric.Int64Counter
 	jobTerminalCounter           metric.Int64Counter
+	workerRunCounter             metric.Int64Counter
+	workerPollingDuration        metric.Float64Histogram
 }
 
 type otelMetric string
@@ -39,6 +43,8 @@ const (
 	otelMetricStorageUploadDuration  otelMetric = "oibp.storage.upload.duration"
 	otelMetricAPIResponseWriteErrors otelMetric = "oibp.api.response_write.errors"
 	otelMetricJobTerminal            otelMetric = "oibp.jobs.terminal"
+	otelMetricWorkerRuns             otelMetric = "oibp.worker.runs"
+	otelMetricWorkerPollingDuration  otelMetric = "oibp.worker.polling.duration"
 )
 
 func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics, error) {
@@ -74,6 +80,16 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricJobTerminal), err)
 	}
 
+	workerRunCounter, err := meter.Int64Counter(string(otelMetricWorkerRuns), metric.WithUnit("1"), metric.WithDescription("tracks the number of worker runs"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerRuns), err)
+	}
+
+	workerPollingDurationHisto, err := meter.Float64Histogram(string(otelMetricWorkerPollingDuration), metric.WithUnit("s"), metric.WithDescription("tracks the polling time for the worker"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerPollingDuration), err)
+	}
+
 	return &ApplicationOtelMetrics{
 		apiSubmissionsCounter:        apiSubmissionsCounter,
 		jobsEnqueuedCounter:          jobsEnqueuedCounter,
@@ -81,6 +97,8 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		storageUploadDurationHisto:   storageUploadDurationHisto,
 		apiWriteResponseErrorCounter: apiWriteResponseErrorCounter,
 		jobTerminalCounter:           jobTerminalCounter,
+		workerRunCounter:             workerRunCounter,
+		workerPollingDuration:        workerPollingDurationHisto,
 	}, nil
 
 }
@@ -142,7 +160,16 @@ func (a *ApplicationOtelMetrics) RecordJobTerminal(ctx context.Context, m metric
 	a.jobTerminalCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
 }
 
+func (a *ApplicationOtelMetrics) RecordWorkerRun(ctx context.Context, o metrics.WorkerRunObservation) {
+	a.workerRunCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
+func (a *ApplicationOtelMetrics) RecordWorkerPolling(ctx context.Context, o metrics.WorkerPollingObservation) {
+	a.workerPollingDuration.Record(ctx, o.Duration.Seconds(), metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
 // Compile Time Check
 var (
 	_ ServiceMetrics = (*ApplicationOtelMetrics)(nil)
+	_ WorkerMetrics  = (*ApplicationOtelMetrics)(nil)
 )

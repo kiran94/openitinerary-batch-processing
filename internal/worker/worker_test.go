@@ -43,6 +43,12 @@ type noopWorkerMetrics struct{}
 func (noopWorkerMetrics) RecordStorageUpload(context.Context, telemetrymetrics.StorageUploadObservation) {
 }
 
+func (noopWorkerMetrics) RecordWorkerRun(context.Context, telemetrymetrics.WorkerRunObservation) {
+}
+
+func (noopWorkerMetrics) RecordWorkerPolling(context.Context, telemetrymetrics.WorkerPollingObservation) {
+}
+
 func (r *trackingReadCloser) Close() error {
 	r.closed = true
 	return r.closeErr

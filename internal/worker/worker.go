@@ -88,7 +88,21 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 			// since there was no cancel
 		}
 
+		pollingStartedAt := time.Now()
 		dequeueResult, err := w.queue.Dequeue(ctx)
+		pollingOutcome := metrics.WorkerPollingOutcomeSuccess
+		if err != nil {
+			if ctx.Err() != nil {
+				pollingOutcome = metrics.WorkerPollingOutcomeCancelled
+			} else {
+				pollingOutcome = metrics.WorkerPollingOutcomeFailed
+			}
+		}
+		w.metrics.RecordWorkerPolling(ctx, metrics.WorkerPollingObservation{
+			Duration: time.Since(pollingStartedAt),
+			Outcome:  pollingOutcome,
+		})
+
 		if dequeueResult == nil && err == nil {
 			w.logger.Debug(
 				"queue was empty",
@@ -120,7 +134,6 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 							"worker_id", w.id.String(),
 							"error", err,
 						)
-
 						return nil, err
 					}
 				}
@@ -133,6 +146,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 				"worker_id", w.id.String(),
 				"error", err,
 			)
+
 			return nil, err
 		}
 
@@ -225,6 +239,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"component", logging.ComponentWorker,
 	)
 
+	metric := metrics.WorkerRunObservation{}
+	defer func() {
+		w.metrics.RecordWorkerRun(ctx, metric)
+	}()
+
 	ticketID := dequeueResult.Result.TicketID
 
 	parsedID, err := uuid.Parse(ticketID)
@@ -247,9 +266,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 				"ticket_id", ticketID,
 				"error", deleteMessageErr,
 			)
+			metric.Outcome = metrics.WorkerRunOutcomeFailed
 			return errors.Join(err, deleteMessageErr)
 		}
 
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 
@@ -263,6 +284,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", err,
 		)
+
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 
@@ -273,6 +296,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		if err == ErrTicketAlreadyComplete {
 			return nil
 		} else {
+			metric.Outcome = metrics.WorkerRunOutcomeFailed
 			return err
 		}
 	}
@@ -288,6 +312,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"attempt_count", ticket.AttemptCount,
 			"error", err,
 		)
+
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 	w.logger.Debug(
@@ -300,9 +326,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed)
 	}
 	if reader == nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("storage returned a nil document reader")
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil)
 	}
@@ -313,11 +341,13 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	if convertErr != nil {
 		w.closeStream(response, "adapter_response", w.id, ticket.ID)
 
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(convertErr, ticket.ID)
 		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed)
 	}
 
 	if response == nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("adapter returned a nil response reader")
 		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil)
 	}
@@ -341,6 +371,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			Outcome:  metrics.StorageUploadFailed,
 		})
 
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(writeErr, ticket.ID)
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed)
 	}
@@ -361,6 +392,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", err,
 		)
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 
@@ -373,6 +405,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", deleteMessageErr,
 		)
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return deleteMessageErr
 	}
 
@@ -389,6 +422,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"ticket_id", ticketID,
 		"attempt_count", ticket.AttemptCount,
 	)
+	metric.Outcome = metrics.WorkerRunOutcomeSuccess
 	return nil
 }
 
