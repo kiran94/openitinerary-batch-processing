@@ -28,6 +28,16 @@ const (
 	ComponentTelemetry Component = "telemetry"
 )
 
+type Operation string
+
+const (
+	OperationSubmit             Operation = "submit"
+	OperationEnqueue            Operation = "enqueue"
+	OperationMarkFailed         Operation = "mark_failed"
+	OperationErrorResponseWrite Operation = "response_write"
+	OperationErrorWriteFailed   Operation = "error_response_write"
+)
+
 type SlogLogger struct {
 	logger *slog.Logger
 }

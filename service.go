@@ -201,16 +201,26 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.queue.Enqueue(r.Context(), ticket); err != nil {
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
-		updated, updateErr := s.job.MarkFailed(r.Context(), ticket.ID, job.EnqueueFailed, detail)
-		if updateErr != nil {
-			s.logger.Error("ticket failure update failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed, "error", updateErr)
-		} else if !updated {
-			s.logger.Warn("ticket failure update skipped", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed)
-		} else {
-			s.logger.Info("ticket marked failed", "component", logging.ComponentDatabase, "ticket_id", ticket.ID.String(), "reason", job.EnqueueFailed)
+
+		commonUpdateErrLoggingFields := []any{
+			"component", string(logging.ComponentDatabase),
+			"ticket_id", ticket.ID.String(),
+			"reason", string(job.EnqueueFailed),
+			"original_error", err.Error(),
+			"operation", logging.OperationMarkFailed,
 		}
 
-		s.logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "ticket_id", ticket.ID.String(), "error", err)
+		updated, updateErr := s.job.MarkFailed(r.Context(), ticket.ID, job.EnqueueFailed, detail)
+		if updateErr != nil {
+			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr.Error())
+			s.logger.Error("ticket failure update failed", commonUpdateErrLoggingFields...)
+		} else if !updated {
+			s.logger.Warn("ticket failure update skipped", commonUpdateErrLoggingFields...)
+		} else {
+			s.logger.Info("ticket marked failed", commonUpdateErrLoggingFields...)
+		}
+
+		s.logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "ticket_id", ticket.ID.String(), "error", err, "operation", logging.OperationEnqueue)
 		s.writeAPIError(r.Context(), w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(r.Context(), metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
@@ -257,12 +267,26 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 
 	if _, err := w.Write(responseBody); err != nil {
-		s.logger.Warn("response write failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "status_code", http.StatusAccepted, "error", err)
+		s.logger.Warn(
+			"response write failed",
+			"component", logging.ComponentHTTP,
+			"ticket_id", ticket.ID.String(),
+			"status_code", http.StatusAccepted,
+			"error", err,
+			"operation", logging.OperationErrorResponseWrite,
+		)
 		s.metrics.RecordResponseWriteError(r.Context(), metrics.ResponseObservation{Endpoint: metrics.EndpointSubmit})
 		return
 	}
 
-	s.logger.Info("submit accepted", "ticket_id", ticket.ID.String(), "content_type", contentType, "status", ticket.Status, "status_code", http.StatusAccepted, "duration_ms", time.Since(startedAt).Milliseconds())
+	s.logger.Info(
+		"submit accepted",
+		"ticket_id", ticket.ID.String(),
+		"content_type", contentType,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"component", logging.ComponentHTTP,
+		"operation", logging.OperationSubmit,
+	)
 }
 
 // status retrieves the current processing state of a ticket.
@@ -310,7 +334,7 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(responseBody); err != nil {
-		s.logger.Warn("response write failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "status_code", http.StatusOK, "error", err)
+		s.logger.Warn("response write failed", "component", logging.ComponentHTTP, "ticket_id", ticket.ID.String(), "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(r.Context(), metrics.ResponseObservation{Endpoint: metrics.EndpointStatus})
 	}
 }
@@ -385,7 +409,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(b); err != nil {
-		s.logger.Error("failed to write response", "component", logging.ComponentHTTP, "ticket_id", ticketIDParsed.String(), "status_code", http.StatusOK, "error", err)
+		s.logger.Error("failed to write response", "component", logging.ComponentHTTP, "ticket_id", ticketIDParsed.String(), "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(r.Context(), metrics.ResponseObservation{Endpoint: metrics.EndpointResults})
 	}
 }
@@ -411,6 +435,7 @@ func (s *ServiceV1) writeAPIError(
 			"component", logging.ComponentHTTP,
 			"status_code", statusCode,
 			"error", err,
+			"operation", logging.OperationErrorWriteFailed,
 		)
 	}
 }
