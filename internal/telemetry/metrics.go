@@ -15,6 +15,7 @@ type ServiceMetrics interface {
 	metrics.StorageUploadRecorder
 	metrics.ResponseWriteErrorRecorder
 	metrics.JobTerminalRecorder
+	metrics.JobEndToEndRecorder
 }
 
 type WorkerMetrics interface {

@@ -222,6 +222,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 			Outcome: metrics.TerminalFailed,
 			Reason:  new(metrics.TerminalReasonEnqueueFailed),
 		})
+		s.metrics.RecordJobEndToEnd(r.Context(), metrics.JobEndObservation{
+			Duration: time.Since(startedAt),
+			Outcome:  metrics.JobEndOutcomeFailed,
+			Reason:   new(metrics.TerminalReasonEnqueueFailed),
+		})
 		return
 	}
 

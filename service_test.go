@@ -419,6 +419,18 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 			},
 		).
 		Once()
+	mockMetrics.
+		On(
+			"RecordJobEndToEnd",
+			t.Context(),
+			mock.MatchedBy(func(observation telemetrymetrics.JobEndObservation) bool {
+				return observation.Duration >= 0 &&
+					observation.Outcome == telemetrymetrics.JobEndOutcomeFailed &&
+					observation.Reason != nil &&
+					*observation.Reason == telemetrymetrics.TerminalReasonEnqueueFailed
+			}),
+		).
+		Once()
 	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
@@ -1403,6 +1415,10 @@ func (m *MockServiceMetrics) RecordResponseWriteError(ctx context.Context, obser
 }
 
 func (m *MockServiceMetrics) RecordJobTerminal(ctx context.Context, observation telemetrymetrics.TerminalObservation) {
+	m.Called(ctx, observation)
+}
+
+func (m *MockServiceMetrics) RecordJobEndToEnd(ctx context.Context, observation telemetrymetrics.JobEndObservation) {
 	m.Called(ctx, observation)
 }
 
