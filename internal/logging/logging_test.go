@@ -67,3 +67,54 @@ func TestNewLogger(t *testing.T) {
 	logger := New(config.ApplicationConfig{})
 	assert.NotNil(t, logger)
 }
+
+func TestContextRequestID(t *testing.T) {
+	ctx := t.Context()
+	rid := "123"
+
+	updatedCtx := WithRequestID(ctx, rid)
+
+	v, ok := GetRequestID(updatedCtx)
+
+	assert.True(t, ok)
+	assert.Equal(t, "123", v)
+}
+
+func TestContextTicketID(t *testing.T) {
+	ctx := t.Context()
+	rid := "123"
+
+	updatedCtx := WithTicketID(ctx, rid)
+
+	v, ok := GetTicketID(updatedCtx)
+
+	assert.True(t, ok)
+	assert.Equal(t, "123", v)
+}
+
+func TestContextWorkerID(t *testing.T) {
+	ctx := t.Context()
+	rid := "123"
+
+	updatedCtx := WithWorkerID(ctx, rid)
+
+	v, ok := GetWorkerID(updatedCtx)
+
+	assert.True(t, ok)
+	assert.Equal(t, "123", v)
+}
+
+func TestMissingContextRequestID(t *testing.T) {
+	_, ok := GetRequestID(t.Context())
+	assert.False(t, ok)
+}
+
+func TestMissingContextTicketID(t *testing.T) {
+	_, ok := GetTicketID(t.Context())
+	assert.False(t, ok)
+}
+
+func TestMissingContextWorkerID(t *testing.T) {
+	_, ok := GetWorkerID(t.Context())
+	assert.False(t, ok)
+}
