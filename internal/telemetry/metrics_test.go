@@ -74,6 +74,7 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 	workerProcessingDurationHistogram := &noop.Float64Histogram{}
 	adapterConversionDurationHistogram := &noop.Float64Histogram{}
 	adapterResponseSizeHistogram := &noop.Int64Histogram{}
+	jobEndDurationHistogram := &noop.Float64Histogram{}
 
 	provider.On("Meter", applicationInstrumentationScope, mock.Anything).Return(meter).Once()
 	meter.
@@ -197,6 +198,17 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 		).
 		Return(adapterResponseSizeHistogram, nil).
 		Once()
+	meter.
+		On(
+			"Float64Histogram",
+			string(otelMetricJobEndDuration),
+			mock.MatchedBy(func(options []metric.Float64HistogramOption) bool {
+				config := metric.NewFloat64HistogramConfig(options...)
+				return config.Unit() == "s"
+			}),
+		).
+		Return(jobEndDurationHistogram, nil).
+		Once()
 	got, err := NewApplicationOtelMetrics(provider)
 
 	require.NoError(t, err)
@@ -212,6 +224,7 @@ func TestNewApplicationOtelMetricsCreatesConfiguredInstruments(t *testing.T) {
 	assert.Same(t, workerProcessingDurationHistogram, got.workerProcessingDuration)
 	assert.Same(t, adapterConversionDurationHistogram, got.adapterConversionDuration)
 	assert.Same(t, adapterResponseSizeHistogram, got.adapterResponseSize)
+	assert.Same(t, jobEndDurationHistogram, got.jobEndDurationHisto)
 	provider.AssertExpectations(t)
 	meter.AssertExpectations(t)
 }
@@ -406,6 +419,36 @@ func TestNewApplicationOtelMetricsReturnsInstrumentCreationError(t *testing.T) {
 				meter.On("Float64Histogram", string(otelMetricAdapterConvertDuration), mock.Anything).
 					Return(&noop.Float64Histogram{}, nil).Once()
 				meter.On("Int64Histogram", string(otelMetricAdapterResponseSize), mock.Anything).
+					Return(nil, expectedErr).Once()
+			},
+		},
+		{
+			name:   "job end-to-end duration",
+			metric: string(otelMetricJobEndDuration),
+			setup: func(meter *mockMeter, expectedErr error) {
+				meter.On("Int64Counter", string(otelMetricAPISubmissions), mock.Anything).
+					Return(&noop.Int64Counter{}, nil).Once()
+				meter.On("Int64Counter", string(otelMetricJobsEnqueued), mock.Anything).
+					Return(&noop.Int64Counter{}, nil).Once()
+				meter.On("Int64Histogram", string(otelMetricDocumentInputSize), mock.Anything).
+					Return(&noop.Int64Histogram{}, nil).Once()
+				meter.On("Float64Histogram", string(otelMetricStorageUploadDuration), mock.Anything).
+					Return(&noop.Float64Histogram{}, nil).Once()
+				meter.On("Int64Counter", string(otelMetricAPIResponseWriteErrors), mock.Anything).
+					Return(&noop.Int64Counter{}, nil).Once()
+				meter.On("Int64Counter", string(otelMetricJobTerminal), mock.Anything).
+					Return(&noop.Int64Counter{}, nil).Once()
+				meter.On("Int64Counter", string(otelMetricWorkerRuns), mock.Anything).
+					Return(&noop.Int64Counter{}, nil).Once()
+				meter.On("Float64Histogram", string(otelMetricWorkerPollingDuration), mock.Anything).
+					Return(&noop.Float64Histogram{}, nil).Once()
+				meter.On("Float64Histogram", string(otelMetricWorkerProcessingDuration), mock.Anything).
+					Return(&noop.Float64Histogram{}, nil).Once()
+				meter.On("Float64Histogram", string(otelMetricAdapterConvertDuration), mock.Anything).
+					Return(&noop.Float64Histogram{}, nil).Once()
+				meter.On("Int64Histogram", string(otelMetricAdapterResponseSize), mock.Anything).
+					Return(&noop.Int64Histogram{}, nil).Once()
+				meter.On("Float64Histogram", string(otelMetricJobEndDuration), mock.Anything).
 					Return(nil, expectedErr).Once()
 			},
 		},

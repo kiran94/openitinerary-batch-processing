@@ -42,6 +42,8 @@ type noopWorkerMetrics struct {
 	workerProcessingObservations  []telemetrymetrics.WorkerProcessingObservation
 	adapterConversionObservations []telemetrymetrics.AdapterConversionObservation
 	adapterResponseObservations   []telemetrymetrics.AdapterResponseObservation
+	terminalObservations          []telemetrymetrics.TerminalObservation
+	jobEndObservations            []telemetrymetrics.JobEndObservation
 }
 
 func (noopWorkerMetrics) RecordStorageUpload(context.Context, telemetrymetrics.StorageUploadObservation) {
@@ -63,6 +65,14 @@ func (noopWorkerMetrics) RecordWorkerPolling(context.Context, telemetrymetrics.W
 
 func (m *noopWorkerMetrics) RecordWorkerProcessing(_ context.Context, o telemetrymetrics.WorkerProcessingObservation) {
 	m.workerProcessingObservations = append(m.workerProcessingObservations, o)
+}
+
+func (m *noopWorkerMetrics) RecordJobTerminal(_ context.Context, o telemetrymetrics.TerminalObservation) {
+	m.terminalObservations = append(m.terminalObservations, o)
+}
+
+func (m *noopWorkerMetrics) RecordJobEndToEnd(_ context.Context, o telemetrymetrics.JobEndObservation) {
+	m.jobEndObservations = append(m.jobEndObservations, o)
 }
 
 func (r *trackingReadCloser) Close() error {
@@ -448,6 +458,12 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 	require.Len(t, harness.metrics.workerProcessingObservations, 1)
 	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeSuccess, harness.metrics.workerProcessingObservations[0].Outcome)
 	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
+	require.Len(t, harness.metrics.terminalObservations, 1)
+	assert.Equal(t, telemetrymetrics.TerminalSuccess, harness.metrics.terminalObservations[0].Outcome)
+	require.Len(t, harness.metrics.jobEndObservations, 1)
+	assert.Equal(t, telemetrymetrics.JobEndOutcomeSuccess, harness.metrics.jobEndObservations[0].Outcome)
+	assert.Positive(t, harness.metrics.jobEndObservations[0].Duration)
+	assert.Nil(t, harness.metrics.jobEndObservations[0].Reason)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 }
 
@@ -693,6 +709,10 @@ func TestStartReturnsDeleteMessageError(t *testing.T) {
 	assert.Equal(t, job.Complete, harness.ticket.Status)
 	require.Len(t, harness.metrics.workerProcessingObservations, 1)
 	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeSuccess, harness.metrics.workerProcessingObservations[0].Outcome)
+	require.Len(t, harness.metrics.terminalObservations, 1)
+	assert.Equal(t, telemetrymetrics.TerminalSuccess, harness.metrics.terminalObservations[0].Outcome)
+	require.Len(t, harness.metrics.jobEndObservations, 1)
+	assert.Equal(t, telemetrymetrics.JobEndOutcomeSuccess, harness.metrics.jobEndObservations[0].Outcome)
 	harness.repository.AssertNumberOfCalls(t, "Update", 2)
 }
 
@@ -724,6 +744,8 @@ func TestStartReturnsCompletionUpdateError(t *testing.T) {
 	require.Len(t, harness.metrics.workerProcessingObservations, 1)
 	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeFailed, harness.metrics.workerProcessingObservations[0].Outcome)
 	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
+	assert.Empty(t, harness.metrics.terminalObservations)
+	assert.Empty(t, harness.metrics.jobEndObservations)
 }
 
 func assertTicketFailure(
@@ -745,6 +767,8 @@ func assertTicketFailure(
 	require.Len(t, harness.metrics.workerProcessingObservations, 1)
 	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeFailed, harness.metrics.workerProcessingObservations[0].Outcome)
 	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)
+	assert.Empty(t, harness.metrics.terminalObservations)
+	assert.Empty(t, harness.metrics.jobEndObservations)
 }
 
 // MOCKS

@@ -429,6 +429,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	processingOutcome = metrics.WorkerProcessingOutcomeSuccess
 	processingEndedAt = time.Now()
 
+	w.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{Outcome: metrics.TerminalSuccess})
+	w.metrics.RecordJobEndToEnd(ctx, metrics.JobEndObservation{
+		Duration: time.Since(ticket.CreatedAt),
+		Outcome:  metrics.JobEndOutcomeSuccess,
+	})
+
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference)
 	if deleteMessageErr != nil {
 		w.logger.Error(
@@ -455,6 +461,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"ticket_id", ticketID,
 		"attempt_count", ticket.AttemptCount,
 	)
+
 	metric.Outcome = metrics.WorkerRunOutcomeSuccess
 	return nil
 }
