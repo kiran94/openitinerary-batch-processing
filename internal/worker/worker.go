@@ -16,6 +16,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 )
 
 type Worker interface {
@@ -33,6 +35,7 @@ type BatchWorker struct {
 	adapter  clients.Adapter
 	logger   logging.Logger
 	notifier notification.Notifier
+	metrics  telemetry.WorkerMetrics
 }
 
 func NewBatchWorker(
@@ -43,6 +46,8 @@ func NewBatchWorker(
 	adapter clients.Adapter,
 	logger logging.Logger,
 	notifier notification.Notifier,
+	metrics telemetry.WorkerMetrics,
+
 ) Worker {
 	return &BatchWorker{
 		id:       uuid.New(),
@@ -53,6 +58,7 @@ func NewBatchWorker(
 		adapter:  adapter,
 		logger:   logger,
 		notifier: notifier,
+		metrics:  metrics,
 	}
 }
 
@@ -82,7 +88,21 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 			// since there was no cancel
 		}
 
+		pollingStartedAt := time.Now()
 		dequeueResult, err := w.queue.Dequeue(ctx)
+		pollingOutcome := metrics.WorkerPollingOutcomeSuccess
+		if err != nil {
+			if ctx.Err() != nil {
+				pollingOutcome = metrics.WorkerPollingOutcomeCancelled
+			} else {
+				pollingOutcome = metrics.WorkerPollingOutcomeFailed
+			}
+		}
+		w.metrics.RecordWorkerPolling(ctx, metrics.WorkerPollingObservation{
+			Duration: time.Since(pollingStartedAt),
+			Outcome:  pollingOutcome,
+		})
+
 		if dequeueResult == nil && err == nil {
 			w.logger.Debug(
 				"queue was empty",
@@ -114,7 +134,6 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 							"worker_id", w.id.String(),
 							"error", err,
 						)
-
 						return nil, err
 					}
 				}
@@ -127,6 +146,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 				"worker_id", w.id.String(),
 				"error", err,
 			)
+
 			return nil, err
 		}
 
@@ -219,6 +239,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"component", logging.ComponentWorker,
 	)
 
+	metric := metrics.WorkerRunObservation{}
+	defer func() {
+		w.metrics.RecordWorkerRun(ctx, metric)
+	}()
+
 	ticketID := dequeueResult.Result.TicketID
 
 	parsedID, err := uuid.Parse(ticketID)
@@ -241,9 +266,11 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 				"ticket_id", ticketID,
 				"error", deleteMessageErr,
 			)
+			metric.Outcome = metrics.WorkerRunOutcomeFailed
 			return errors.Join(err, deleteMessageErr)
 		}
 
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 
@@ -257,6 +284,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", err,
 		)
+
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 
@@ -267,9 +296,27 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		if err == ErrTicketAlreadyComplete {
 			return nil
 		} else {
+			metric.Outcome = metrics.WorkerRunOutcomeFailed
 			return err
 		}
 	}
+
+	// Start the processing observation after the ticket has been validated and
+	// duplicate completed deliveries have been excluded. Keep the end time
+	// separate so queue acknowledgement and notification are not measured.
+	processingStartedAt := time.Now()
+	processingOutcome := metrics.WorkerProcessingOutcomeFailed
+	processingEndedAt := time.Time{}
+	defer func() {
+		end := processingEndedAt
+		if end.IsZero() {
+			end = time.Now()
+		}
+		w.metrics.RecordWorkerProcessing(ctx, metrics.WorkerProcessingObservation{
+			Duration: end.Sub(processingStartedAt),
+			Outcome:  processingOutcome,
+		})
+	}()
 
 	ticket.UpdateStatus(job.Processing, nil, nil)
 	ticket.AttemptCount++
@@ -282,6 +329,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"attempt_count", ticket.AttemptCount,
 			"error", err,
 		)
+
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
 	w.logger.Debug(
@@ -294,24 +343,37 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed)
 	}
 	if reader == nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("storage returned a nil document reader")
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil)
 	}
 
 	// Stream from Storage to the Adapter and stream the result from the adapter back to storage
+	conversionStartedAt := time.Now()
 	response, convertErr := w.adapter.Convert(ctx, reader, ticket.DocumentPath, ticket.ContentType)
+	conversionOutcome := metrics.AdapterConversionOutcomeSuccess
+	if convertErr != nil || response == nil {
+		conversionOutcome = metrics.AdapterConversionOutcomeFailed
+	}
+	w.metrics.RecordAdapterConversion(ctx, metrics.AdapterConversionObservation{
+		Duration: time.Since(conversionStartedAt),
+		Outcome:  conversionOutcome,
+	})
 	w.closeStream(reader, "source_document", w.id, ticket.ID)
 	if convertErr != nil {
 		w.closeStream(response, "adapter_response", w.id, ticket.ID)
 
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(convertErr, ticket.ID)
 		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed)
 	}
 
 	if response == nil {
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("adapter returned a nil response reader")
 		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil)
 	}
@@ -324,12 +386,32 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"ticket_id", ticketID,
 		"output_path", resultOutputPath,
 	)
-	writeErr := w.storage.Write(ctx, response, resultOutputPath)
+
+	storageUploadStartedAt := time.Now()
+	countedResponse := &byteCountingReadCloser{ReadCloser: response}
+	writeErr := w.storage.Write(ctx, countedResponse, resultOutputPath)
 	w.closeStream(response, "adapter_response", w.id, ticket.ID)
 	if writeErr != nil {
+		w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
+			Duration: time.Since(storageUploadStartedAt),
+			Purpose:  metrics.StorageUploadPurposeResult,
+			Outcome:  metrics.StorageUploadFailed,
+		})
+
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(writeErr, ticket.ID)
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed)
 	}
+
+	w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
+		Duration: time.Since(storageUploadStartedAt),
+		Purpose:  metrics.StorageUploadPurposeResult,
+		Outcome:  metrics.StorageUploadSuccess,
+	})
+	w.metrics.RecordAdapterResponse(ctx, metrics.AdapterResponseObservation{
+		SizeBytes:   countedResponse.BytesRead(),
+		ContentType: metrics.ContentType(ticket.ContentType),
+	})
 
 	// Mark the Ticket Status
 	ticket.UpdateStatus(job.Complete, nil, nil)
@@ -341,8 +423,17 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", err,
 		)
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return err
 	}
+	processingOutcome = metrics.WorkerProcessingOutcomeSuccess
+	processingEndedAt = time.Now()
+
+	w.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{Outcome: metrics.TerminalSuccess})
+	w.metrics.RecordJobEndToEnd(ctx, metrics.JobEndObservation{
+		Duration: time.Since(ticket.CreatedAt),
+		Outcome:  metrics.JobEndOutcomeSuccess,
+	})
 
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference)
 	if deleteMessageErr != nil {
@@ -353,6 +444,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"ticket_id", ticketID,
 			"error", deleteMessageErr,
 		)
+		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		return deleteMessageErr
 	}
 
@@ -369,6 +461,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"ticket_id", ticketID,
 		"attempt_count", ticket.AttemptCount,
 	)
+
+	metric.Outcome = metrics.WorkerRunOutcomeSuccess
 	return nil
 }
 
@@ -387,6 +481,24 @@ func (w *BatchWorker) classifyAdapterResponseSizeError(err error, ticketID uuid.
 		"error", err,
 	)
 	return fmt.Errorf("adapter response exceeded maximum size: %w", err)
+}
+
+// byteCountingReadCloser counts bytes as the storage implementation consumes
+// the adapter response. Counting at this boundary measures the bytes actually
+// written to result storage without buffering the response in memory.
+type byteCountingReadCloser struct {
+	io.ReadCloser
+	bytesRead int64
+}
+
+func (r *byteCountingReadCloser) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.bytesRead += int64(n)
+	return n, err
+}
+
+func (r *byteCountingReadCloser) BytesRead() int64 {
+	return r.bytesRead
 }
 
 func (w *BatchWorker) closeStream(stream io.Closer, streamName string, workerID, ticketID uuid.UUID) {

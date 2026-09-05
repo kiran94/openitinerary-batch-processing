@@ -15,6 +15,18 @@ type ServiceMetrics interface {
 	metrics.StorageUploadRecorder
 	metrics.ResponseWriteErrorRecorder
 	metrics.JobTerminalRecorder
+	metrics.JobEndToEndRecorder
+}
+
+type WorkerMetrics interface {
+	metrics.StorageUploadRecorder
+	metrics.AdapterConversionRecorder
+	metrics.AdapterResponseRecorder
+	metrics.WorkerRunRecorder
+	metrics.WorkerPollingRecorder
+	metrics.WorkerProcessingRecorder
+	metrics.JobTerminalRecorder
+	metrics.JobEndToEndRecorder
 }
 
 type ApplicationOtelMetrics struct {
@@ -24,17 +36,29 @@ type ApplicationOtelMetrics struct {
 	storageUploadDurationHisto   metric.Float64Histogram
 	apiWriteResponseErrorCounter metric.Int64Counter
 	jobTerminalCounter           metric.Int64Counter
+	workerRunCounter             metric.Int64Counter
+	workerPollingDuration        metric.Float64Histogram
+	workerProcessingDuration     metric.Float64Histogram
+	adapterConversionDuration    metric.Float64Histogram
+	adapterResponseSize          metric.Int64Histogram
+	jobEndDurationHisto          metric.Float64Histogram
 }
 
 type otelMetric string
 
 const (
-	otelMetricAPISubmissions         otelMetric = "oibp.api.submissions"
-	otelMetricJobsEnqueued           otelMetric = "oibp.jobs.enqueued"
-	otelMetricDocumentInputSize      otelMetric = "oibp.document.input.size"
-	otelMetricStorageUploadDuration  otelMetric = "oibp.storage.upload.duration"
-	otelMetricAPIResponseWriteErrors otelMetric = "oibp.api.response_write.errors"
-	otelMetricJobTerminal            otelMetric = "oibp.jobs.terminal"
+	otelMetricAPISubmissions           otelMetric = "oibp.api.submissions"
+	otelMetricJobsEnqueued             otelMetric = "oibp.jobs.enqueued"
+	otelMetricDocumentInputSize        otelMetric = "oibp.document.input.size"
+	otelMetricStorageUploadDuration    otelMetric = "oibp.storage.upload.duration"
+	otelMetricAPIResponseWriteErrors   otelMetric = "oibp.api.response_write.errors"
+	otelMetricJobTerminal              otelMetric = "oibp.jobs.terminal"
+	otelMetricWorkerRuns               otelMetric = "oibp.worker.runs"
+	otelMetricWorkerPollingDuration    otelMetric = "oibp.worker.polling.duration"
+	otelMetricWorkerProcessingDuration otelMetric = "oibp.worker.processing.duration"
+	otelMetricAdapterConvertDuration   otelMetric = "oibp.adapter.convert.duration"
+	otelMetricAdapterResponseSize      otelMetric = "oibp.adapter.response.size"
+	otelMetricJobEndDuration           otelMetric = "oibp.job.end_to_end.duration"
 )
 
 func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics, error) {
@@ -70,6 +94,36 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricJobTerminal), err)
 	}
 
+	workerRunCounter, err := meter.Int64Counter(string(otelMetricWorkerRuns), metric.WithUnit("1"), metric.WithDescription("tracks the number of worker runs"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerRuns), err)
+	}
+
+	workerPollingDurationHisto, err := meter.Float64Histogram(string(otelMetricWorkerPollingDuration), metric.WithUnit("s"), metric.WithDescription("tracks the polling time for the worker"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerPollingDuration), err)
+	}
+
+	workerProcessingDurationHisto, err := meter.Float64Histogram(string(otelMetricWorkerProcessingDuration), metric.WithUnit("s"), metric.WithDescription("tracks the processing time for the worker"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerProcessingDuration), err)
+	}
+
+	adapterConversionDurationHisto, err := meter.Float64Histogram(string(otelMetricAdapterConvertDuration), metric.WithUnit("s"), metric.WithDescription("tracks adapter conversion times"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricAdapterConvertDuration), err)
+	}
+
+	adapterResponseSizeHisto, err := meter.Int64Histogram(string(otelMetricAdapterResponseSize), metric.WithUnit("By"), metric.WithDescription("tracks adapter response sizes"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricAdapterResponseSize), err)
+	}
+
+	jobEndDuration, err := meter.Float64Histogram(string(otelMetricJobEndDuration), metric.WithUnit("s"), metric.WithDescription("tracks the number of seconds the job took from submission to completion"))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricJobEndDuration), err)
+	}
+
 	return &ApplicationOtelMetrics{
 		apiSubmissionsCounter:        apiSubmissionsCounter,
 		jobsEnqueuedCounter:          jobsEnqueuedCounter,
@@ -77,6 +131,12 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		storageUploadDurationHisto:   storageUploadDurationHisto,
 		apiWriteResponseErrorCounter: apiWriteResponseErrorCounter,
 		jobTerminalCounter:           jobTerminalCounter,
+		workerRunCounter:             workerRunCounter,
+		workerPollingDuration:        workerPollingDurationHisto,
+		workerProcessingDuration:     workerProcessingDurationHisto,
+		adapterConversionDuration:    adapterConversionDurationHisto,
+		adapterResponseSize:          adapterResponseSizeHisto,
+		jobEndDurationHisto:          jobEndDuration,
 	}, nil
 
 }
@@ -138,7 +198,38 @@ func (a *ApplicationOtelMetrics) RecordJobTerminal(ctx context.Context, m metric
 	a.jobTerminalCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
 }
 
+func (a *ApplicationOtelMetrics) RecordWorkerRun(ctx context.Context, o metrics.WorkerRunObservation) {
+	a.workerRunCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
+func (a *ApplicationOtelMetrics) RecordWorkerPolling(ctx context.Context, o metrics.WorkerPollingObservation) {
+	a.workerPollingDuration.Record(ctx, o.Duration.Seconds(), metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
+func (a *ApplicationOtelMetrics) RecordWorkerProcessing(ctx context.Context, o metrics.WorkerProcessingObservation) {
+	a.workerProcessingDuration.Record(ctx, o.Duration.Seconds(), metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
+func (a *ApplicationOtelMetrics) RecordAdapterConversion(ctx context.Context, o metrics.AdapterConversionObservation) {
+	a.adapterConversionDuration.Record(ctx, o.Duration.Seconds(), metric.WithAttributes(attribute.String("outcome", string(o.Outcome))))
+}
+
+func (a *ApplicationOtelMetrics) RecordAdapterResponse(ctx context.Context, o metrics.AdapterResponseObservation) {
+	a.adapterResponseSize.Record(ctx, o.SizeBytes, metric.WithAttributes(attribute.String("content_type", string(o.ContentType))))
+}
+
+func (a *ApplicationOtelMetrics) RecordJobEndToEnd(ctx context.Context, o metrics.JobEndObservation) {
+	attributes := []attribute.KeyValue{
+		attribute.String("outcome", string(o.Outcome)),
+	}
+	if o.Reason != nil {
+		attributes = append(attributes, attribute.String("status_reason", string(*o.Reason)))
+	}
+	a.jobEndDurationHisto.Record(ctx, o.Duration.Seconds(), metric.WithAttributes(attributes...))
+}
+
 // Compile Time Check
 var (
 	_ ServiceMetrics = (*ApplicationOtelMetrics)(nil)
+	_ WorkerMetrics  = (*ApplicationOtelMetrics)(nil)
 )

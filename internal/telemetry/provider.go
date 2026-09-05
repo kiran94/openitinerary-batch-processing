@@ -22,14 +22,14 @@ type MeterManager struct {
 	ready bool
 }
 
-func NewMeterManager(ctx context.Context, cfg config.Config) (*MeterManager, error) {
+func NewMeterManager(ctx context.Context, serviceName string, cfg config.Config) (*MeterManager, error) {
 
 	if !cfg.GetOtelEnabled() {
 		p := noop.NewMeterProvider()
 		return &MeterManager{mp: p, cfg: cfg}, nil
 	}
 
-	resource, err := createResource(cfg)
+	resource, err := createResource(serviceName, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +61,10 @@ func (m *MeterManager) Close(ctx context.Context) error {
 	return nil
 }
 
-func createResource(cfg config.Config) (*resource.Resource, error) {
+func createResource(serviceName string, cfg config.Config) (*resource.Resource, error) {
 	resource, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(cfg.GetOtelServiceName()), semconv.ServiceVersion(cfg.GetOtelServiceVersion())),
+		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName), semconv.ServiceVersion(cfg.GetOtelServiceVersion())),
 	)
 
 	if err != nil {

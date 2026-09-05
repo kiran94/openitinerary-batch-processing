@@ -28,7 +28,7 @@ func run() error {
 	logger := logging.New(appConfig)
 
 	telemetry.SetLogger(logger)
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig)
+	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig.GetOtelServiceName(), appConfig)
 	if err != nil {
 		logger.Error("otel initialization failed", "error", err)
 		return err
