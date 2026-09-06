@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -82,10 +83,12 @@ func TestCheckVisibilityTimeout(t *testing.T) {
 
 func TestEnqueue(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	queueURL := "https://sqs.ap-southeast-1.amazonaws.com/123456789012/jobs.fifo"
 	ticket := job.NewTicket()
 
-	expectedMessageBody, err := json.Marshal(EnqueuePayload{TicketID: ticket.ID.String()})
+	expectedMessageBody, err := json.Marshal(EnqueuePayload{TicketID: ticket.ID.String(), RequestID: "request_id"})
 	require.NoError(t, err)
 
 	mockConfig := new(MockConfig)
@@ -118,6 +121,8 @@ func TestEnqueue(t *testing.T) {
 
 func TestEnqueueSendMessageError(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	queueURL := "https://sqs.ap-southeast-1.amazonaws.com/123456789012/jobs.fifo"
 	ticket := job.NewTicket()
 
@@ -139,6 +144,8 @@ func TestEnqueueSendMessageError(t *testing.T) {
 
 func TestDequeue(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	queuePollingTime := int32(20)
 	expectedPayload := EnqueuePayload{TicketID: uuid.NewString()}
 
@@ -191,6 +198,8 @@ func TestDequeue(t *testing.T) {
 
 func TestDequeueNilBody(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	receiptHandle := "handle1"
 
 	queueURL := "myQueue"
@@ -227,6 +236,8 @@ func TestDequeueNilBody(t *testing.T) {
 
 func TestDequeueInvalidJSON(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	messageBody := "invalid JSON"
 	receiptHandle := "handle1"
 
@@ -263,6 +274,8 @@ func TestDequeueInvalidJSON(t *testing.T) {
 
 func TestDequeueNilReceiptHandle(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	payload := EnqueuePayload{TicketID: uuid.NewString()}
 
 	messageBody, err := json.Marshal(payload)
@@ -300,6 +313,7 @@ func TestDequeueNilReceiptHandle(t *testing.T) {
 
 func TestDequeueReceiveMessageError(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
 
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
@@ -325,6 +339,7 @@ func TestDequeueReceiveMessageError(t *testing.T) {
 
 func TestDequeueEmptyQueue(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
 
 	queueURL := "myQueue"
 	mockConfig := new(MockConfig)
@@ -349,6 +364,8 @@ func TestDequeueEmptyQueue(t *testing.T) {
 
 func TestDeleteMessage(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	queueURL := "myQueue"
 	queueReference := "receipt-handle"
 
@@ -381,7 +398,9 @@ func TestDeleteMessageEmptyQueueReference(t *testing.T) {
 	mockQueue := new(MockBatchQueue)
 	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
 
-	err := queue.DeleteMessage(t.Context(), "")
+	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+	err := queue.DeleteMessage(ctx, "")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "queueReference was empty")
@@ -391,6 +410,8 @@ func TestDeleteMessageEmptyQueueReference(t *testing.T) {
 
 func TestDeleteMessageError(t *testing.T) {
 	ctx := t.Context()
+	ctx = logging.WithRequestID(ctx, "request_id")
+
 	queueURL := "myQueue"
 	queueReference := "receipt-handle"
 
@@ -586,3 +607,5 @@ func (m *MockLogger) Info(message string, args ...any) {}
 func (m *MockLogger) Warn(message string, args ...any) {}
 
 func (m *MockLogger) Error(message string, args ...any) {}
+
+func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }

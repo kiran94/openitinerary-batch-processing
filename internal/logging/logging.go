@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ type Logger interface {
 	Info(message string, args ...any)
 	Warn(message string, args ...any)
 	Error(message string, args ...any)
+	WithContext(ctx context.Context) Logger
 }
 
 type Component string
@@ -26,6 +28,16 @@ const (
 	ComponentWorker    Component = "worker"
 	ComponentNotifier  Component = "notifier"
 	ComponentTelemetry Component = "telemetry"
+)
+
+type Operation string
+
+const (
+	OperationSubmit             Operation = "submit"
+	OperationEnqueue            Operation = "enqueue"
+	OperationMarkFailed         Operation = "mark_failed"
+	OperationErrorResponseWrite Operation = "response_write"
+	OperationErrorWriteFailed   Operation = "error_response_write"
 )
 
 type SlogLogger struct {
@@ -71,4 +83,8 @@ func (l *SlogLogger) Warn(message string, args ...any) {
 
 func (l *SlogLogger) Error(message string, args ...any) {
 	l.logger.Error(message, args...)
+}
+
+func (l *SlogLogger) WithContext(ctx context.Context) Logger {
+	return newContextLogger(l, ctx)
 }

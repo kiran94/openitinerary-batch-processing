@@ -396,7 +396,7 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 		}).
 		Return(nil).
 		Once()
-	err := harness.worker.updateTicketAndError(parentCtx, harness.ticket, errRead, job.StorageReadFailed)
+	err := harness.worker.updateTicketAndError(parentCtx, harness.ticket, errRead, job.StorageReadFailed, &MockLogger{})
 
 	require.ErrorIs(t, parentCtx.Err(), context.Canceled)
 	require.ErrorIs(t, err, errRead)
@@ -928,10 +928,11 @@ func (m *MockAdapter) Convert(
 
 type MockLogger struct{}
 
-func (*MockLogger) Debug(string, ...any) {}
-func (*MockLogger) Info(string, ...any)  {}
-func (*MockLogger) Warn(string, ...any)  {}
-func (*MockLogger) Error(string, ...any) {}
+func (*MockLogger) Debug(string, ...any)                         {}
+func (*MockLogger) Info(string, ...any)                          {}
+func (*MockLogger) Warn(string, ...any)                          {}
+func (*MockLogger) Error(string, ...any)                         {}
+func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }
 
 type MockNotifier struct {
 	mock.Mock

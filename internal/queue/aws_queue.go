@@ -56,7 +56,8 @@ func NewQueue(ctx context.Context, c config.Config, logger logging.Logger) (Batc
 }
 
 type EnqueuePayload struct {
-	TicketID string `json:"ticket_id"`
+	TicketID  string `json:"ticket_id"`
+	RequestID string `json:"request_id"`
 }
 
 func (q *Queue) Ready(ctx context.Context) error {
@@ -64,8 +65,11 @@ func (q *Queue) Ready(ctx context.Context) error {
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
-
 	ep := EnqueuePayload{TicketID: ticket.ID.String()}
+
+	if requestID, ok := logging.GetRequestID(ctx); ok {
+		ep.RequestID = requestID
+	}
 
 	buffer, err := json.Marshal(ep)
 	if err != nil {

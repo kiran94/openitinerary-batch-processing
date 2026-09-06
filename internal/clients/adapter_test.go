@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -261,7 +262,8 @@ func TestConvertDocumentReadError(t *testing.T) {
 
 type mockLogger struct{}
 
-func (*mockLogger) Debug(string, ...any) {}
-func (*mockLogger) Info(string, ...any)  {}
-func (*mockLogger) Warn(string, ...any)  {}
-func (*mockLogger) Error(string, ...any) {}
+func (*mockLogger) Debug(string, ...any)                         {}
+func (*mockLogger) Info(string, ...any)                          {}
+func (*mockLogger) Warn(string, ...any)                          {}
+func (*mockLogger) Error(string, ...any)                         {}
+func (m *mockLogger) WithContext(context.Context) logging.Logger { return m }

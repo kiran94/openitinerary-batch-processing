@@ -87,7 +87,7 @@ func run() error {
 	mux.HandleFunc("GET /api/v1/result/{id}", service.result)
 
 	server := &http.Server{
-		Handler:      otelhttp.NewHandler(mux, "api"),
+		Handler:      logging.RequestIDMiddleware(otelhttp.NewHandler(mux, "api")),
 		Addr:         service.config.GetPort(),
 		ReadTimeout:  service.config.GetServerReadTimeout(),
 		WriteTimeout: service.config.GetServerWriteTimeout(),
