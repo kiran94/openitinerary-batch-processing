@@ -111,7 +111,11 @@ func run() error {
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
 			worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger, notifier, serviceMetrics)
-			processingItem, err := startWork(ctx, worker, config, logger)
+
+			workerCtx := logging.WithWorkerID(ctx, worker.GetID())
+			workerLogger := logger.WithContext(workerCtx)
+
+			processingItem, err := startWork(workerCtx, worker, config, workerLogger)
 
 			if err != nil {
 				if err != context.DeadlineExceeded {
@@ -182,6 +186,10 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	}
 	wr.MarkProcessedItem()
 	wr.SetTicketID(dequeueResult.Result.TicketID)
+
+	ctx = logging.WithRequestID(ctx, dequeueResult.Result.RequestID)
+	ctx = logging.WithTicketID(ctx, dequeueResult.Result.TicketID)
+	l = l.WithContext(ctx)
 
 	err = w.Start(ctx, *dequeueResult)
 	wr.MarkProcessingTime()

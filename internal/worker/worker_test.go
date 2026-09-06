@@ -396,7 +396,7 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 		}).
 		Return(nil).
 		Once()
-	err := harness.worker.updateTicketAndError(parentCtx, harness.ticket, errRead, job.StorageReadFailed)
+	err := harness.worker.updateTicketAndError(parentCtx, harness.ticket, errRead, job.StorageReadFailed, &MockLogger{})
 
 	require.ErrorIs(t, parentCtx.Err(), context.Canceled)
 	require.ErrorIs(t, err, errRead)
