@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
@@ -1458,3 +1459,5 @@ func (m *MockLogger) Info(message string, args ...any) {}
 func (m *MockLogger) Warn(message string, args ...any) {}
 
 func (m *MockLogger) Error(message string, args ...any) {}
+
+func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }

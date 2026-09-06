@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -586,3 +587,5 @@ func (m *MockLogger) Info(message string, args ...any) {}
 func (m *MockLogger) Warn(message string, args ...any) {}
 
 func (m *MockLogger) Error(message string, args ...any) {}
+
+func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }

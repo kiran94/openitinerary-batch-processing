@@ -15,6 +15,7 @@ type Logger interface {
 	Info(message string, args ...any)
 	Warn(message string, args ...any)
 	Error(message string, args ...any)
+	WithContext(ctx context.Context) Logger
 }
 
 type Component string
@@ -84,47 +85,6 @@ func (l *SlogLogger) Error(message string, args ...any) {
 	l.logger.Error(message, args...)
 }
 
-// Context Helpers
-
-type contextValue string
-
-const (
-	contextValueRequestID contextValue = "contextValueRequestID"
-	contextValueTicketID  contextValue = "contextValueTicketID"
-	contextValueWorkerID  contextValue = "contextValueWorkerID"
-)
-
-func WithRequestID(ctx context.Context, rid string) context.Context {
-	return context.WithValue(ctx, contextValueRequestID, rid)
-}
-
-func GetRequestID(ctx context.Context) (string, bool) {
-	return contextGetStringValue(ctx, contextValueRequestID)
-}
-
-func WithTicketID(ctx context.Context, tid string) context.Context {
-	return context.WithValue(ctx, contextValueTicketID, tid)
-}
-
-func GetTicketID(ctx context.Context) (string, bool) {
-	return contextGetStringValue(ctx, contextValueTicketID)
-}
-
-func WithWorkerID(ctx context.Context, wid string) context.Context {
-	return context.WithValue(ctx, contextValueWorkerID, wid)
-}
-
-func GetWorkerID(ctx context.Context) (string, bool) {
-	return contextGetStringValue(ctx, contextValueWorkerID)
-}
-
-func contextGetStringValue(ctx context.Context, key any) (string, bool) {
-	if v := ctx.Value(key); v != nil {
-		convertedValue, ok := v.(string)
-		if ok {
-			return convertedValue, true
-		}
-	}
-
-	return "", false
+func (l *SlogLogger) WithContext(ctx context.Context) Logger {
+	return newContextLogger(l, ctx)
 }
