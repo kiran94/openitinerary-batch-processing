@@ -275,12 +275,12 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 	storageErr := errors.New("could not write")
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(storageErr).Once()
 	mockMetrics.
-		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadFailed)).
+		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadFailed)).
 		Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome:     telemetrymetrics.SubmissionFailed,
 				Reason:      new(telemetrymetrics.SubmissionReasonStorageWriteFailed),
@@ -332,12 +332,12 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
 	mockMetrics.
-		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome:     telemetrymetrics.SubmissionFailed,
 				Reason:      new(telemetrymetrics.SubmissionReasonTicketCreationFailed),
@@ -348,7 +348,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 		Once()
 
 	jobCreateError := errors.New("error creating job")
-	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(jobCreateError).Once()
+	mockTicketRepository.On("Create", contextHasTicketID(), mock.Anything).Return(jobCreateError).Once()
 
 	service := ServiceV1{
 		config:  mockConfig,
@@ -396,12 +396,12 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
 	mockMetrics.
-		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome:     telemetrymetrics.SubmissionFailed,
 				Reason:      new(telemetrymetrics.SubmissionReasonQueueEnqueueFailed),
@@ -413,7 +413,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockMetrics.
 		On(
 			"RecordJobTerminal",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.TerminalObservation{
 				Outcome: telemetrymetrics.TerminalFailed,
 				Reason:  new(telemetrymetrics.TerminalReasonEnqueueFailed),
@@ -423,7 +423,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockMetrics.
 		On(
 			"RecordJobEndToEnd",
-			t.Context(),
+			contextHasTicketID(),
 			mock.MatchedBy(func(observation telemetrymetrics.JobEndObservation) bool {
 				return observation.Duration >= 0 &&
 					observation.Outcome == telemetrymetrics.JobEndOutcomeFailed &&
@@ -432,14 +432,14 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 			}),
 		).
 		Once()
-	mockTicketRepository.On("Create", t.Context(), mock.Anything).Return(nil).Once()
+	mockTicketRepository.On("Create", contextHasTicketID(), mock.Anything).Return(nil).Once()
 
 	queueError := errors.New("enqueue error")
-	mockQueue.On("Enqueue", mock.Anything).Return(queueError).Once()
+	mockQueue.On("Enqueue", contextHasTicketID(), mock.AnythingOfType("*job.Ticket")).Return(queueError).Once()
 	mockTicketRepository.
 		On(
 			"MarkFailed",
-			t.Context(),
+			contextHasTicketID(),
 			mock.AnythingOfType("uuid.UUID"),
 			job.EnqueueFailed,
 			"enqueue failed. err: enqueue error",
@@ -495,14 +495,14 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 
 	mockStorage.On("Write", mock.Anything, mock.Anything, "s3://document/path").Return(nil).Once()
 	mockMetrics.
-		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
-	mockTicketRepository.On("Create", t.Context(), mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
-	mockQueue.On("Enqueue", mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
+	mockTicketRepository.On("Create", contextHasTicketID(), mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
+	mockQueue.On("Enqueue", contextHasTicketID(), mock.AnythingOfType("*job.Ticket")).Return(nil).Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome:     telemetrymetrics.SubmissionAccepted,
 				ContentType: &expectedContentType,
@@ -514,7 +514,7 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 	mockMetrics.
 		On(
 			"RecordResponseWriteError",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointSubmit},
 		).
 		Once()
@@ -667,7 +667,7 @@ func TestServiceStatusTicketLookupFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jobRepo := new(MockTicketRepository)
-			jobRepo.On("Get", t.Context(), inputTicket).Return(nil, tt.getJobError).Once()
+			jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(nil, tt.getJobError).Once()
 
 			writer := httptest.NewRecorder()
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
@@ -691,13 +691,13 @@ func TestServiceStatusResponseWriteError(t *testing.T) {
 	ticket.ID = inputTicket
 
 	jobRepo := new(MockTicketRepository)
-	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
+	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
 
 	serviceMetrics := new(MockServiceMetrics)
 	serviceMetrics.
 		On(
 			"RecordResponseWriteError",
-			t.Context(),
+			contextHasTicketIDValue(inputTicket),
 			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointStatus},
 		).
 		Once()
@@ -780,7 +780,7 @@ func TestServiceResultTicketNotFound(t *testing.T) {
 			jobRepo := new(MockTicketRepository)
 			storage := new(MockStorage)
 
-			jobRepo.On("Get", t.Context(), inputTicket).Return(nil, tt.getJobError).Once()
+			jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(nil, tt.getJobError).Once()
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
@@ -806,7 +806,7 @@ func TestServiceResultTicketNotComplete(t *testing.T) {
 	storage := new(MockStorage)
 	ticket := job.NewTicket()
 	ticket.ID = inputTicket
-	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
+	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
@@ -837,8 +837,8 @@ func TestServiceResultFailedGetLink(t *testing.T) {
 
 	ticket := job.NewTicket()
 	ticket.Status = job.Complete
-	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
-	storage.On("GetLink", t.Context(), mock.Anything).Return("", time.Now(), errors.New("failed to get link")).Once()
+	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
+	storage.On("GetLink", contextHasTicketIDValue(inputTicket), mock.Anything).Return("", time.Now(), errors.New("failed to get link")).Once()
 	config.On("GetBucket").Return("bucket")
 	config.On("GetBucketPath").Return("path")
 	config.On("GetOutputPath", "bucket", "path", ticket.ID.String()).Return("s3://bucket/path")
@@ -872,8 +872,8 @@ func TestServiceGetLinkSuccess(t *testing.T) {
 
 	ticket := job.NewTicket()
 	ticket.Status = job.Complete
-	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
-	storage.On("GetLink", t.Context(), mock.Anything).Return(expectedPresignedLink, expectedExpiration, nil).Once()
+	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
+	storage.On("GetLink", contextHasTicketIDValue(inputTicket), mock.Anything).Return(expectedPresignedLink, expectedExpiration, nil).Once()
 	config.On("GetBucket").Return("bucket")
 	config.On("GetBucketPath").Return("path")
 	config.On("GetOutputPath", "bucket", "path", ticket.ID.String()).Return("s3://bucket/path")
@@ -916,16 +916,16 @@ func TestServiceResultResponseWriteError(t *testing.T) {
 	config.On("GetOutputPath", "bucket", "path", inputTicket.String()).Return("s3://bucket/path").Once()
 
 	jobRepo := new(MockTicketRepository)
-	jobRepo.On("Get", t.Context(), inputTicket).Return(ticket, nil).Once()
+	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
 
 	storage := new(MockStorage)
-	storage.On("GetLink", t.Context(), "s3://bucket/path").Return("http://s3-presigned-link", time.Now(), nil).Once()
+	storage.On("GetLink", contextHasTicketIDValue(inputTicket), "s3://bucket/path").Return("http://s3-presigned-link", time.Now(), nil).Once()
 
 	serviceMetrics := new(MockServiceMetrics)
 	serviceMetrics.
 		On(
 			"RecordResponseWriteError",
-			t.Context(),
+			contextHasTicketIDValue(inputTicket),
 			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointResults},
 		).
 		Once()
@@ -982,6 +982,7 @@ func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
 
 			service.writeAPIError(
 				t.Context(),
+				service.logger,
 				writer,
 				tt.endpoint,
 				http.StatusBadRequest,
@@ -1048,14 +1049,14 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		Return(nil).
 		Once()
 	mockMetrics.
-		On("RecordStorageUpload", t.Context(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
+		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
 	expectedContentType := telemetrymetrics.ContentType(test.contentType)
 	expectedInputBytes := int64(len(test.data))
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome:     telemetrymetrics.SubmissionAccepted,
 				ContentType: &expectedContentType,
@@ -1067,7 +1068,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 
 	var generatedTicketID uuid.UUID
 	mockTicketRepository.
-		On("Create", t.Context(), mock.AnythingOfType("*job.Ticket")).
+		On("Create", contextHasTicketID(), mock.AnythingOfType("*job.Ticket")).
 		Run(func(args mock.Arguments) {
 			passedTicket := args.Get(1).(*job.Ticket)
 			generatedTicketID = passedTicket.ID
@@ -1080,9 +1081,9 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		Once()
 
 	mockQueue.
-		On("Enqueue", mock.AnythingOfType("*job.Ticket")).
+		On("Enqueue", contextHasTicketID(), mock.AnythingOfType("*job.Ticket")).
 		Run(func(args mock.Arguments) {
-			ticket := args.Get(0).(*job.Ticket)
+			ticket := args.Get(1).(*job.Ticket)
 			assert.Equal(t, generatedTicketID, ticket.ID)
 		}).
 		Return(nil).
@@ -1364,7 +1365,7 @@ type MockBatchQueue struct {
 }
 
 func (m *MockBatchQueue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
-	return m.Called(ticket).Error(0)
+	return m.Called(ctx, ticket).Error(0)
 }
 
 func (m *MockBatchQueue) Dequeue(ctx context.Context) (*queue.DequeueResult, error) {
@@ -1428,6 +1429,20 @@ func matchesDocumentStorageUpload(outcome telemetrymetrics.StorageUploadOutcome)
 		return observation.Duration >= 0 &&
 			observation.Purpose == telemetrymetrics.StorageUploadPurposeDocument &&
 			observation.Outcome == outcome
+	})
+}
+
+func contextHasTicketID() any {
+	return mock.MatchedBy(func(ctx context.Context) bool {
+		_, ok := logging.GetTicketID(ctx)
+		return ok
+	})
+}
+
+func contextHasTicketIDValue(ticketID uuid.UUID) any {
+	return mock.MatchedBy(func(ctx context.Context) bool {
+		value, ok := logging.GetTicketID(ctx)
+		return ok && value == ticketID.String()
 	})
 }
 
