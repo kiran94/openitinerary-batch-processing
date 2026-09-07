@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"net/url"
 	"testing"
 	"time"
 
@@ -52,6 +53,88 @@ func TestServiceSubmit(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			testServiceSubmitSuccess(t, test)
+		})
+	}
+}
+
+func TestContentTypeConversion(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            string
+		expectedFileType string
+		expectedMetric   telemetrymetrics.ContentType
+		expectsError     bool
+	}{
+		{name: "PDF", input: "application/pdf", expectedFileType: "pdf", expectedMetric: telemetrymetrics.ContentTypePDF},
+		{name: "HTML", input: "text/html", expectedFileType: "html", expectedMetric: telemetrymetrics.ContentTypeHTML},
+		{name: "Email", input: "message/rfc822", expectedFileType: "eml", expectedMetric: telemetrymetrics.ContentTypeEmail},
+		{name: "Unsupported", input: "image/png", expectsError: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fileType, metricContentType, err := contentTypeConversion(test.input)
+			if test.expectsError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.input)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedFileType, fileType)
+			assert.Equal(t, test.expectedMetric, metricContentType)
+		})
+	}
+}
+
+func TestParseNotificationEmails(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		limit         int
+		expected      []string
+		expectedError string
+	}{
+		{
+			name:     "valid",
+			raw:      `["traveller@example.com"]`,
+			limit:    1,
+			expected: []string{"traveller@example.com"},
+		},
+		{
+			name:          "invalid JSON",
+			raw:           "not-json",
+			limit:         1,
+			expectedError: "notification_emails must be a JSON array of strings",
+		},
+		{
+			name:          "too many",
+			raw:           `["one@example.com", "two@example.com"]`,
+			limit:         1,
+			expectedError: "notification_emails must contain at most 1 entries",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig := new(MockConfig)
+			if test.name != "invalid JSON" {
+				mockConfig.On("GetNotificationEmailLimit").Return(test.limit).Once()
+			}
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", nil)
+			request.Form = url.Values{"notification_emails": []string{test.raw}}
+
+			service := ServiceV1{config: mockConfig}
+			emails, err := service.parseNotificationEmails(request)
+
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+				assert.Nil(t, emails)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, emails)
+			}
+			mockConfig.AssertExpectations(t)
 		})
 	}
 }
@@ -557,7 +640,7 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
 				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonTooManyNotificationEmails),
+				Reason:  new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
 			},
 		).
 		Once()
