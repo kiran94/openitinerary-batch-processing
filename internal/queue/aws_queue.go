@@ -65,6 +65,7 @@ func (q *Queue) Ready(ctx context.Context) error {
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
+	logger := q.logger.WithContext(ctx)
 	ep := EnqueuePayload{TicketID: ticket.ID.String()}
 
 	if requestID, ok := logging.GetRequestID(ctx); ok {
@@ -88,10 +89,9 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 		return err
 	}
 
-	q.logger.Debug(
+	logger.Debug(
 		"queue enqueue succeeded",
 		"component", logging.ComponentQueue,
-		"ticket_id", ticket.ID.String(),
 		"queue_message_id", aws.ToString(result.MessageId),
 	)
 	return nil
@@ -107,6 +107,7 @@ type DequeueResult struct {
 }
 
 func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
+	logger := q.logger.WithContext(ctx)
 	result, err := q.Queue.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:                new(q.config.GetQueueURL()),
 		MaxNumberOfMessages:     1,
@@ -125,7 +126,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	message := result.Messages[0]
 	if message.ReceiptHandle == nil {
 		err := errors.New("receipt handle was nil")
-		q.logger.Error(
+		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"message_id", aws.ToString(message.MessageId),
@@ -143,7 +144,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 
 	if message.Body == nil {
 		err := errors.New("message body was nil")
-		q.logger.Error(
+		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"message_id", aws.ToString(message.MessageId),
@@ -154,7 +155,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	}
 
 	if err := json.Unmarshal([]byte(*message.Body), &dequeueResult.Result); err != nil {
-		q.logger.Error(
+		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"message_id", aws.ToString(message.MessageId),
