@@ -41,7 +41,6 @@ const (
 	SubmissionReasonContentTypeNotProvided      SubmissionReason = "content_type_not_provided"
 	SubmissionReasonInvalidContentType          SubmissionReason = "invalid_content_type"
 	SubmissionReasonInvalidNotificationEmails   SubmissionReason = "invalid_notification_emails"
-	SubmissionReasonTooManyNotificationEmails   SubmissionReason = "too_many_notification_emails"
 	SubmissionReasonUnsupportedContentType      SubmissionReason = "unsupported_content_type"
 	SubmissionReasonStorageWriteFailed          SubmissionReason = "storage_write_failed"
 	SubmissionReasonTicketCreationFailed        SubmissionReason = "ticket_creation_failed"

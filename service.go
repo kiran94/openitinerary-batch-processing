@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -28,6 +29,21 @@ type ServiceV1 struct {
 	metrics telemetry.ServiceMetrics
 }
 
+type submitRequest struct {
+	file               multipart.File
+	fileHeader         *multipart.FileHeader
+	contentType        string
+	fileType           string
+	metricContentType  metrics.ContentType
+	notificationEmails []string
+}
+
+type submitRequestError struct {
+	statusCode int
+	detail     string
+	reason     metrics.SubmissionReason
+}
+
 // @Summary      Submit a document for processing
 // @Description  Upload a PDF, HTML, or RFC 822 email document, create and enqueue a processing ticket, and return the accepted ticket.
 // @Tags         batch
@@ -47,131 +63,130 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := s.logger.WithContext(ctx)
 
-	r.Body = http.MaxBytesReader(w, r.Body, s.config.GetMaximumAllowedRequestSizeMb())
-
-	if err := r.ParseMultipartForm(s.config.GetMaximumBufferMultipartForm()); err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusRequestEntityTooLarge, "request body is too large")
-			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-				Outcome: metrics.SubmissionRejected,
-				Reason:  new(metrics.SubmissionReasonRequestBodyTooLarge),
-			})
-		} else {
-			s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusBadRequest, "invalid multipart form")
-			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-				Outcome: metrics.SubmissionRejected,
-				Reason:  new(metrics.SubmissionReasonInvalidMultipartForm),
-			})
+	defer func() {
+		if r.MultipartForm == nil {
+			return
 		}
 
-		return
-	}
-	defer func() {
 		err := r.MultipartForm.RemoveAll()
 		if err != nil {
 			logger.Warn("multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", logging.OperationMultipartCleanup, "error", err)
 		}
 	}()
 
-	file, uploadedFileHeader, err := r.FormFile("file")
-	if err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusBadRequest, "file must be provided")
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonFileNotProvided),
-		})
-		return
+	request, requestErr := s.parseSubmitRequest(w, r)
+	if request.file != nil {
+		defer request.file.Close()
 	}
-	defer file.Close()
-
-	contentType := uploadedFileHeader.Header.Get("Content-Type")
-	if contentType == "" {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusBadRequest, "file content type must be provided")
+	if requestErr != nil {
+		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, requestErr.statusCode, requestErr.detail)
+		reason := requestErr.reason
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonContentTypeNotProvided),
-		})
-		return
-	}
-	contentType, _, err = mime.ParseMediaType(contentType)
-	if err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusUnsupportedMediaType, "file content type is invalid")
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonInvalidContentType),
-		})
-		return
-	}
-
-	emailRaw := r.Form.Get("notification_emails")
-	var emails []string
-	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusBadRequest, "notification_emails must be a JSON array of strings")
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonInvalidNotificationEmails),
-		})
-		return
-	}
-
-	notificationEmailLimit := s.config.GetNotificationEmailLimit()
-	if len(emails) > notificationEmailLimit {
-		s.writeAPIError(
-			ctx,
-			logger,
-			w,
-			metrics.EndpointSubmit,
-			http.StatusBadRequest,
-			fmt.Sprintf("notification_emails must contain at most %v entries", notificationEmailLimit),
-		)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonTooManyNotificationEmails),
-		})
-		return
-	}
-
-	var (
-		fileType          string
-		metricContentType metrics.ContentType
-	)
-	switch contentType {
-	case "application/pdf":
-		fileType = "pdf"
-		metricContentType = metrics.ContentTypePDF
-	case "text/html":
-		fileType = "html"
-		metricContentType = metrics.ContentTypeHTML
-	case "message/rfc822":
-		fileType = "eml"
-		metricContentType = metrics.ContentTypeEmail
-	default:
-		s.writeAPIError(
-			ctx,
-			logger,
-			w,
-			metrics.EndpointSubmit,
-			http.StatusUnsupportedMediaType,
-			fmt.Sprintf("unsupported file content type: %v", contentType),
-		)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  new(metrics.SubmissionReasonUnsupportedContentType),
+			Reason:  &reason,
 		})
 		return
 	}
 
 	ticket := job.NewTicket()
-	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), fileType)
-	ticket.ContentType = contentType
-	ticket.NotificationEmails = emails
+	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), request.fileType)
+	ticket.ContentType = string(request.metricContentType)
+	ticket.NotificationEmails = request.notificationEmails
 
 	ctx = logging.WithTicketID(ctx, ticket.ID.String())
 	logger = logger.WithContext(ctx)
 
+	if err := s.storeAndEnqueue(ctx, logger, request, ticket, startedAt); err != nil {
+		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
+		return
+	}
+
+	s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt)
+}
+
+func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (submitRequest, *submitRequestError) {
+	r.Body = http.MaxBytesReader(w, r.Body, s.config.GetMaximumAllowedRequestSizeMb())
+
+	if err := r.ParseMultipartForm(s.config.GetMaximumBufferMultipartForm()); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return submitRequest{}, &submitRequestError{
+				statusCode: http.StatusRequestEntityTooLarge,
+				detail:     "request body is too large",
+				reason:     metrics.SubmissionReasonRequestBodyTooLarge,
+			}
+		}
+
+		return submitRequest{}, &submitRequestError{
+			statusCode: http.StatusBadRequest,
+			detail:     "invalid multipart form",
+			reason:     metrics.SubmissionReasonInvalidMultipartForm,
+		}
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	request := submitRequest{file: file, fileHeader: fileHeader}
+	if err != nil {
+		return request, &submitRequestError{
+			statusCode: http.StatusBadRequest,
+			detail:     "file must be provided",
+			reason:     metrics.SubmissionReasonFileNotProvided,
+		}
+	}
+
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		return request, &submitRequestError{
+			statusCode: http.StatusBadRequest,
+			detail:     "file content type must be provided",
+			reason:     metrics.SubmissionReasonContentTypeNotProvided,
+		}
+	}
+	contentType, _, err = mime.ParseMediaType(contentType)
+	if err != nil {
+		return request, &submitRequestError{
+			statusCode: http.StatusUnsupportedMediaType,
+			detail:     "file content type is invalid",
+			reason:     metrics.SubmissionReasonInvalidContentType,
+		}
+	}
+
+	emails, err := s.parseNotificationEmails(r)
+	if err != nil {
+		return request, &submitRequestError{
+			statusCode: http.StatusBadRequest,
+			detail:     err.Error(),
+			reason:     metrics.SubmissionReasonInvalidNotificationEmails,
+		}
+	}
+
+	fileType, metricContentType, err := contentTypeConversion(contentType)
+	if err != nil {
+		return request, &submitRequestError{
+			statusCode: http.StatusUnsupportedMediaType,
+			detail:     fmt.Sprintf("unsupported file content type: %s", contentType),
+			reason:     metrics.SubmissionReasonUnsupportedContentType,
+		}
+	}
+
+	request.contentType = contentType
+	request.fileType = fileType
+	request.metricContentType = metricContentType
+	request.notificationEmails = emails
+	return request, nil
+}
+
+func (s *ServiceV1) storeAndEnqueue(
+	ctx context.Context,
+	logger logging.Logger,
+	request submitRequest,
+	ticket *job.Ticket,
+	startedAt time.Time,
+) error {
+	inputBytes := request.fileHeader.Size
+
 	storageStart := time.Now()
-	if err := s.storage.Write(ctx, file, ticket.DocumentPath); err != nil {
+	if err := s.storage.Write(ctx, request.file, ticket.DocumentPath); err != nil {
 		s.metrics.RecordStorageUpload(
 			ctx,
 			metrics.StorageUploadObservation{
@@ -183,12 +198,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
-			ContentType: &metricContentType,
-			InputBytes:  &uploadedFileHeader.Size,
+			ContentType: &request.metricContentType,
+			InputBytes:  &inputBytes,
 		})
-		logger.Error("document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", contentType, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
-		return
+		logger.Error("document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", request.contentType, "error", err)
+		return err
 	}
 	s.metrics.RecordStorageUpload(
 		ctx,
@@ -197,19 +211,17 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.job.Create(ctx, ticket); err != nil {
 		logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
-			ContentType: &metricContentType,
-			InputBytes:  &uploadedFileHeader.Size,
+			ContentType: &request.metricContentType,
+			InputBytes:  &inputBytes,
 		})
-		return
+		return err
 	}
 
 	if err := s.queue.Enqueue(ctx, ticket); err != nil {
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
-
 		commonUpdateErrLoggingFields := []any{
 			"component", string(logging.ComponentDatabase),
 			"reason", string(job.EnqueueFailed),
@@ -228,12 +240,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
-			ContentType: &metricContentType,
-			InputBytes:  &uploadedFileHeader.Size,
+			ContentType: &request.metricContentType,
+			InputBytes:  &inputBytes,
 		})
 		s.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{
 			Outcome: metrics.TerminalFailed,
@@ -244,32 +255,41 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 			Outcome:  metrics.JobEndOutcomeFailed,
 			Reason:   new(metrics.TerminalReasonEnqueueFailed),
 		})
-		return
+		return err
 	}
 
+	return nil
+}
+
+func (s *ServiceV1) writeSubmitResponse(
+	ctx context.Context,
+	logger logging.Logger,
+	w http.ResponseWriter,
+	request submitRequest,
+	ticket *job.Ticket,
+	startedAt time.Time,
+) {
 	responseBody, err := json.Marshal(ticket)
+	inputBytes := request.fileHeader.Size
 	if err != nil {
 		logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonResponseSerializationFailed),
-			ContentType: &metricContentType,
-			InputBytes:  &uploadedFileHeader.Size,
+			ContentType: &request.metricContentType,
+			InputBytes:  &inputBytes,
 			Enqueued:    true,
 		})
 		return
 	}
 
-	s.metrics.RecordSubmission(
-		ctx,
-		metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionAccepted,
-			Enqueued:    true,
-			InputBytes:  &uploadedFileHeader.Size,
-			ContentType: &metricContentType,
-		},
-	)
+	s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+		Outcome:     metrics.SubmissionAccepted,
+		Enqueued:    true,
+		InputBytes:  &inputBytes,
+		ContentType: &request.metricContentType,
+	})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
@@ -287,11 +307,41 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info(
 		"submit accepted",
-		"content_type", contentType,
+		"content_type", request.contentType,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
 		"component", logging.ComponentHTTP,
 		"operation", logging.OperationSubmit,
 	)
+}
+
+func contentTypeConversion(contentType string) (string, metrics.ContentType, error) {
+	switch contentType {
+	case "application/pdf":
+		return "pdf", metrics.ContentTypePDF, nil
+	case "text/html":
+		return "html", metrics.ContentTypeHTML, nil
+	case "message/rfc822":
+		return "eml", metrics.ContentTypeEmail, nil
+	default:
+	}
+
+	return "", "", fmt.Errorf("unsupported content type: %s", contentType)
+}
+
+func (s *ServiceV1) parseNotificationEmails(r *http.Request) ([]string, error) {
+	emailRaw := r.Form.Get("notification_emails")
+
+	var emails []string
+	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
+		return nil, errors.New("notification_emails must be a JSON array of strings")
+	}
+
+	notificationEmailLimit := s.config.GetNotificationEmailLimit()
+	if len(emails) > notificationEmailLimit {
+		return nil, fmt.Errorf("notification_emails must contain at most %d entries", notificationEmailLimit)
+	}
+
+	return emails, nil
 }
 
 // status retrieves the current processing state of a ticket.
