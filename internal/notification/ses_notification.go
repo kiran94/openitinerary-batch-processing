@@ -83,7 +83,13 @@ func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination
 			continue
 		}
 
-		logger.Debug("successfully sent email", "destination", maskedDest, "ses_message_id", output.MessageId)
+		logger.Debug(
+			"successfully sent email",
+			"component", logging.ComponentNotifier,
+			"operation", logging.OperationNotificationSend,
+			"destination", maskedDest,
+			"ses_message_id", output.MessageId,
+		)
 	}
 
 	if err := errors.Join(sendErrors...); err != nil {

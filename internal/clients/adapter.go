@@ -72,7 +72,12 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 		uploadDone <- uploadErr
 	}()
 
-	logger.Debug("calling adapter api", "endpoint", a.adapterAPIURL)
+	logger.Debug(
+		"calling adapter api",
+		"component", logging.ComponentAdapter,
+		"operation", logging.OperationAdapterConvert,
+		"endpoint", a.adapterAPIURL,
+	)
 	response, requestErr := a.http.Do(request)
 
 	// Ensure the producer is released if the server or transport stops

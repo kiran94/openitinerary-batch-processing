@@ -92,6 +92,7 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 	logger.Debug(
 		"queue enqueue succeeded",
 		"component", logging.ComponentQueue,
+		"operation", logging.OperationEnqueue,
 		"queue_message_id", aws.ToString(result.MessageId),
 	)
 	return nil
@@ -129,6 +130,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
+			"operation", logging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "nil_receipt_handle",
 			"error", err,
@@ -147,6 +149,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
+			"operation", logging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "nil_body",
 			"error", err,
@@ -158,6 +161,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 		logger.Error(
 			"queue message invalid",
 			"component", logging.ComponentQueue,
+			"operation", logging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "invalid_json",
 			"error", err,
