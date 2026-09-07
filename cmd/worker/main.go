@@ -154,12 +154,15 @@ func run() error {
 func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.Logger) (bool, error) {
 	wr := worker.NewWorkReport()
 
+	workerTimeout := time.Duration(c.GetWorkerTimeoutSeconds()) * time.Second
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(workerTimeout))
+	defer cancel()
+	logger := l.WithContext(ctx)
+
 	defer func() {
-		l.Info(
+		logger.Info(
 			"worker completed",
 			"component", logging.ComponentWorker,
-			"worker_id", w.GetID(),
-			"ticket_id", wr.GetTicketID(),
 			"polling_duration_ms", wr.GetPollingDurationMs(),
 			"processing_duration_ms", wr.GetProcessingTimeMs(),
 			"overall_duration_ms", wr.GetOverallTimeMs(),
@@ -168,17 +171,12 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 		)
 	}()
 
-	workerTimeout := time.Duration(c.GetWorkerTimeoutSeconds()) * time.Second
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(workerTimeout))
-	defer cancel()
-
 	dequeueResult, err := w.Polling(ctx)
 	wr.MarkPollingTime()
 	if err != nil {
-		l.Debug(
+		logger.Debug(
 			"worker returned error during polling",
 			"component", logging.ComponentWorker,
-			"worker_id", w.GetID(),
 			"error", err,
 		)
 		wr.SetError(err)
@@ -189,16 +187,14 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 
 	ctx = logging.WithRequestID(ctx, dequeueResult.Result.RequestID)
 	ctx = logging.WithTicketID(ctx, dequeueResult.Result.TicketID)
-	l = l.WithContext(ctx)
+	logger = logger.WithContext(ctx)
 
 	err = w.Start(ctx, *dequeueResult)
 	wr.MarkProcessingTime()
 	if err != nil {
-		l.Debug(
+		logger.Debug(
 			"worker returned error during processing",
 			"component", logging.ComponentWorker,
-			"worker_id", w.GetID(),
-			"ticket_id", wr.GetTicketID(),
 			"error", err,
 		)
 		wr.SetError(err)
