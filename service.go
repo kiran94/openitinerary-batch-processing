@@ -70,7 +70,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := r.MultipartForm.RemoveAll()
 		if err != nil {
-			logger.Warn("multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", "multipart_cleanup", "error", err)
+			logger.Warn("multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", logging.OperationMultipartCleanup, "error", err)
 		}
 	}()
 
@@ -186,7 +186,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 			ContentType: &metricContentType,
 			InputBytes:  &uploadedFileHeader.Size,
 		})
-		logger.Error("document storage failed", "component", logging.ComponentStorage, "content_type", contentType, "error", err)
+		logger.Error("document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", contentType, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		return
 	}
@@ -196,7 +196,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err := s.job.Create(ctx, ticket); err != nil {
-		logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "error", err)
+		logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
@@ -213,13 +213,13 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		commonUpdateErrLoggingFields := []any{
 			"component", string(logging.ComponentDatabase),
 			"reason", string(job.EnqueueFailed),
-			"original_error", err.Error(),
+			"original_error", err,
 			"operation", logging.OperationMarkFailed,
 		}
 
 		updated, updateErr := s.job.MarkFailed(ctx, ticket.ID, job.EnqueueFailed, detail)
 		if updateErr != nil {
-			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr.Error())
+			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr)
 			logger.Error("ticket failure update failed", commonUpdateErrLoggingFields...)
 		} else if !updated {
 			logger.Warn("ticket failure update skipped", commonUpdateErrLoggingFields...)
@@ -249,7 +249,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "error", err)
+		logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document")
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
@@ -329,7 +329,7 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusNotFound, "ticket was not found")
 		} else {
-			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "error", err)
+			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
 			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status")
 		}
 		return
@@ -337,7 +337,7 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		logger.Error("ticket status response serialization failed", "component", logging.ComponentHTTP, "error", err)
+		logger.Error("ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status")
 		return
 	}
@@ -390,7 +390,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusNotFound, "ticket was not found")
 		} else {
-			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "error", err)
+			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
 			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result")
 		}
 		return
@@ -405,7 +405,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	link, expiration, err := s.storage.GetLink(ctx, outputPath)
 	if err != nil {
-		logger.Error("failed to generate presigned link", "component", logging.ComponentStorage, "error", err)
+		logger.Error("failed to generate presigned link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result")
 		return
 	}
@@ -417,7 +417,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	b, err := json.Marshal(result)
 	if err != nil {
-		logger.Error("failed to marshal presigned result obj", "component", logging.ComponentStorage, "error", err)
+		logger.Error("failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result")
 		return
 	}

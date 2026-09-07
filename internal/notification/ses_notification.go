@@ -47,6 +47,8 @@ type StatusNotifier struct {
 var ErrNoDestinationProvided = errors.New("no destination was provided")
 
 func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination []string, content *string) error {
+	logger := n.logger.WithContext(ctx)
+
 	if len(destination) == 0 {
 		return ErrNoDestinationProvided
 	}
@@ -81,7 +83,13 @@ func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination
 			continue
 		}
 
-		n.logger.Debug("successfully sent email", "destination", maskedDest, "ses_message_id", output.MessageId)
+		logger.Debug(
+			"successfully sent email",
+			"component", logging.ComponentNotifier,
+			"operation", logging.OperationNotificationSend,
+			"destination", maskedDest,
+			"ses_message_id", output.MessageId,
+		)
 	}
 
 	if err := errors.Join(sendErrors...); err != nil {

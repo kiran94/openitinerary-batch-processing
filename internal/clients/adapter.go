@@ -43,6 +43,8 @@ func NewAdapterClient(http *http.Client, logger logging.Logger, maximumAdapterRe
 //
 // document reader → multipart writer → io.Pipe → HTTP client → Adapter API
 func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (w io.ReadCloser, err error) {
+	logger := a.logger.WithContext(ctx)
+
 	if document == nil {
 		return nil, errors.New("document was nil")
 	}
@@ -57,6 +59,9 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 		return nil, err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if v, ok := logging.GetRequestID(ctx); ok {
+		request.Header.Set(logging.HeaderRequestID, v)
+	}
 
 	// Start to write the document to the writer in a Go routine.
 	uploadDone := make(chan error, 1)
@@ -67,7 +72,12 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 		uploadDone <- uploadErr
 	}()
 
-	a.logger.Debug("calling adapter api", "endpoint", a.adapterAPIURL)
+	logger.Debug(
+		"calling adapter api",
+		"component", logging.ComponentAdapter,
+		"operation", logging.OperationAdapterConvert,
+		"endpoint", a.adapterAPIURL,
+	)
 	response, requestErr := a.http.Do(request)
 
 	// Ensure the producer is released if the server or transport stops

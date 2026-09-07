@@ -22,6 +22,7 @@ type Component string
 
 const (
 	ComponentDatabase  Component = "database"
+	ComponentAdapter   Component = "adapter"
 	ComponentHTTP      Component = "http"
 	ComponentQueue     Component = "queue"
 	ComponentStorage   Component = "storage"
@@ -33,11 +34,25 @@ const (
 type Operation string
 
 const (
-	OperationSubmit             Operation = "submit"
-	OperationEnqueue            Operation = "enqueue"
-	OperationMarkFailed         Operation = "mark_failed"
-	OperationErrorResponseWrite Operation = "response_write"
-	OperationErrorWriteFailed   Operation = "error_response_write"
+	OperationSubmit                Operation = "submit"
+	OperationEnqueue               Operation = "enqueue"
+	OperationDequeue               Operation = "dequeue"
+	OperationDeleteMessage         Operation = "delete_message"
+	OperationMarkFailed            Operation = "mark_failed"
+	OperationStorageRead           Operation = "storage_read"
+	OperationStorageWrite          Operation = "storage_write"
+	OperationStoragePresign        Operation = "storage_presign"
+	OperationAdapterConvert        Operation = "adapter_convert"
+	OperationNotificationSend      Operation = "notification_send"
+	OperationTicketCreate          Operation = "ticket_create"
+	OperationTicketLookup          Operation = "ticket_lookup"
+	OperationTicketUpdate          Operation = "ticket_update"
+	OperationDuplicateDelivery     Operation = "duplicate_delivery"
+	OperationMultipartCleanup      Operation = "multipart_cleanup"
+	OperationTelemetryError        Operation = "telemetry_error"
+	OperationResponseSerialization Operation = "response_serialization"
+	OperationErrorResponseWrite    Operation = "response_write"
+	OperationErrorWriteFailed      Operation = "error_response_write"
 )
 
 type SlogLogger struct {

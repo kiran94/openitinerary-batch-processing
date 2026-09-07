@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,9 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
-func newAdapterResponseClient(statusCode int, contentLength int64, responseBody io.ReadCloser) Adapter {
+func newAdapterResponseClient(t *testing.T, statusCode int, contentLength int64, responseBody io.ReadCloser) Adapter {
+	t.Helper()
+
 	return &AdapterClient{
 		adapterAPIURL:                   "http://adapter.test",
 		logger:                          &mockLogger{},
@@ -52,6 +55,9 @@ func newAdapterResponseClient(statusCode int, contentLength int64, responseBody 
 			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				defer request.Body.Close()
 				_, _ = io.Copy(io.Discard, request.Body)
+
+				requestID := request.Header.Get(logging.HeaderRequestID)
+				assert.NotEmpty(t, requestID)
 
 				return &http.Response{
 					StatusCode:    statusCode,
@@ -92,7 +98,8 @@ func TestNewAdapterClient(t *testing.T) {
 func TestConvertNilDocument(t *testing.T) {
 	adapter := newAdapterTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
 
-	response, err := adapter.Convert(context.Background(), nil, "filename", "contentType")
+	ctx := populateContext(t, context.Background())
+	response, err := adapter.Convert(ctx, nil, "filename", "contentType")
 
 	require.Error(t, err)
 	assert.Nil(t, response)
@@ -104,10 +111,12 @@ func TestConvertStatusCodeNotOk(t *testing.T) {
 		Reader:   strings.NewReader("unprocessable"),
 		closeErr: errResponseClose,
 	}
-	adapter := newAdapterResponseClient(http.StatusUnprocessableEntity, -1, responseBody)
+	adapter := newAdapterResponseClient(t, http.StatusUnprocessableEntity, -1, responseBody)
 
 	mockDocument := strings.NewReader("mock")
-	response, err := adapter.Convert(context.Background(), mockDocument, "filename", "contentType")
+
+	ctx := populateContext(t, context.Background())
+	response, err := adapter.Convert(ctx, mockDocument, "filename", "contentType")
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, errResponseClose)
@@ -128,8 +137,9 @@ func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 		},
 	}
 
+	ctx := populateContext(t, context.Background())
 	response, err := adapter.Convert(
-		context.Background(),
+		ctx,
 		strings.NewReader("PDF contents"),
 		"example.pdf",
 		"application/pdf",
@@ -140,12 +150,14 @@ func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 }
 
 func TestConvertStatusCodeOk(t *testing.T) {
+	requestID := uuid.NewString()
 
 	adapter := newAdapterTestClient(t, func(
 		w http.ResponseWriter,
 		r *http.Request,
 	) {
 		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, requestID, r.Header.Get(logging.HeaderRequestID))
 		assert.Equal(t, int64(-1), r.ContentLength)
 
 		file, header, err := r.FormFile("file")
@@ -168,8 +180,9 @@ func TestConvertStatusCodeOk(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	ctx := logging.WithRequestID(context.Background(), requestID)
 	response, err := adapter.Convert(
-		context.Background(),
+		ctx,
 		strings.NewReader("PDF contents"),
 		"example.pdf",
 		"application/pdf",
@@ -184,13 +197,54 @@ func TestConvertStatusCodeOk(t *testing.T) {
 	assert.JSONEq(t, `[{"type":"flight"}]`, string(result))
 }
 
-func TestConvertRejectsKnownOversizedResponse(t *testing.T) {
-	responseBody := &trackingReadCloser{Reader: strings.NewReader("123456")}
-	adapter := newAdapterResponseClient(http.StatusOK, 6, responseBody).(*AdapterClient)
-	adapter.maximumAdapterResponseSizeBytes = 5
+func TestConvertOmitsRequestIDWithoutContextValue(t *testing.T) {
+	var requestID string
+	adapter := &AdapterClient{
+		adapterAPIURL:                   "http://adapter.test",
+		logger:                          &mockLogger{},
+		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
+		http: &http.Client{
+			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requestID = request.Header.Get(logging.HeaderRequestID)
+				defer request.Body.Close()
+				_, err := io.Copy(io.Discard, request.Body)
+				if err != nil {
+					return nil, err
+				}
+
+				return &http.Response{
+					StatusCode:    http.StatusOK,
+					ContentLength: -1,
+					Body:          io.NopCloser(strings.NewReader("[]")),
+					Header:        make(http.Header),
+					Request:       request,
+				}, nil
+			}),
+		},
+	}
 
 	response, err := adapter.Convert(
 		context.Background(),
+		strings.NewReader("document"),
+		"example.pdf",
+		"application/pdf",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.Empty(t, requestID)
+	require.NoError(t, response.Close())
+}
+
+func TestConvertRejectsKnownOversizedResponse(t *testing.T) {
+	responseBody := &trackingReadCloser{Reader: strings.NewReader("123456")}
+	adapter := newAdapterResponseClient(t, http.StatusOK, 6, responseBody).(*AdapterClient)
+	adapter.maximumAdapterResponseSizeBytes = 5
+
+	ctx := populateContext(t, context.Background())
+
+	response, err := adapter.Convert(
+		ctx,
 		strings.NewReader("document"),
 		"example.pdf",
 		"application/pdf",
@@ -205,11 +259,13 @@ func TestConvertRejectsKnownOversizedResponse(t *testing.T) {
 
 func TestConvertRejectsStreamedOversizedResponse(t *testing.T) {
 	responseBody := &trackingReadCloser{Reader: strings.NewReader("123456")}
-	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody).(*AdapterClient)
+	adapter := newAdapterResponseClient(t, http.StatusOK, -1, responseBody).(*AdapterClient)
 	adapter.maximumAdapterResponseSizeBytes = 5
 
+	ctx := populateContext(t, context.Background())
+
 	response, err := adapter.Convert(
-		context.Background(),
+		ctx,
 		strings.NewReader("document"),
 		"example.pdf",
 		"application/pdf",
@@ -227,11 +283,13 @@ func TestConvertRejectsStreamedOversizedResponse(t *testing.T) {
 
 func TestConvertAcceptsResponseAtMaximumSize(t *testing.T) {
 	responseBody := &trackingReadCloser{Reader: strings.NewReader("12345")}
-	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody).(*AdapterClient)
+	adapter := newAdapterResponseClient(t, http.StatusOK, -1, responseBody).(*AdapterClient)
 	adapter.maximumAdapterResponseSizeBytes = 5
 
+	ctx := populateContext(t, context.Background())
+
 	response, err := adapter.Convert(
-		context.Background(),
+		ctx,
 		strings.NewReader("document"),
 		"example.pdf",
 		"application/pdf",
@@ -246,10 +304,12 @@ func TestConvertAcceptsResponseAtMaximumSize(t *testing.T) {
 
 func TestConvertDocumentReadError(t *testing.T) {
 	responseBody := &trackingReadCloser{Reader: strings.NewReader("unused")}
-	adapter := newAdapterResponseClient(http.StatusOK, -1, responseBody)
+	adapter := newAdapterResponseClient(t, http.StatusOK, -1, responseBody)
+
+	ctx := populateContext(t, context.Background())
 
 	response, err := adapter.Convert(
-		context.Background(),
+		ctx,
 		failingDocumentReader{},
 		"example.pdf",
 		"application/pdf",
@@ -258,6 +318,11 @@ func TestConvertDocumentReadError(t *testing.T) {
 	require.ErrorIs(t, err, errDocumentRead)
 	assert.Nil(t, response)
 	assert.True(t, responseBody.closed)
+}
+
+func populateContext(t *testing.T, ctx context.Context) context.Context {
+	t.Helper()
+	return logging.WithRequestID(ctx, uuid.NewString())
 }
 
 type mockLogger struct{}
