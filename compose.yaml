@@ -47,7 +47,20 @@ services:
       - grafana_data:/var/lib/grafana
 
 
+  opentelemetry_loki:
+    image: grafana/loki:3.7.0
+    container_name: oibp-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100" # http://localhost:3100/ready
+    volumes:
+      - ./infra/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+
+
+
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  loki_data:
