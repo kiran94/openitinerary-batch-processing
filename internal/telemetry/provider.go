@@ -2,14 +2,18 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -17,6 +21,7 @@ import (
 
 type MeterManager struct {
 	mp  metric.MeterProvider
+	lg  *log.LoggerProvider
 	cfg config.Config
 
 	ready bool
@@ -35,17 +40,28 @@ func NewMeterManager(ctx context.Context, serviceName string, cfg config.Config)
 	}
 
 	// Uses the standard env var: OTEL_EXPORTER_OTLP_ENDPOINT
-	exporter, err := otlpmetrichttp.New(ctx)
+	metricExporter, err := otlpmetrichttp.New(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	loggerExporter, err := otlploghttp.New(ctx)
+	if err != nil {
+		return nil, err
+	}
+	loggerBatchExporter := log.NewBatchProcessor(loggerExporter)
+
 	metricProvider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(resource),
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(cfg.GetOtelMetricExportInterval()))),
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(cfg.GetOtelMetricExportInterval()))),
 	)
 
-	return &MeterManager{metricProvider, cfg, false}, nil
+	loggerProvider := log.NewLoggerProvider(
+		log.WithResource(resource),
+		log.WithProcessor(loggerBatchExporter),
+	)
+
+	return &MeterManager{metricProvider, loggerProvider, cfg, false}, nil
 }
 
 func (m *MeterManager) GetProvider() metric.MeterProvider {
@@ -53,12 +69,18 @@ func (m *MeterManager) GetProvider() metric.MeterProvider {
 }
 
 func (m *MeterManager) Close(ctx context.Context) error {
+	shutdownErrors := make([]error, 0, 2)
+
 	p, ok := m.mp.(*sdkmetric.MeterProvider)
 	if ok {
-		return p.Shutdown(ctx)
+		shutdownErrors = append(shutdownErrors, p.Shutdown(ctx))
 	}
 
-	return nil
+	if m.lg != nil {
+		shutdownErrors = append(shutdownErrors, m.lg.Shutdown(ctx))
+	}
+
+	return errors.Join(shutdownErrors...)
 }
 
 func createResource(serviceName string, cfg config.Config) (*resource.Resource, error) {
@@ -95,6 +117,7 @@ func (m *MeterManager) Ready() error {
 	}
 
 	otel.SetMeterProvider(m.GetProvider())
+	global.SetLoggerProvider(m.lg)
 
 	if err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(m.cfg.GetOtelMetricExportInterval())); err != nil {
 		return err
