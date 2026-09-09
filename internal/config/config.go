@@ -42,7 +42,7 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
-	GetOtelMetricExportInterval() time.Duration
+	GetOtelExportInterval() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -157,7 +157,7 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 	return "0.0.1"
 }
 
-func (ac ApplicationConfig) GetOtelMetricExportInterval() time.Duration {
+func (ac ApplicationConfig) GetOtelExportInterval() time.Duration {
 	return time.Duration(15) * time.Second
 }
 

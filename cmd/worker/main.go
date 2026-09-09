@@ -31,11 +31,11 @@ func run() error {
 	ctx := context.Background()
 
 	config := config.ApplicationConfig{}
-	logger := logging.New(config)
+	bootstrapLogger := logging.New(config)
 
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, config.GetOtelWorkerName(), config)
+	otelMetricProvider, err := telemetry.NewTelemetryManager(ctx, config.GetOtelWorkerName(), config)
 	if err != nil {
-		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
+		bootstrapLogger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
 	defer func() {
@@ -43,16 +43,18 @@ func run() error {
 		defer cancel()
 
 		if err := otelMetricProvider.Close(cleanupCtx); err != nil {
-			logger.Error("failed to cleanup otel", "error", err)
+			bootstrapLogger.Error("failed to cleanup otel", "error", err)
 		}
 	}()
 	if err := otelMetricProvider.Ready(); err != nil {
-		logger.Error("otel ready failed", "error", err)
+		bootstrapLogger.Error("otel ready failed", "error", err)
 		return err
 	}
+
+	logger := logging.New(config)
 	telemetry.SetLogger(logger)
 
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetMeterProvider())
 	if err != nil {
 		logger.Error("metrics initialization failed", "error", err)
 		return err

@@ -25,31 +25,33 @@ func main() {
 func run() error {
 	ctx := context.Background()
 	appConfig := config.ApplicationConfig{}
-	logger := logging.New(appConfig)
+	bootstrapLogger := logging.New(appConfig)
 
-	telemetry.SetLogger(logger)
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig.GetOtelServiceName(), appConfig)
+	otelMetricProvider, err := telemetry.NewTelemetryManager(ctx, appConfig.GetOtelServiceName(), appConfig)
 	if err != nil {
-		logger.Error("otel initialization failed", "error", err)
+		bootstrapLogger.Error("otel initialization failed", "error", err)
 		return err
 	}
 	if err := otelMetricProvider.Ready(); err != nil {
-		logger.Error("otel ready failed", "error", err)
+		bootstrapLogger.Error("otel ready failed", "error", err)
 		return err
 	}
 
 	defer func() {
 		if err := otelMetricProvider.Close(ctx); err != nil {
-			logger.Error("failed to cleanup otel", "error", err)
+			bootstrapLogger.Error("failed to cleanup otel", "error", err)
 		}
 	}()
 
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetMeterProvider())
 	if err != nil {
-		logger.Error("metrics initialization failed", "error", err)
+		bootstrapLogger.Error("metrics initialization failed", "error", err)
 		return err
 	}
-	logger.Info("telemtry ready", "component", logging.ComponentTelemetry)
+	bootstrapLogger.Info("telemetry ready", "component", logging.ComponentTelemetry)
+
+	logger := logging.New(appConfig)
+	telemetry.SetLogger(logger)
 
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {

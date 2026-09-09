@@ -7,9 +7,20 @@ receivers:
 exporters:
   prometheus:
     endpoint: 0.0.0.0:8889
+  otlphttp/loki:
+    endpoint: http://opentelemetry_loki:3100/otlp
 
 service:
   pipelines:
+
     metrics:
       receivers: [otlp]
       exporters: [prometheus]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki]
+
+processors:
+  batch:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/lmittmann/tint"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 )
 
 type Logger interface {
@@ -60,13 +61,14 @@ type SlogLogger struct {
 }
 
 func New(config config.Config) Logger {
-	return newLogger(os.Stdout, config.GetEnvironment(), config.GetLoggingLevel())
+	return newLogger(os.Stdout, config.GetEnvironment(), config.GetLoggingLevel(), config.GetOtelEnabled())
 }
 
-func newLogger(output io.Writer, environment string, level slog.Level) Logger {
-	var handler slog.Handler
+func newLogger(output io.Writer, environment string, level slog.Level, otelEnabled bool) Logger {
+	handlers := make([]slog.Handler, 0, 2)
+
 	if environment == "production" {
-		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{
+		handlers = append(handlers, slog.NewJSONHandler(output, &slog.HandlerOptions{
 			Level: level,
 			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
 				// Ensure that Production logs always output in UTC time.
@@ -76,11 +78,18 @@ func newLogger(output io.Writer, environment string, level slog.Level) Logger {
 
 				return attr
 			},
-		})
+		}))
+
 	} else {
-		handler = tint.NewTextHandler(output, &tint.Options{Level: level})
+		handlers = append(handlers, tint.NewTextHandler(output, &tint.Options{Level: level}))
 	}
 
+	if otelEnabled {
+		handler := otelslog.NewHandler("github.com/kiran94/openitinerary-batch-processing/internal/logging")
+		handlers = append(handlers, handler)
+	}
+
+	handler := slog.NewMultiHandler(handlers...)
 	return &SlogLogger{logger: slog.New(handler)}
 }
 
