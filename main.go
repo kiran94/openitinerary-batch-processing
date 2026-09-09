@@ -27,7 +27,7 @@ func run() error {
 	appConfig := config.ApplicationConfig{}
 	bootstrapLogger := logging.New(appConfig)
 
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, appConfig.GetOtelServiceName(), appConfig)
+	otelMetricProvider, err := telemetry.NewTelemetryManager(ctx, appConfig.GetOtelServiceName(), appConfig)
 	if err != nil {
 		bootstrapLogger.Error("otel initialization failed", "error", err)
 		return err
@@ -43,7 +43,7 @@ func run() error {
 		}
 	}()
 
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetMeterProvider())
 	if err != nil {
 		bootstrapLogger.Error("metrics initialization failed", "error", err)
 		return err
@@ -55,7 +55,7 @@ func run() error {
 
 	db, err := internal.ConnectDatabase(logger)
 	if err != nil {
-		bootstrapLogger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
+		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
 		return err
 	}
 	logger.Info("database ready", "component", logging.ComponentDatabase)
@@ -69,7 +69,7 @@ func run() error {
 
 	batchQueue, err := queue.NewQueue(ctx, appConfig, logger)
 	if err != nil {
-		bootstrapLogger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		return err
 	}
 	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")

@@ -33,7 +33,7 @@ func run() error {
 	config := config.ApplicationConfig{}
 	bootstrapLogger := logging.New(config)
 
-	otelMetricProvider, err := telemetry.NewMeterManager(ctx, config.GetOtelWorkerName(), config)
+	otelMetricProvider, err := telemetry.NewTelemetryManager(ctx, config.GetOtelWorkerName(), config)
 	if err != nil {
 		bootstrapLogger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
@@ -54,7 +54,7 @@ func run() error {
 	logger := logging.New(config)
 	telemetry.SetLogger(logger)
 
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetProvider())
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetMeterProvider())
 	if err != nil {
 		logger.Error("metrics initialization failed", "error", err)
 		return err

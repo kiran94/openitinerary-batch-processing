@@ -544,7 +544,7 @@ func (m *MockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
 }
 
-func (m *MockConfig) GetOtelMetricExportInterval() time.Duration {
+func (m *MockConfig) GetOtelExportInterval() time.Duration {
 	return m.Called().Get(0).(time.Duration)
 }
 
