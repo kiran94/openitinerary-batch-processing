@@ -10,3 +10,9 @@ datasources:
     type: loki
     access: proxy
     url: http://oibp-loki:3100
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://oibp-tempo:3200
+    uid: tempo
+    editable: true

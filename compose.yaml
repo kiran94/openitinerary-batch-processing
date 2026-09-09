@@ -57,6 +57,16 @@ services:
       - ./infra/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
 
+  opentelemetry_tempo:
+    image: grafana/tempo:3.0.0
+    container_name: oibp-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./infra/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    restart: unless-stopped
 
 
 volumes:
@@ -64,3 +74,4 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  tempo_data:
