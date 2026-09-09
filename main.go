@@ -27,23 +27,23 @@ func run() error {
 	appConfig := config.ApplicationConfig{}
 	bootstrapLogger := logging.New(appConfig)
 
-	otelMetricProvider, err := telemetry.NewTelemetryManager(ctx, appConfig.GetOtelServiceName(), appConfig)
+	telemetryManager, err := telemetry.NewTelemetryManager(ctx, appConfig.GetOtelServiceName(), appConfig)
 	if err != nil {
 		bootstrapLogger.Error("otel initialization failed", "error", err)
 		return err
 	}
-	if err := otelMetricProvider.Ready(); err != nil {
+	if err := telemetryManager.Ready(); err != nil {
 		bootstrapLogger.Error("otel ready failed", "error", err)
 		return err
 	}
 
 	defer func() {
-		if err := otelMetricProvider.Close(ctx); err != nil {
+		if err := telemetryManager.Close(ctx); err != nil {
 			bootstrapLogger.Error("failed to cleanup otel", "error", err)
 		}
 	}()
 
-	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(otelMetricProvider.GetMeterProvider())
+	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(telemetryManager.GetMeterProvider())
 	if err != nil {
 		bootstrapLogger.Error("metrics initialization failed", "error", err)
 		return err
@@ -81,6 +81,7 @@ func run() error {
 		queue:   batchQueue,
 		storage: s3,
 		metrics: serviceMetrics,
+		tracer:  telemetryManager.GetTracerProvider(),
 	}
 
 	mux := http.NewServeMux()

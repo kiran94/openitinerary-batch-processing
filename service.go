@@ -18,6 +18,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ServiceV1 struct {
@@ -27,6 +28,7 @@ type ServiceV1 struct {
 	queue   queue.BatchQueue
 	storage storage.Storage
 	metrics telemetry.ServiceMetrics
+	tracer  trace.TracerProvider
 }
 
 type submitRequest struct {
