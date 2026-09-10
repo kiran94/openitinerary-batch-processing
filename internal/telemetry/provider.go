@@ -177,7 +177,12 @@ func (m *TelemetryManager) Ready() error {
 
 	otel.SetMeterProvider(m.GetMeterProvider())
 	otel.SetTracerProvider(m.tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
 	global.SetLoggerProvider(m.lg)
 
 	// Go runtime memory metrics
