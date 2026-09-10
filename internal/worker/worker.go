@@ -204,7 +204,9 @@ func (w *BatchWorker) updateTicketAndError(
 		span.SetStatus(codes.Error, "")
 	}
 
-	return errors.Join(err, updateErr)
+	err = errors.Join(err, updateErr)
+	span.RecordError(err)
+	return err
 }
 
 var ErrTicketAlreadyComplete = errors.New("ticket already complete")
@@ -378,13 +380,13 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(convertErr, logger)
-		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed, logging.ComponentAdapter, logging.OperationAdapterConvert, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed, logging.ComponentAdapter, logging.OperationAdapterConvert, logger, span)
 	}
 
 	if response == nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("adapter returned a nil response reader")
-		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil, logging.ComponentAdapter, logging.OperationAdapterConvert, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil, logging.ComponentAdapter, logging.OperationAdapterConvert, logger, span)
 	}
 
 	resultOutputPath := w.config.GetOutputPath(w.config.GetBucket(), w.config.GetBucketPath(), ticket.ID.String())
@@ -408,7 +410,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(writeErr, logger)
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed, logging.ComponentStorage, logging.OperationStorageWrite, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed, logging.ComponentStorage, logging.OperationStorageWrite, logger, span)
 	}
 
 	w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
