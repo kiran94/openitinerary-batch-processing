@@ -11,13 +11,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Notifier interface {
 	Notify(ctx context.Context, subject string, destination []string, content *string) error
 }
 
-func NewNotifier(ctx context.Context, cfg config.Config, logger logging.Logger) (Notifier, error) {
+func NewNotifier(ctx context.Context, cfg config.Config, logger logging.Logger, tracer trace.Tracer) (Notifier, error) {
 	c, err := awsConfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -27,7 +30,7 @@ func NewNotifier(ctx context.Context, cfg config.Config, logger logging.Logger) 
 	cfg.GetSESConfigurationSetName()
 
 	client := ses.NewFromConfig(c)
-	return &StatusNotifier{client, cfg, logger}, nil
+	return &StatusNotifier{client, cfg, logger, tracer}, nil
 }
 
 type sesNotifier interface {
@@ -42,14 +45,19 @@ type StatusNotifier struct {
 	client sesNotifier
 	cfg    notificationConfig
 	logger logging.Logger
+	tracer trace.Tracer
 }
 
 var ErrNoDestinationProvided = errors.New("no destination was provided")
 
 func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination []string, content *string) error {
+	ctx, span := n.tracer.Start(ctx, string(telemetry.TracingSpanSendNotification), trace.WithAttributes(attribute.KeyValue{Key: "recipient.count", Value: attribute.IntValue(len(destination))}))
+	defer span.End()
+
 	logger := n.logger.WithContext(ctx)
 
 	if len(destination) == 0 {
+		span.RecordError(ErrNoDestinationProvided)
 		return ErrNoDestinationProvided
 	}
 

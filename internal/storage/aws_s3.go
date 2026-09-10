@@ -13,6 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type TransferClient interface {
@@ -32,11 +35,12 @@ type AWSS3Storage struct {
 	s3Client       S3Client
 	presign        S3Presigner
 	config         config.Config
+	tracer         trace.Tracer
 }
 
 var _ Storage = (*AWSS3Storage)(nil)
 
-func NewAWSS3Storage(ctx context.Context, config config.Config) (*AWSS3Storage, error) {
+func NewAWSS3Storage(ctx context.Context, config config.Config, tracer trace.Tracer) (*AWSS3Storage, error) {
 	uploadConcurrency := config.GetS3UploadConcurrency()
 	sdkConfig, err := awsConfig.LoadDefaultConfig(ctx)
 
@@ -47,7 +51,7 @@ func NewAWSS3Storage(ctx context.Context, config config.Config) (*AWSS3Storage, 
 	s3Client := s3.NewFromConfig(sdkConfig)
 	psc := s3.NewPresignClient(s3Client)
 	transferClient := transfermanager.New(s3Client, configureTransferManager(uploadConcurrency))
-	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client, presign: psc, config: config}, nil
+	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client, presign: psc, config: config, tracer: tracer}, nil
 }
 
 func configureTransferManager(uploadConcurrency int) func(*transfermanager.Options) {
@@ -60,9 +64,12 @@ func configureTransferManager(uploadConcurrency int) func(*transfermanager.Optio
 }
 
 func (a *AWSS3Storage) Write(ctx context.Context, reader io.Reader, output string) error {
+	ctx, span := a.tracer.Start(ctx, string(telemetry.TracingSpanUploadDocument), trace.WithAttributes(attribute.String("output", output)))
+	defer span.End()
 
 	bucket, key, err := a.extractBucketKey(output)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
@@ -73,6 +80,7 @@ func (a *AWSS3Storage) Write(ctx context.Context, reader io.Reader, output strin
 	})
 
 	if uploadErr != nil {
+		span.RecordError(uploadErr)
 		return uploadErr
 	}
 
@@ -80,8 +88,12 @@ func (a *AWSS3Storage) Write(ctx context.Context, reader io.Reader, output strin
 }
 
 func (a *AWSS3Storage) Read(ctx context.Context, input string) (io.ReadCloser, error) {
+	ctx, span := a.tracer.Start(ctx, string(telemetry.TracingSpanReadDocument), trace.WithAttributes(attribute.String("input", input)))
+	defer span.End()
+
 	bucket, key, err := a.extractBucketKey(input)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -91,6 +103,7 @@ func (a *AWSS3Storage) Read(ctx context.Context, input string) (io.ReadCloser, e
 	})
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -98,10 +111,16 @@ func (a *AWSS3Storage) Read(ctx context.Context, input string) (io.ReadCloser, e
 }
 
 func (a *AWSS3Storage) GetLink(ctx context.Context, input string) (string, time.Time, error) {
+	ctx, span := a.tracer.Start(ctx, string(telemetry.TracingSpanCreateResultLink))
+	defer span.End()
+
 	bucket, key, err := a.extractBucketKey(input)
 	if err != nil {
+		span.RecordError(err)
 		return "", time.Time{}, err
 	}
+
+	span.SetAttributes(attribute.String("aws.s3.bucket", bucket), attribute.String("aws.s3.key", key))
 
 	expirationSeconds := a.config.GetS3PresignedExpirationSeconds()
 
@@ -113,10 +132,13 @@ func (a *AWSS3Storage) GetLink(ctx context.Context, input string) (string, time.
 	})
 
 	if err != nil {
+		span.RecordError(err)
 		return "", time.Time{}, err
 	}
 
 	expires := time.Now().UTC().Add(time.Duration(expirationSeconds) * time.Second)
+	span.SetAttributes(attribute.Int64("expires", expires.UnixMicro()))
+
 	return result.URL, expires, nil
 }
 

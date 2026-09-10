@@ -11,7 +11,6 @@ const HeaderRequestID = "X-Request-ID"
 
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		requestID := r.Header.Get(HeaderRequestID)
 		if requestID == "" {
 			id, err := uuid.NewRandom()

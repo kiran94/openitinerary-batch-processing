@@ -50,6 +50,12 @@ func run() error {
 	}
 	bootstrapLogger.Info("telemetry ready", "component", logging.ComponentTelemetry)
 
+	traceProvider := telemetryManager.GetTracerProvider()
+	serviceTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing")
+	storageTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/storage")
+	queueTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/queue")
+	jobTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/job")
+
 	logger := logging.New(appConfig)
 	telemetry.SetLogger(logger)
 
@@ -60,14 +66,14 @@ func run() error {
 	}
 	logger.Info("database ready", "component", logging.ComponentDatabase)
 
-	s3, err := storage.NewAWSS3Storage(ctx, appConfig)
+	s3, err := storage.NewAWSS3Storage(ctx, appConfig, storageTracer)
 	if err != nil {
 		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
 	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
-	batchQueue, err := queue.NewQueue(ctx, appConfig, logger)
+	batchQueue, err := queue.NewQueue(ctx, appConfig, logger, queueTracer)
 	if err != nil {
 		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		return err
@@ -76,12 +82,12 @@ func run() error {
 
 	service := ServiceV1{
 		config:  appConfig,
-		job:     job.NewTicketRepository(db),
+		job:     job.NewTicketRepository(db, jobTracer),
 		logger:  logger,
 		queue:   batchQueue,
 		storage: s3,
 		metrics: serviceMetrics,
-		tracer:  telemetryManager.GetTracerProvider(),
+		tracer:  serviceTracer,
 	}
 
 	mux := http.NewServeMux()

@@ -18,6 +18,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Worker interface {
@@ -36,6 +38,7 @@ type BatchWorker struct {
 	logger   logging.Logger
 	notifier notification.Notifier
 	metrics  telemetry.WorkerMetrics
+	tracer   trace.Tracer
 }
 
 func NewBatchWorker(
@@ -47,7 +50,7 @@ func NewBatchWorker(
 	logger logging.Logger,
 	notifier notification.Notifier,
 	metrics telemetry.WorkerMetrics,
-
+	tracer trace.Tracer,
 ) Worker {
 	return &BatchWorker{
 		id:       uuid.New(),
@@ -59,6 +62,7 @@ func NewBatchWorker(
 		logger:   logger,
 		notifier: notifier,
 		metrics:  metrics,
+		tracer:   tracer,
 	}
 }
 
@@ -67,12 +71,11 @@ func (w *BatchWorker) GetID() string {
 }
 
 func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error) {
-	logger := w.logger.WithContext(ctx)
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanWorkerPolling))
+	defer span.End()
 
-	logger.Info(
-		"worker polling",
-		"component", logging.ComponentWorker,
-	)
+	logger := w.logger.WithContext(ctx)
+	logger.Info("worker polling", "component", logging.ComponentWorker)
 
 	for {
 		select {
@@ -90,6 +93,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 
 		pollingStartedAt := time.Now()
 		dequeueResult, err := w.queue.Dequeue(ctx)
+
 		pollingOutcome := metrics.WorkerPollingOutcomeSuccess
 		if err != nil {
 			if ctx.Err() != nil {
@@ -163,6 +167,7 @@ func (w *BatchWorker) updateTicketAndError(
 	component logging.Component,
 	operation logging.Operation,
 	logger logging.Logger,
+	span trace.Span,
 ) error {
 	logger.Error(
 		"ticket operation failed",
@@ -195,6 +200,8 @@ func (w *BatchWorker) updateTicketAndError(
 			"original_error", err,
 		)
 
+		span.RecordError(updateErr)
+		span.SetStatus(codes.Error, "")
 	}
 
 	return errors.Join(err, updateErr)
@@ -228,8 +235,10 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 }
 
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
-	logger := w.logger.WithContext(ctx)
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob), trace.WithSpanKind(trace.SpanKindConsumer))
+	defer span.End()
 
+	logger := w.logger.WithContext(ctx)
 	logger.Info(
 		"worker started",
 		"component", logging.ComponentWorker,
@@ -261,10 +270,14 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 				"error", deleteMessageErr,
 			)
 			metric.Outcome = metrics.WorkerRunOutcomeFailed
+			span.RecordError(deleteMessageErr)
+			span.SetStatus(codes.Error, "")
 			return errors.Join(err, deleteMessageErr)
 		}
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 
@@ -279,6 +292,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		)
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 
@@ -287,6 +302,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	// So we attempt to delete it again and stop processing here
 	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult, logger); err != nil {
 		if err == ErrTicketAlreadyComplete {
+			span.AddEvent(ErrTicketAlreadyComplete.Error())
 			return nil
 		} else {
 			metric.Outcome = metrics.WorkerRunOutcomeFailed
@@ -323,6 +339,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		)
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 	logger.Debug(
@@ -335,12 +353,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed, logging.ComponentStorage, logging.OperationStorageRead, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed, logging.ComponentStorage, logging.OperationStorageRead, logger, span)
 	}
 	if reader == nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("storage returned a nil document reader")
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil, logging.ComponentStorage, logging.OperationStorageRead, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil, logging.ComponentStorage, logging.OperationStorageRead, logger, span)
 	}
 
 	// Stream from Storage to the Adapter and stream the result from the adapter back to storage
