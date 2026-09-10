@@ -204,9 +204,9 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 		logger.Warn("telemetry headers were not correct", "error", err)
 	} else {
 		remoteCtx := otel.GetTextMapPropagator().Extract(ctx, telemetryCarrier)
-		spanCtx := trace.SpanContextFromContext(ctx)
-		if !spanCtx.IsRemote() {
-			logger.Warn("telemetry headers were not correct", "error", errors.New("span context was not remote"))
+		spanCtx := trace.SpanContextFromContext(remoteCtx)
+		if !spanCtx.IsValid() || !spanCtx.IsRemote() {
+			logger.Warn("telemetry headers were not correct", "error", errors.New("span context was not remote or valid"))
 		} else {
 			ctx = remoteCtx
 		}
