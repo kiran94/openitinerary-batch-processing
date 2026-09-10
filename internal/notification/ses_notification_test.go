@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ func TestStatusNotifierNotifySendsEmailToEachDestination(t *testing.T) {
 		client: client,
 		cfg:    cfg,
 		logger: new(mockLogger),
+		tracer: testutils.NewMockTracer(),
 	}
 	subject := "Processing complete"
 	content := "Your itinerary is ready"
@@ -70,6 +72,7 @@ func TestStatusNotifierNotifySendsEmailToEachDestination(t *testing.T) {
 	err := notifier.Notify(t.Context(), subject, destinations, &content)
 
 	require.NoError(t, err)
+
 	require.Len(t, inputs, 2)
 	for index, input := range inputs {
 		require.NotNil(t, input.Destination)
@@ -85,6 +88,7 @@ func TestStatusNotifierNotifySendsEmailToEachDestination(t *testing.T) {
 
 		assert.Equal(t, "notifications@example.com", *input.Source)
 	}
+
 	client.AssertExpectations(t)
 	cfg.AssertExpectations(t)
 }
@@ -108,6 +112,7 @@ func TestStatusNotifierNotifyContinuesAndJoinsSendErrors(t *testing.T) {
 		client: client,
 		cfg:    cfg,
 		logger: new(mockLogger),
+		tracer: testutils.NewMockTracer(),
 	}
 	content := "Your itinerary could not be processed"
 
@@ -121,8 +126,10 @@ func TestStatusNotifierNotifyContinuesAndJoinsSendErrors(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, firstErr)
 	require.ErrorIs(t, err, secondErr)
+
 	require.ErrorContains(t, err, "f***@example.com")
 	require.ErrorContains(t, err, "s***@example.com")
+
 	client.AssertExpectations(t)
 	cfg.AssertExpectations(t)
 }
@@ -133,6 +140,7 @@ func TestStatusNotifierNotifyWithNoDestinationsDoesNotSend(t *testing.T) {
 		client: client,
 		cfg:    new(mockNotificationConfig),
 		logger: new(mockLogger),
+		tracer: testutils.NewMockTracer(),
 	}
 	content := "Your itinerary is ready"
 

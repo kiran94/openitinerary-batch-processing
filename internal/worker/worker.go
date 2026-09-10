@@ -206,6 +206,7 @@ func (w *BatchWorker) updateTicketAndError(
 
 	err = errors.Join(err, updateErr)
 	span.RecordError(err)
+	span.SetStatus(codes.Error, "")
 	return err
 }
 

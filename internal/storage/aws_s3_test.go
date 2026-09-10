@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	applicationConfig "github.com/kiran94/openitinerary-batch-processing/internal/config"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func newTestStorageConfig() applicationConfig.Config {
 }
 
 func TestNewAWSS3Storage(t *testing.T) {
-	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig())
+	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig(), testutils.NewMockTracer())
 
 	assert.NotNil(t, storage)
 	assert.NoError(t, err)
@@ -65,7 +66,7 @@ func TestAWSS3StorageWriteInvalidS3Address(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			storage, err := NewAWSS3Storage(ctx, newTestStorageConfig())
+			storage, err := NewAWSS3Storage(ctx, newTestStorageConfig(), testutils.NewMockTracer())
 			require.NoError(t, err)
 
 			data := io.NopCloser(strings.NewReader("hello test"))
@@ -91,7 +92,7 @@ func TestGetLinkFailed(t *testing.T) {
 		assert.Equal(t, "world.json", *o.Key)
 	}).Return(nil, expectedErr)
 
-	s, err := NewAWSS3Storage(t.Context(), mockConfig)
+	s, err := NewAWSS3Storage(t.Context(), mockConfig, testutils.NewMockTracer())
 	require.NoError(t, err)
 
 	s.presign = mockPresigner
@@ -120,7 +121,7 @@ func TestGetLinkSuccess(t *testing.T) {
 		assert.Equal(t, time.Hour, presignOptions.Expires)
 	}).Return(&v4.PresignedHTTPRequest{URL: expectedPresignedURL}, nil).Once()
 
-	s, err := NewAWSS3Storage(t.Context(), mockConfig)
+	s, err := NewAWSS3Storage(t.Context(), mockConfig, testutils.NewMockTracer())
 	require.NoError(t, err)
 
 	s.presign = mockPresigner
@@ -182,7 +183,7 @@ func TestAWSS3StorageWriteUploadError(t *testing.T) {
 	s3ClientMock.Test(t)
 	s3ClientMock.On("UploadObject", mock.Anything, mock.Anything, mock.Anything).Return(nil, expectedErr)
 
-	storage, _ := NewAWSS3Storage(t.Context(), newTestStorageConfig())
+	storage, _ := NewAWSS3Storage(t.Context(), newTestStorageConfig(), testutils.NewMockTracer())
 	storage.transferClient = s3ClientMock
 
 	reader := io.NopCloser(strings.NewReader("hello world"))
@@ -204,7 +205,7 @@ func TestAwsS3StorageWriteSuccess(t *testing.T) {
 	s3ClientMock.Test(t)
 	s3ClientMock.On("UploadObject", mock.Anything, uploadObjectInput, mock.Anything).Return(&transfermanager.UploadObjectOutput{}, nil)
 
-	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig())
+	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig(), testutils.NewMockTracer())
 	require.NoError(t, err)
 
 	storage.transferClient = s3ClientMock
@@ -219,7 +220,7 @@ func TestAwsS3StorageWriteDoesNotCloseSource(t *testing.T) {
 	s3ClientMock.Test(t)
 	s3ClientMock.On("UploadObject", mock.Anything, mock.Anything, mock.Anything).Return(&transfermanager.UploadObjectOutput{}, nil)
 
-	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig())
+	storage, err := NewAWSS3Storage(t.Context(), newTestStorageConfig(), testutils.NewMockTracer())
 	require.NoError(t, err)
 	storage.transferClient = s3ClientMock
 
@@ -245,7 +246,7 @@ func TestAwsS3StorageReadBucketInvalid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			storage, err := NewAWSS3Storage(ctx, newTestStorageConfig())
+			storage, err := NewAWSS3Storage(ctx, newTestStorageConfig(), testutils.NewMockTracer())
 			require.NoError(t, err)
 			storage.s3Client = &MockS3Client{}
 
@@ -263,7 +264,7 @@ func TestAwsS3StorageReadBucketGetObjectError(t *testing.T) {
 	mockS3 := &MockS3Client{}
 	mockS3.On("GetObject", mock.Anything, mock.Anything, mock.Anything).Return(nil, expectedErr)
 
-	storage, err := NewAWSS3Storage(ctx, newTestStorageConfig())
+	storage, err := NewAWSS3Storage(ctx, newTestStorageConfig(), testutils.NewMockTracer())
 	require.NoError(t, err)
 	storage.s3Client = mockS3
 
@@ -281,7 +282,7 @@ func TestAwsS3StorageReadBucketGetObjectSuccess(t *testing.T) {
 	mockS3 := &MockS3Client{}
 	mockS3.On("GetObject", mock.Anything, mock.Anything, mock.Anything).Return(&s3.GetObjectOutput{Body: reader}, nil)
 
-	storage, err := NewAWSS3Storage(ctx, newTestStorageConfig())
+	storage, err := NewAWSS3Storage(ctx, newTestStorageConfig(), testutils.NewMockTracer())
 	require.NoError(t, err)
 	storage.s3Client = mockS3
 

@@ -23,6 +23,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -124,7 +125,7 @@ func TestParseNotificationEmails(t *testing.T) {
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", nil)
 			request.Form = url.Values{"notification_emails": []string{test.raw}}
 
-			service := ServiceV1{config: mockConfig}
+			service := ServiceV1{config: mockConfig, tracer: testutils.NewMockTracer()}
 			emails, err := service.parseNotificationEmails(request)
 
 			if test.expectedError != "" {
@@ -164,7 +165,7 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -198,7 +199,7 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 	// Skip adding the content type to make this an invalid multipart form
 	// request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -230,7 +231,7 @@ func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -263,7 +264,7 @@ func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -296,7 +297,7 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", body)
 	request.Header.Set("Content-Type", contentType)
 
-	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: &mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -329,7 +330,7 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -378,6 +379,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 		logger:  &MockLogger{},
 		metrics: mockMetrics,
 		storage: mockStorage,
+		tracer:  testutils.NewMockTracer(),
 	}
 
 	writer := httptest.NewRecorder()
@@ -439,6 +441,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 		logger:  &MockLogger{},
 		metrics: mockMetrics,
 		storage: mockStorage,
+		tracer:  testutils.NewMockTracer(),
 	}
 
 	writer := httptest.NewRecorder()
@@ -537,6 +540,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
+		tracer:  testutils.NewMockTracer(),
 	}
 
 	writer := httptest.NewRecorder()
@@ -609,6 +613,7 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
+		tracer:  testutils.NewMockTracer(),
 	}
 
 	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
@@ -650,7 +655,7 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -687,7 +692,7 @@ func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics}
+	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -714,7 +719,7 @@ func TestServiceStatusInvalidTicket(t *testing.T) {
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			request.SetPathValue("id", tt.inputTicket)
 
-			service := ServiceV1{logger: &MockLogger{}}
+			service := ServiceV1{logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 			service.status(writer, request)
 
 			response := writer.Result()
@@ -756,7 +761,7 @@ func TestServiceStatusTicketLookupFailure(t *testing.T) {
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			request.SetPathValue("id", inputTicket.String())
 
-			service := ServiceV1{job: jobRepo, logger: &MockLogger{}}
+			service := ServiceV1{job: jobRepo, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 			service.status(writer, request)
 
 			response := writer.Result()
@@ -792,7 +797,7 @@ func TestServiceStatusResponseWriteError(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	request.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{job: jobRepo, logger: &MockLogger{}, metrics: serviceMetrics}
+	service := ServiceV1{job: jobRepo, logger: &MockLogger{}, metrics: serviceMetrics, tracer: testutils.NewMockTracer()}
 	service.status(writer, request)
 
 	jobRepo.AssertExpectations(t)
@@ -822,7 +827,7 @@ func TestServiceResultInvalidTicket(t *testing.T) {
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			r.SetPathValue("id", tt.inputTicket)
 
-			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage}
+			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
 			service.result(w, r)
 
 			result := w.Result()
@@ -869,7 +874,7 @@ func TestServiceResultTicketNotFound(t *testing.T) {
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			r.SetPathValue("id", inputTicket.String())
 
-			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage}
+			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
 			service.result(w, r)
 
 			result := w.Result()
@@ -895,7 +900,7 @@ func TestServiceResultTicketNotComplete(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	r.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{job: jobRepo, logger: new(MockLogger), storage: storage}
+	service := ServiceV1{job: jobRepo, logger: new(MockLogger), storage: storage, tracer: testutils.NewMockTracer()}
 	service.result(w, r)
 
 	result := w.Result()
@@ -930,7 +935,7 @@ func TestServiceResultFailedGetLink(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	r.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage}
+	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
 	service.result(w, r)
 
 	result := w.Result()
@@ -965,7 +970,7 @@ func TestServiceGetLinkSuccess(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	r.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage}
+	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
 	service.result(w, r)
 
 	result := w.Result()
@@ -1026,6 +1031,7 @@ func TestServiceResultResponseWriteError(t *testing.T) {
 		logger:  &MockLogger{},
 		metrics: serviceMetrics,
 		storage: storage,
+		tracer:  testutils.NewMockTracer(),
 	}
 	service.result(writer, request)
 
@@ -1061,7 +1067,9 @@ func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
 				ResponseRecorder: responseRecorder,
 				err:              errors.New("response write failed"),
 			}
-			service := ServiceV1{logger: new(MockLogger), metrics: serviceMetrics}
+			service := ServiceV1{logger: new(MockLogger), metrics: serviceMetrics, tracer: testutils.NewMockTracer()}
+			_, span := testutils.NewMockTracer().Start(t.Context(), "write-api-error-test")
+			defer span.End()
 
 			service.writeAPIError(
 				t.Context(),
@@ -1070,10 +1078,12 @@ func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
 				tt.endpoint,
 				http.StatusBadRequest,
 				"bad request",
+				span,
 			)
 
 			assert.Equal(t, http.StatusBadRequest, responseRecorder.Code)
 			assert.Equal(t, "application/json", responseRecorder.Header().Get("Content-Type"))
+
 			serviceMetrics.AssertExpectations(t)
 		})
 	}
@@ -1179,6 +1189,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		metrics: mockMetrics,
 		queue:   mockQueue,
 		storage: mockStorage,
+		tracer:  testutils.NewMockTracer(),
 	}
 
 	body, requestContentType := createTestMultipartFormBuffer(t, test.data, test.contentType)
