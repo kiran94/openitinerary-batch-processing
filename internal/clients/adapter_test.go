@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +69,7 @@ func newAdapterResponseClient(t *testing.T, statusCode int, contentLength int64,
 				}, nil
 			}),
 		},
+		tracer: testutils.NewMockTracer(),
 	}
 }
 
@@ -82,12 +84,14 @@ func newAdapterTestClient(t *testing.T, handler http.HandlerFunc) Adapter {
 		logger:                          &mockLogger{},
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http:                            server.Client(),
+		tracer:                          testutils.NewMockTracer(),
 	}
 }
 
 func TestNewAdapterClient(t *testing.T) {
 	http := &http.Client{}
-	adapter := NewAdapterClient(http, &mockLogger{}, maximumAdapterResponseSizeBytes)
+	mockTracer := testutils.NewMockTracer()
+	adapter := NewAdapterClient(http, &mockLogger{}, mockTracer, maximumAdapterResponseSizeBytes)
 
 	client, ok := adapter.(*AdapterClient)
 
@@ -135,6 +139,7 @@ func TestConvertRequestErrorWithNilResponse(t *testing.T) {
 				return nil, errRequest
 			}),
 		},
+		tracer: testutils.NewMockTracer(),
 	}
 
 	ctx := populateContext(t, context.Background())
@@ -221,6 +226,7 @@ func TestConvertOmitsRequestIDWithoutContextValue(t *testing.T) {
 				}, nil
 			}),
 		},
+		tracer: testutils.NewMockTracer(),
 	}
 
 	response, err := adapter.Convert(
