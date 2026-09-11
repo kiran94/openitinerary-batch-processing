@@ -7,7 +7,6 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 func ConnectDatabase(logger logging.Logger) (*gorm.DB, error) {
