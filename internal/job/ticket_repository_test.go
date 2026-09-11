@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,10 @@ import (
 
 type MockDatabase struct {
 	mock.Mock
+}
+
+func newTestTicketRepository(database Database) TicketRepository {
+	return NewTicketRepository(database, testutils.NewMockTracer())
 }
 
 func (m *MockDatabase) Create(value interface{}) (tx *gorm.DB) {
@@ -36,7 +41,7 @@ func (m *MockDatabase) WithContext(ctx context.Context) *gorm.DB {
 }
 
 func TestNewTicketRepository(t *testing.T) {
-	repository := NewTicketRepository(&MockDatabase{})
+	repository := newTestTicketRepository(&MockDatabase{})
 	require.NotNil(t, repository)
 	assert.Implements(t, (*TicketRepository)(nil), repository)
 }
@@ -44,7 +49,7 @@ func TestNewTicketRepository(t *testing.T) {
 func TestTicketRepositoryCreate(t *testing.T) {
 	db := newInMemoryDatabase(t)
 	ticket := NewTicket()
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 
 	err := repository.Create(t.Context(), ticket)
 
@@ -59,7 +64,7 @@ func TestTicketRepositoryCreateError(t *testing.T) {
 	db := newInMemoryDatabase(t)
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 	ticket := NewTicket()
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 
 	err := repository.Create(t.Context(), ticket)
 
@@ -68,7 +73,7 @@ func TestTicketRepositoryCreateError(t *testing.T) {
 
 func TestTicketRepositoryCreateCanceled(t *testing.T) {
 	db := newInMemoryDatabase(t)
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -90,7 +95,7 @@ func TestTicketRepositoryMarkFailedEnqueueFailed(t *testing.T) {
 	ticket.ID = id
 	require.NoError(t, db.Create(ticket).Error)
 
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
@@ -118,7 +123,7 @@ func TestTicketRepositoryMarkFailedEnqueueFailedStatusChanged(t *testing.T) {
 	ticket.Status = Processing
 	require.NoError(t, db.Create(ticket).Error)
 
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.NoError(t, err)
@@ -138,7 +143,7 @@ func TestTicketRepositoryMarkFailedEnqueueFailedError(t *testing.T) {
 	// Remove the schema to make the conditional update return a database error.
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	updated, err := repository.MarkFailed(t.Context(), id, EnqueueFailed, detail)
 
 	require.Error(t, err)
@@ -151,7 +156,7 @@ func TestTicketRepositoryMarkFailedCanceled(t *testing.T) {
 	ticket := NewTicket()
 	ticket.ID = id
 	require.NoError(t, db.Create(ticket).Error)
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -173,7 +178,7 @@ func TestTicketRepositoryMarkFailedUnsupportedReason(t *testing.T) {
 	reason := TicketStatusReason("unsupported")
 
 	m := MockDatabase{}
-	repository := NewTicketRepository(&m)
+	repository := newTestTicketRepository(&m)
 	updated, err := repository.MarkFailed(t.Context(), id, reason, "simulated")
 
 	require.ErrorIs(t, err, ErrUnsupportedTicketStatusReason)
@@ -202,7 +207,7 @@ func TestTicketRepositoryGetError(t *testing.T) {
 	db := newInMemoryDatabase(t)
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 
 	ticket, err := repository.Get(t.Context(), id)
 
@@ -212,7 +217,7 @@ func TestTicketRepositoryGetError(t *testing.T) {
 
 func TestTicketRepositoryGetRecordNotFound(t *testing.T) {
 	id := uuid.MustParse("e6f26180-9b63-4799-815b-e67b3795bf53")
-	repository := NewTicketRepository(newInMemoryDatabase(t))
+	repository := newTestTicketRepository(newInMemoryDatabase(t))
 
 	ticket, err := repository.Get(t.Context(), id)
 
@@ -227,7 +232,7 @@ func TestTicketRepositoryGet(t *testing.T) {
 	expectedTicket.ID = id
 	expectedTicket.DocumentPath = "example.pdf"
 	require.NoError(t, db.Create(expectedTicket).Error)
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 
 	ticket, err := repository.Get(t.Context(), id)
 
@@ -236,7 +241,7 @@ func TestTicketRepositoryGet(t *testing.T) {
 }
 
 func TestTicketRepositoryGetCanceled(t *testing.T) {
-	repository := NewTicketRepository(newInMemoryDatabase(t))
+	repository := newTestTicketRepository(newInMemoryDatabase(t))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -254,7 +259,7 @@ func TestTicketRepositoryUpdate(t *testing.T) {
 	require.NoError(t, db.Create(ticket).Error)
 
 	ticket.Status = Processing
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	require.NoError(t, repository.Update(t.Context(), ticket))
 
 	var updatedTicket Ticket
@@ -263,7 +268,7 @@ func TestTicketRepositoryUpdate(t *testing.T) {
 }
 
 func TestTicketRepositoryUpdateRecordNotFound(t *testing.T) {
-	repository := NewTicketRepository(newInMemoryDatabase(t))
+	repository := newTestTicketRepository(newInMemoryDatabase(t))
 
 	err := repository.Update(t.Context(), NewTicket())
 
@@ -274,7 +279,7 @@ func TestTicketRepositoryUpdateError(t *testing.T) {
 	db := newInMemoryDatabase(t)
 	require.NoError(t, db.Migrator().DropTable(&Ticket{}))
 
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	err := repository.Update(t.Context(), NewTicket())
 
 	require.Error(t, err)
@@ -286,7 +291,7 @@ func TestTicketRepositoryUpdateCanceled(t *testing.T) {
 	ticket := NewTicket()
 	ticket.ID = id
 	require.NoError(t, db.Create(ticket).Error)
-	repository := NewTicketRepository(db)
+	repository := newTestTicketRepository(db)
 	ticket.Status = Processing
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

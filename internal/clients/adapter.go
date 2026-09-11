@@ -13,6 +13,9 @@ import (
 	"path/filepath"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Adapter interface {
@@ -24,14 +27,16 @@ type AdapterClient struct {
 	maximumAdapterResponseSizeBytes int64
 	http                            *http.Client
 	logger                          logging.Logger
+	tracer                          trace.Tracer
 }
 
-func NewAdapterClient(http *http.Client, logger logging.Logger, maximumAdapterResponseSizeBytes int64) Adapter {
+func NewAdapterClient(http *http.Client, logger logging.Logger, tracer trace.Tracer, maximumAdapterResponseSizeBytes int64) Adapter {
 	return &AdapterClient{
 		adapterAPIURL:                   getAdapterAPIURL(),
 		maximumAdapterResponseSizeBytes: maximumAdapterResponseSizeBytes,
 		http:                            http,
 		logger:                          logger,
+		tracer:                          tracer,
 	}
 }
 
@@ -43,6 +48,14 @@ func NewAdapterClient(http *http.Client, logger logging.Logger, maximumAdapterRe
 //
 // document reader → multipart writer → io.Pipe → HTTP client → Adapter API
 func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filename string, contentType string) (w io.ReadCloser, err error) {
+	ctx, span := a.tracer.Start(
+		ctx,
+		string(telemetry.TracingAdaptDocument),
+		trace.WithAttributes(attribute.String("content_type", contentType)),
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
+	defer span.End()
+
 	logger := a.logger.WithContext(ctx)
 
 	if document == nil {

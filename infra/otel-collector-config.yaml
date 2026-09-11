@@ -9,6 +9,8 @@ exporters:
     endpoint: 0.0.0.0:8889
   otlphttp/loki:
     endpoint: http://opentelemetry_loki:3100/otlp
+  otlphttp/tempo:
+      endpoint: http://opentelemetry_tempo:4318
 
 service:
   pipelines:
@@ -21,6 +23,14 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/loki]
+
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - batch
+      exporters:
+        - otlphttp/tempo
 
 processors:
   batch:

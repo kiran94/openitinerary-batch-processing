@@ -18,6 +18,9 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Worker interface {
@@ -36,6 +39,7 @@ type BatchWorker struct {
 	logger   logging.Logger
 	notifier notification.Notifier
 	metrics  telemetry.WorkerMetrics
+	tracer   trace.Tracer
 }
 
 func NewBatchWorker(
@@ -47,7 +51,7 @@ func NewBatchWorker(
 	logger logging.Logger,
 	notifier notification.Notifier,
 	metrics telemetry.WorkerMetrics,
-
+	tracer trace.Tracer,
 ) Worker {
 	return &BatchWorker{
 		id:       uuid.New(),
@@ -59,6 +63,7 @@ func NewBatchWorker(
 		logger:   logger,
 		notifier: notifier,
 		metrics:  metrics,
+		tracer:   tracer,
 	}
 }
 
@@ -67,12 +72,11 @@ func (w *BatchWorker) GetID() string {
 }
 
 func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error) {
-	logger := w.logger.WithContext(ctx)
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanWorkerPolling))
+	defer span.End()
 
-	logger.Info(
-		"worker polling",
-		"component", logging.ComponentWorker,
-	)
+	logger := w.logger.WithContext(ctx)
+	logger.Info("worker polling", "component", logging.ComponentWorker)
 
 	for {
 		select {
@@ -90,6 +94,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 
 		pollingStartedAt := time.Now()
 		dequeueResult, err := w.queue.Dequeue(ctx)
+
 		pollingOutcome := metrics.WorkerPollingOutcomeSuccess
 		if err != nil {
 			if ctx.Err() != nil {
@@ -163,6 +168,7 @@ func (w *BatchWorker) updateTicketAndError(
 	component logging.Component,
 	operation logging.Operation,
 	logger logging.Logger,
+	span trace.Span,
 ) error {
 	logger.Error(
 		"ticket operation failed",
@@ -195,14 +201,19 @@ func (w *BatchWorker) updateTicketAndError(
 			"original_error", err,
 		)
 
+		span.RecordError(updateErr)
+		span.SetStatus(codes.Error, "")
 	}
 
-	return errors.Join(err, updateErr)
+	err = errors.Join(err, updateErr)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, "")
+	return err
 }
 
 var ErrTicketAlreadyComplete = errors.New("ticket already complete")
 
-func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult, logger logging.Logger) error {
+func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult, logger logging.Logger, span trace.Span) error {
 	if ticket.Status != job.Complete {
 		return nil
 	}
@@ -221,6 +232,9 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 			"operation", logging.OperationDeleteMessage,
 			"error", deleteMessageErr,
 		)
+
+		span.SetStatus(codes.Error, "")
+		span.RecordError(deleteMessageErr)
 		return errors.Join(deleteMessageErr, ErrTicketAlreadyComplete)
 	}
 
@@ -228,11 +242,19 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 }
 
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
-	logger := w.logger.WithContext(ctx)
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob), trace.WithSpanKind(trace.SpanKindConsumer))
+	defer span.End()
 
+	logger := w.logger.WithContext(ctx)
 	logger.Info(
 		"worker started",
 		"component", logging.ComponentWorker,
+	)
+
+	span.SetAttributes(
+		attribute.String("request_id", dequeueResult.Result.RequestID),
+		attribute.String("ticket_id", dequeueResult.Result.TicketID),
+		attribute.String("worker_id", w.id.String()),
 	)
 
 	metric := metrics.WorkerRunObservation{}
@@ -261,10 +283,14 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 				"error", deleteMessageErr,
 			)
 			metric.Outcome = metrics.WorkerRunOutcomeFailed
+			span.RecordError(deleteMessageErr)
+			span.SetStatus(codes.Error, "")
 			return errors.Join(err, deleteMessageErr)
 		}
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 
@@ -279,14 +305,17 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		)
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 
 	// This handles a edge case where in a previous attempt, processing was marked as complete
 	// but the DeleteMessage operation failed.
 	// So we attempt to delete it again and stop processing here
-	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult, logger); err != nil {
+	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult, logger, span); err != nil {
 		if err == ErrTicketAlreadyComplete {
+			span.AddEvent(ErrTicketAlreadyComplete.Error())
 			return nil
 		} else {
 			metric.Outcome = metrics.WorkerRunOutcomeFailed
@@ -323,6 +352,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		)
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "")
 		return err
 	}
 	logger.Debug(
@@ -332,15 +363,17 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"attempt_count", ticket.AttemptCount,
 	)
 
+	span.SetAttributes(attribute.Int("attempt.count", int(ticket.AttemptCount)))
+
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed, logging.ComponentStorage, logging.OperationStorageRead, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadFailed, logging.ComponentStorage, logging.OperationStorageRead, logger, span)
 	}
 	if reader == nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("storage returned a nil document reader")
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil, logging.ComponentStorage, logging.OperationStorageRead, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageReadNil, logging.ComponentStorage, logging.OperationStorageRead, logger, span)
 	}
 
 	// Stream from Storage to the Adapter and stream the result from the adapter back to storage
@@ -360,13 +393,13 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(convertErr, logger)
-		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed, logging.ComponentAdapter, logging.OperationAdapterConvert, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed, logging.ComponentAdapter, logging.OperationAdapterConvert, logger, span)
 	}
 
 	if response == nil {
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := errors.New("adapter returned a nil response reader")
-		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil, logging.ComponentAdapter, logging.OperationAdapterConvert, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.ResponseReaderNil, logging.ComponentAdapter, logging.OperationAdapterConvert, logger, span)
 	}
 
 	resultOutputPath := w.config.GetOutputPath(w.config.GetBucket(), w.config.GetBucketPath(), ticket.ID.String())
@@ -390,7 +423,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
 		err := w.classifyAdapterResponseSizeError(writeErr, logger)
-		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed, logging.ComponentStorage, logging.OperationStorageWrite, logger)
+		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed, logging.ComponentStorage, logging.OperationStorageWrite, logger, span)
 	}
 
 	w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
@@ -413,6 +446,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"error", err,
 		)
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.SetStatus(codes.Error, "")
+		span.RecordError(err)
 		return err
 	}
 	processingOutcome = metrics.WorkerProcessingOutcomeSuccess
@@ -433,6 +468,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"error", deleteMessageErr,
 		)
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.SetStatus(codes.Error, "")
+		span.RecordError(deleteMessageErr)
 		return deleteMessageErr
 	}
 

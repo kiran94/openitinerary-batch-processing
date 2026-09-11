@@ -6,6 +6,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -23,16 +26,21 @@ type Database interface {
 	WithContext(ctx context.Context) *gorm.DB
 }
 
-func NewTicketRepository(db Database) TicketRepository {
-	return &ticketRepository{db}
+func NewTicketRepository(db Database, tracer trace.Tracer) TicketRepository {
+	return &ticketRepository{db, tracer}
 }
 
 type ticketRepository struct {
-	db Database
+	db     Database
+	tracer trace.Tracer
 }
 
 func (r *ticketRepository) Create(ctx context.Context, ticket *Ticket) error {
+	ctx, span := r.tracer.Start(ctx, string(telemetry.TracingSpanCreateTicket))
+	defer span.End()
+
 	if result := r.db.WithContext(ctx).Create(ticket); result.Error != nil {
+		span.RecordError(result.Error)
 		return result.Error
 	}
 
@@ -81,14 +89,19 @@ func (r *ticketRepository) markEnqueueFailed(ctx context.Context, id uuid.UUID, 
 var ErrRecordNotFound = errors.New("record not found")
 
 func (r *ticketRepository) Get(ctx context.Context, id uuid.UUID) (*Ticket, error) {
+	ctx, span := r.tracer.Start(ctx, string(telemetry.TracingSpanGetTicket), trace.WithAttributes(attribute.String("ticket.id", id.String())))
+	defer span.End()
+
 	ticket := &Ticket{}
 
 	result := r.db.WithContext(ctx).Find(ticket, []string{id.String()})
 	if result.Error != nil {
+		span.RecordError(result.Error)
 		return nil, result.Error
 	}
 
 	if result.RowsAffected == 0 {
+		span.AddEvent("ticket not found")
 		return nil, ErrRecordNotFound
 	}
 
@@ -96,12 +109,17 @@ func (r *ticketRepository) Get(ctx context.Context, id uuid.UUID) (*Ticket, erro
 }
 
 func (r *ticketRepository) Update(ctx context.Context, ticket *Ticket) error {
+	ctx, span := r.tracer.Start(ctx, string(telemetry.TracingSpanUpdateTicket), trace.WithAttributes(attribute.String("ticket.id", ticket.ID.String())))
+	defer span.End()
+
 	result := r.db.WithContext(ctx).Model(ticket).Select("*").Updates(ticket)
 	if result.Error != nil {
+		span.RecordError(result.Error)
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
+		span.AddEvent("ticket not found")
 		return ErrRecordNotFound
 	}
 

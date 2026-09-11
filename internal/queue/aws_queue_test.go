@@ -15,6 +15,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestNewQueue(t *testing.T) {
 	mockConfig := MockConfig{}
 	mockConfig.On("GetQueueURL").Return("my_queue")
 
-	queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
+	queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{}, testutils.NewMockTracer())
 
 	require.NoError(t, err)
 	assert.NotNil(t, queue)
@@ -52,7 +53,7 @@ func TestCheckVisibilityTimeout(t *testing.T) {
 			mockConfig.On("GetQueueURL").Return("my_queue").Twice()
 			mockConfig.On("GetWorkerTimeoutSeconds").Return(tt.workerTimeoutSeconds).Once()
 
-			queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{})
+			queue, err := NewQueue(t.Context(), &mockConfig, &MockLogger{}, testutils.NewMockTracer())
 			require.NoError(t, err)
 
 			q, ok := queue.(*Queue)
@@ -104,7 +105,7 @@ func TestEnqueue(t *testing.T) {
 		Return(&sqs.SendMessageOutput{MessageId: new("message-id")}, nil).
 		Once()
 
-	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	err = batchQueue.Enqueue(ctx, ticket)
 
 	require.NoError(t, err)
@@ -136,7 +137,7 @@ func TestEnqueueSendMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	batchQueue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	err := batchQueue.Enqueue(ctx, ticket)
 
 	assert.Equal(t, expectedErr, err)
@@ -182,7 +183,7 @@ func TestDequeue(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	require.NoError(t, err)
@@ -220,7 +221,7 @@ func TestDequeueNilBody(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -259,7 +260,7 @@ func TestDequeueInvalidJSON(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -300,7 +301,7 @@ func TestDequeueNilReceiptHandle(t *testing.T) {
 		}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	require.Error(t, err)
@@ -327,7 +328,7 @@ func TestDequeueReceiveMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	assert.Nil(t, result)
@@ -352,7 +353,7 @@ func TestDequeueEmptyQueue(t *testing.T) {
 		Return(&sqs.ReceiveMessageOutput{}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	result, err := queue.Dequeue(ctx)
 
 	require.NoError(t, err)
@@ -385,7 +386,7 @@ func TestDeleteMessage(t *testing.T) {
 		Return(&sqs.DeleteMessageOutput{}, nil).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	err := queue.DeleteMessage(ctx, queueReference)
 
 	require.NoError(t, err)
@@ -396,7 +397,7 @@ func TestDeleteMessage(t *testing.T) {
 func TestDeleteMessageEmptyQueueReference(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockQueue := new(MockBatchQueue)
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 
 	ctx := t.Context()
 	ctx = logging.WithRequestID(ctx, "request_id")
@@ -425,7 +426,7 @@ func TestDeleteMessageError(t *testing.T) {
 		Return(nil, expectedErr).
 		Once()
 
-	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}}
+	queue := &Queue{Queue: mockQueue, config: mockConfig, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
 	err := queue.DeleteMessage(ctx, queueReference)
 
 	assert.Equal(t, expectedErr, err)

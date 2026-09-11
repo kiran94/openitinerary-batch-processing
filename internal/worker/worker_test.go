@@ -18,9 +18,11 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var errConvert = errors.New("convert failed")
@@ -89,6 +91,7 @@ type workerTestHarness struct {
 	adapter    *MockAdapter
 	notifier   *MockNotifier
 	metrics    *noopWorkerMetrics
+	tracer     *testutils.MockTracer
 	ticket     *job.Ticket
 	delivery   queue.DequeueResult
 }
@@ -109,6 +112,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		adapter:    new(MockAdapter),
 		notifier:   new(MockNotifier),
 		metrics:    new(noopWorkerMetrics),
+		tracer:     testutils.NewMockTracer(),
 		ticket:     ticket,
 		delivery: queue.DequeueResult{
 			Result:         queue.EnqueuePayload{TicketID: ticket.ID.String()},
@@ -125,6 +129,7 @@ func newWorkerTestHarness(t *testing.T) *workerTestHarness {
 		logger:   &MockLogger{},
 		notifier: harness.notifier,
 		metrics:  harness.metrics,
+		tracer:   harness.tracer,
 	}
 
 	t.Cleanup(func() {
@@ -175,6 +180,7 @@ func TestNewBatchWorker(t *testing.T) {
 		&MockLogger{},
 		harness.notifier,
 		harness.metrics,
+		harness.tracer,
 	)
 
 	require.NotNil(t, worker)
@@ -381,6 +387,8 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 	harness := newWorkerTestHarness(t)
 	parentCtx, cancel := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "context-value"))
 	cancel()
+	_, span := harness.tracer.Start(parentCtx, "update-ticket-and-error-test")
+	defer span.End()
 
 	var cleanupErr error
 	var cleanupValue any
@@ -394,8 +402,8 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 			cleanupValue = cleanupCtx.Value(contextKey{})
 			cleanupDeadline, hasCleanupDeadline = cleanupCtx.Deadline()
 		}).
-		Return(nil).
-		Once()
+		Return(nil).Once()
+
 	err := harness.worker.updateTicketAndError(
 		parentCtx,
 		harness.ticket,
@@ -404,16 +412,26 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 		logging.ComponentStorage,
 		logging.OperationStorageRead,
 		&MockLogger{},
+		span,
 	)
 
 	require.ErrorIs(t, parentCtx.Err(), context.Canceled)
 	require.ErrorIs(t, err, errRead)
+
+	mockSpan := span.(*testutils.MockSpan)
+	recordedErrors := mockSpan.RecordedErrors()
+	require.Len(t, recordedErrors, 1)
+	require.ErrorIs(t, recordedErrors[0], errRead)
+	assert.Equal(t, codes.Error, mockSpan.Status())
+
 	require.NoError(t, cleanupErr)
 	assert.Equal(t, "context-value", cleanupValue)
 	require.True(t, hasCleanupDeadline)
+
 	remaining := time.Until(cleanupDeadline)
 	assert.Positive(t, remaining)
 	assert.LessOrEqual(t, remaining, time.Minute)
+
 	harness.notifier.AssertNotCalled(t, "Notify", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
