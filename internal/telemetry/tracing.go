@@ -27,4 +27,5 @@ const (
 	TracingSpanUpdateTicket     TracingSpanName = "update ticket"
 	TracingSpanConvertDocument  TracingSpanName = "convert document"
 	TracingSpanSendNotification TracingSpanName = "send notification"
+	TracingAdaptDocument        TracingSpanName = "adapt document"
 )

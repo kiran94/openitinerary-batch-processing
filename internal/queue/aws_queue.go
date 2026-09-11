@@ -71,7 +71,7 @@ func (q *Queue) Ready(ctx context.Context) error {
 }
 
 func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
-	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanEnqueueJobs), trace.WithAttributes(attribute.String("ticket.id", ticket.ID.String())))
+	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanEnqueueJobs), trace.WithAttributes(attribute.String("ticket.id", ticket.ID.String())), trace.WithSpanKind(trace.SpanKindProducer))
 	defer span.End()
 
 	logger := q.logger.WithContext(ctx)
@@ -163,7 +163,7 @@ func (d DequeueResult) GetTelemetryCarrier() (propagation.MapCarrier, error) {
 }
 
 func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
-	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanDequeueJobs))
+	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanDequeueJobs), trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
 	logger := q.logger.WithContext(ctx)
@@ -251,7 +251,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 }
 
 func (q *Queue) DeleteMessage(ctx context.Context, queueReference string) error {
-	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanDeleteJob))
+	ctx, span := q.tracer.Start(ctx, string(telemetry.TracingSpanDeleteJob), trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
 	if queueReference == "" {

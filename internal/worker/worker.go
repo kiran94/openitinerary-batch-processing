@@ -242,7 +242,7 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 }
 
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
-	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob))
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob), trace.WithSpanKind(trace.SpanKindConsumer))
 	defer span.End()
 
 	logger := w.logger.WithContext(ctx)

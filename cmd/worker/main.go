@@ -70,6 +70,7 @@ func run() error {
 	queueTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/queue")
 	jobTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/job")
 	notificationTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/notification")
+	adapterTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/clients")
 
 	storage, err := storage.NewAWSS3Storage(ctx, config, storageTracer)
 	if err != nil {
@@ -106,7 +107,7 @@ func run() error {
 	ticketRepository := job.NewTicketRepository(db, jobTracer)
 
 	httpClient := &http.Client{Timeout: time.Duration(60) * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
-	adapter := clients.NewAdapterClient(httpClient, logger, config.GetMaximumAdapterResponseSizeBytes())
+	adapter := clients.NewAdapterClient(httpClient, logger, adapterTracer, config.GetMaximumAdapterResponseSizeBytes())
 	defer httpClient.CloseIdleConnections()
 
 	numberWorkers := runtime.NumCPU()
