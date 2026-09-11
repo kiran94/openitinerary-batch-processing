@@ -213,7 +213,7 @@ func (w *BatchWorker) updateTicketAndError(
 
 var ErrTicketAlreadyComplete = errors.New("ticket already complete")
 
-func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult, logger logging.Logger) error {
+func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.Ticket, dr *queue.DequeueResult, logger logging.Logger, span trace.Span) error {
 	if ticket.Status != job.Complete {
 		return nil
 	}
@@ -232,6 +232,9 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 			"operation", logging.OperationDeleteMessage,
 			"error", deleteMessageErr,
 		)
+
+		span.SetStatus(codes.Error, "")
+		span.RecordError(deleteMessageErr)
 		return errors.Join(deleteMessageErr, ErrTicketAlreadyComplete)
 	}
 
@@ -310,7 +313,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	// This handles a edge case where in a previous attempt, processing was marked as complete
 	// but the DeleteMessage operation failed.
 	// So we attempt to delete it again and stop processing here
-	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult, logger); err != nil {
+	if err := w.detectAlreadyCompleteJob(ctx, ticket, &dequeueResult, logger, span); err != nil {
 		if err == ErrTicketAlreadyComplete {
 			span.AddEvent(ErrTicketAlreadyComplete.Error())
 			return nil
@@ -443,6 +446,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"error", err,
 		)
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.SetStatus(codes.Error, "")
+		span.RecordError(err)
 		return err
 	}
 	processingOutcome = metrics.WorkerProcessingOutcomeSuccess
@@ -463,6 +468,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 			"error", deleteMessageErr,
 		)
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
+		span.SetStatus(codes.Error, "")
+		span.RecordError(deleteMessageErr)
 		return deleteMessageErr
 	}
 
