@@ -19,6 +19,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/worker"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -104,7 +105,7 @@ func run() error {
 
 	ticketRepository := job.NewTicketRepository(db, jobTracer)
 
-	httpClient := &http.Client{Timeout: time.Duration(60) * time.Second}
+	httpClient := &http.Client{Timeout: time.Duration(60) * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	adapter := clients.NewAdapterClient(httpClient, logger, config.GetMaximumAdapterResponseSizeBytes())
 	defer httpClient.CloseIdleConnections()
 
