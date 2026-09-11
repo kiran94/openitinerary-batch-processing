@@ -248,6 +248,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"component", logging.ComponentWorker,
 	)
 
+	span.SetAttributes(
+		attribute.String("request_id", dequeueResult.Result.RequestID),
+		attribute.String("ticket_id", dequeueResult.Result.TicketID),
+		attribute.String("worker_id", w.id.String()),
+	)
+
 	metric := metrics.WorkerRunObservation{}
 	defer func() {
 		w.metrics.RecordWorkerRun(ctx, metric)

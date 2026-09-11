@@ -61,7 +61,6 @@ type submitRequestError struct {
 // @Failure      500  {object}  apiError  "Document submission failed"
 // @Router       /api/v1/submit [post]
 func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
-
 	startedAt := time.Now().UTC()
 	defer r.Body.Close()
 
