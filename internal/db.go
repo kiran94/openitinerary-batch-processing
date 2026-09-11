@@ -7,6 +7,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 func ConnectDatabase(logger logging.Logger) (*gorm.DB, error) {
@@ -22,6 +23,10 @@ func ConnectDatabase(logger logging.Logger) (*gorm.DB, error) {
 	}
 
 	if err := db.AutoMigrate(&job.Ticket{}); err != nil {
+		return nil, err
+	}
+
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
 		return nil, err
 	}
 
