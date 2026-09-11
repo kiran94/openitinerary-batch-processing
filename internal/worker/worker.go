@@ -18,6 +18,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -238,7 +239,7 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 }
 
 func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResult) error {
-	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob), trace.WithSpanKind(trace.SpanKindConsumer))
+	ctx, span := w.tracer.Start(ctx, string(telemetry.TracingSpanProcessJob))
 	defer span.End()
 
 	logger := w.logger.WithContext(ctx)
@@ -352,6 +353,8 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		"operation", logging.OperationTicketUpdate,
 		"attempt_count", ticket.AttemptCount,
 	)
+
+	span.SetAttributes(attribute.Int("attempt.count", int(ticket.AttemptCount)))
 
 	reader, err := w.storage.Read(ctx, ticket.DocumentPath)
 	if err != nil {
