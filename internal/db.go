@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"log/slog"
 	"os"
 
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"gorm.io/driver/postgres"
@@ -10,7 +12,7 @@ import (
 	"gorm.io/plugin/opentelemetry/tracing"
 )
 
-func ConnectDatabase(logger logging.Logger) (*gorm.DB, error) {
+func ConnectDatabase(logger logging.Logger, cfg config.Config) (*gorm.DB, error) {
 	DATABASE_DSN := os.Getenv("DATABASE_DSN")
 	if DATABASE_DSN == "" {
 		logger.Warn("database dsn defaulted", "component", logging.ComponentDatabase, "dsn_source", "default")
@@ -26,7 +28,12 @@ func ConnectDatabase(logger logging.Logger) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+	options := []tracing.Option{}
+	if cfg.GetLoggingLevel() == slog.LevelDebug {
+		options = append(options, tracing.WithoutQueryVariables())
+	}
+
+	if err := db.Use(tracing.NewPlugin(options...)); err != nil {
 		return nil, err
 	}
 
