@@ -33,4 +33,7 @@
     "editor.formatOnSave": true,
     "editor.formatOnSaveMode": "file"
   },
+  "[javascript]": {
+    "editor.formatOnSave": true,
+  },
 }
