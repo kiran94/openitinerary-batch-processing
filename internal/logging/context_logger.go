@@ -28,24 +28,24 @@ func newContextLogger(parentLogger Logger, ctx context.Context) Logger {
 	return &contextLogger{logger: parentLogger, contextValues: contextValues}
 }
 
-func (l *contextLogger) Debug(message string, args ...any) {
+func (l *contextLogger) Debug(ctx context.Context, message string, args ...any) {
 	args = append(args, l.contextValues...)
-	l.logger.Debug(message, args...)
+	l.logger.Debug(ctx, message, args...)
 }
 
-func (l *contextLogger) Info(message string, args ...any) {
+func (l *contextLogger) Info(ctx context.Context, message string, args ...any) {
 	args = append(args, l.contextValues...)
-	l.logger.Info(message, args...)
+	l.logger.Info(ctx, message, args...)
 }
 
-func (l *contextLogger) Warn(message string, args ...any) {
+func (l *contextLogger) Warn(ctx context.Context, message string, args ...any) {
 	args = append(args, l.contextValues...)
-	l.logger.Warn(message, args...)
+	l.logger.Warn(ctx, message, args...)
 }
 
-func (l *contextLogger) Error(message string, args ...any) {
+func (l *contextLogger) Error(ctx context.Context, message string, args ...any) {
 	args = append(args, l.contextValues...)
-	l.logger.Error(message, args...)
+	l.logger.Error(ctx, message, args...)
 }
 
 func (l *contextLogger) WithContext(ctx context.Context) Logger {

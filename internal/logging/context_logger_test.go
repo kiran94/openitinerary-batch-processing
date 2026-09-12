@@ -19,7 +19,7 @@ func TestContextLoggerAddsAvailableCorrelationValues(t *testing.T) {
 	ctx = WithTicketID(ctx, "ticket-123")
 	ctx = WithWorkerID(ctx, "worker-123")
 
-	parent.WithContext(ctx).Info("ticket processed")
+	parent.WithContext(ctx).Info(ctx, "ticket processed")
 
 	var entry map[string]any
 	require.NoError(t, json.Unmarshal(output.Bytes(), &entry))
@@ -33,7 +33,7 @@ func TestContextLoggerOmitsMissingCorrelationValues(t *testing.T) {
 	parent := newLogger(&output, "production", slog.LevelDebug, false)
 
 	ctx := WithTicketID(t.Context(), "ticket-123")
-	parent.WithContext(ctx).Info("ticket processed")
+	parent.WithContext(ctx).Info(ctx, "ticket processed")
 
 	var entry map[string]any
 	require.NoError(t, json.Unmarshal(output.Bytes(), &entry))
@@ -47,8 +47,8 @@ func TestContextLoggerDoesNotModifyParentLogger(t *testing.T) {
 	parent := newLogger(&output, "production", slog.LevelDebug, false)
 
 	ctx := WithRequestID(t.Context(), "request-123")
-	parent.WithContext(ctx).Info("child log")
-	parent.Info("parent log")
+	parent.WithContext(ctx).Info(ctx, "child log")
+	parent.Info(ctx, "parent log")
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	require.Len(t, lines, 2)
@@ -68,8 +68,8 @@ func TestContextLoggerRetainsValuesAcrossLogs(t *testing.T) {
 
 	ctx := WithWorkerID(t.Context(), "worker-123")
 	child := parent.WithContext(ctx)
-	child.Info("first log")
-	child.Warn("second log")
+	child.Info(ctx, "first log")
+	child.Warn(ctx, "second log")
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	require.Len(t, lines, 2)
@@ -88,7 +88,7 @@ func TestContextLoggerNestedContextDoesNotDuplicateValues(t *testing.T) {
 	ctx = WithTicketID(ctx, "ticket-123")
 
 	child := parent.WithContext(ctx)
-	child.WithContext(ctx).Info("nested log")
+	child.WithContext(ctx).Info(ctx, "nested log")
 
 	raw := output.String()
 	assert.Equal(t, 1, strings.Count(raw, `"request_id"`))
