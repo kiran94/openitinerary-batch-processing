@@ -16,7 +16,7 @@ func TestNewLoggerUsesJSONInProduction(t *testing.T) {
 	var output bytes.Buffer
 	logger := newLogger(&output, "production", slog.LevelDebug, false)
 
-	logger.Info("processed ticket", "ticket_id", "ticket-123")
+	logger.Info(t.Context(), "processed ticket", "ticket_id", "ticket-123")
 
 	var entry map[string]any
 	require.NoError(t, json.Unmarshal(output.Bytes(), &entry))
@@ -30,7 +30,7 @@ func TestNewLoggerUsesColoredTextOutsideProduction(t *testing.T) {
 	var output bytes.Buffer
 	logger := newLogger(&output, "development", slog.LevelDebug, false)
 
-	logger.Debug("processed ticket", "ticket_id", "ticket-123")
+	logger.Debug(t.Context(), "processed ticket", "ticket_id", "ticket-123")
 
 	outputStr := output.String()
 	assert.Contains(t, outputStr, "\x1b[") // ANSI color code
@@ -45,10 +45,10 @@ func TestSlogLoggerMethodsUseExpectedLevels(t *testing.T) {
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	}
 
-	logger.Debug("debug message")
-	logger.Info("info message")
-	logger.Warn("warn message")
-	logger.Error("error message")
+	logger.Debug(t.Context(), "debug message")
+	logger.Info(t.Context(), "info message")
+	logger.Warn(t.Context(), "warn message")
+	logger.Error(t.Context(), "error message")
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	require.Len(t, lines, 4)

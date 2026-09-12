@@ -12,10 +12,10 @@ import (
 )
 
 type Logger interface {
-	Debug(message string, args ...any)
-	Info(message string, args ...any)
-	Warn(message string, args ...any)
-	Error(message string, args ...any)
+	Debug(ctx context.Context, message string, args ...any)
+	Info(ctx context.Context, message string, args ...any)
+	Warn(ctx context.Context, message string, args ...any)
+	Error(ctx context.Context, message string, args ...any)
 	WithContext(ctx context.Context) Logger
 }
 
@@ -93,20 +93,20 @@ func newLogger(output io.Writer, environment string, level slog.Level, otelEnabl
 	return &SlogLogger{logger: slog.New(handler)}
 }
 
-func (l *SlogLogger) Debug(message string, args ...any) {
-	l.logger.Debug(message, args...)
+func (l *SlogLogger) Debug(ctx context.Context, message string, args ...any) {
+	l.logger.DebugContext(ctx, message, args...)
 }
 
-func (l *SlogLogger) Info(message string, args ...any) {
-	l.logger.Info(message, args...)
+func (l *SlogLogger) Info(ctx context.Context, message string, args ...any) {
+	l.logger.InfoContext(ctx, message, args...)
 }
 
-func (l *SlogLogger) Warn(message string, args ...any) {
-	l.logger.Warn(message, args...)
+func (l *SlogLogger) Warn(ctx context.Context, message string, args ...any) {
+	l.logger.WarnContext(ctx, message, args...)
 }
 
-func (l *SlogLogger) Error(message string, args ...any) {
-	l.logger.Error(message, args...)
+func (l *SlogLogger) Error(ctx context.Context, message string, args ...any) {
+	l.logger.ErrorContext(ctx, message, args...)
 }
 
 func (l *SlogLogger) WithContext(ctx context.Context) Logger {
