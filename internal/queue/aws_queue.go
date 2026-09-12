@@ -13,6 +13,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -56,6 +57,8 @@ func NewQueue(ctx context.Context, c config.Config, logger logging.Logger, trace
 
 	// ensure that the queue URL is present
 	_ = c.GetQueueURL()
+
+	otelaws.AppendMiddlewares(&con.APIOptions)
 
 	client := sqs.NewFromConfig(con)
 	return &Queue{Queue: client, config: c, logger: logger, tracer: tracer}, nil

@@ -59,7 +59,7 @@ func run() error {
 	logger := logging.New(appConfig)
 	telemetry.SetLogger(logger)
 
-	db, err := internal.ConnectDatabase(logger)
+	db, err := internal.ConnectDatabase(logger, appConfig)
 	if err != nil {
 		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
 		return err

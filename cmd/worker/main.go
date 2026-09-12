@@ -79,7 +79,7 @@ func run() error {
 	}
 	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
-	db, err := internal.ConnectDatabase(logger)
+	db, err := internal.ConnectDatabase(logger, config)
 	if err != nil {
 		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
 		return err

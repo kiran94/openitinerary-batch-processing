@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -47,6 +48,8 @@ func NewAWSS3Storage(ctx context.Context, config config.Config, tracer trace.Tra
 	if err != nil {
 		return nil, err
 	}
+
+	otelaws.AppendMiddlewares(&sdkConfig.APIOptions)
 
 	s3Client := s3.NewFromConfig(sdkConfig)
 	psc := s3.NewPresignClient(s3Client)
@@ -119,8 +122,6 @@ func (a *AWSS3Storage) GetLink(ctx context.Context, input string) (string, time.
 		span.RecordError(err)
 		return "", time.Time{}, err
 	}
-
-	span.SetAttributes(attribute.String("aws.s3.bucket", bucket), attribute.String("aws.s3.key", key))
 
 	expirationSeconds := a.config.GetS3PresignedExpirationSeconds()
 
