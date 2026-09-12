@@ -123,8 +123,6 @@ func (a *AWSS3Storage) GetLink(ctx context.Context, input string) (string, time.
 		return "", time.Time{}, err
 	}
 
-	span.SetAttributes(attribute.String("aws.s3.bucket", bucket), attribute.String("aws.s3.key", key))
-
 	expirationSeconds := a.config.GetS3PresignedExpirationSeconds()
 
 	result, err := a.presign.PresignGetObject(ctx, &s3.GetObjectInput{
