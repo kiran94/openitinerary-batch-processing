@@ -157,7 +157,7 @@ func createResource(serviceName string, cfg config.Config) (*resource.Resource, 
 
 func SetLogger(l logging.Logger) {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(cause error) {
-		l.Error(
+		l.Error(context.Background(),
 			"otel error",
 			"component", logging.ComponentTelemetry,
 			"operation", logging.OperationTelemetryError,

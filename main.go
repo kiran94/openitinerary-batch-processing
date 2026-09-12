@@ -29,26 +29,26 @@ func run() error {
 
 	telemetryManager, err := telemetry.NewTelemetryManager(ctx, appConfig.GetOtelServiceName(), appConfig)
 	if err != nil {
-		bootstrapLogger.Error("otel initialization failed", "error", err)
+		bootstrapLogger.Error(ctx, "otel initialization failed", "error", err)
 		return err
 	}
 	if err := telemetryManager.Ready(); err != nil {
-		bootstrapLogger.Error("otel ready failed", "error", err)
+		bootstrapLogger.Error(ctx, "otel ready failed", "error", err)
 		return err
 	}
 
 	defer func() {
 		if err := telemetryManager.Close(ctx); err != nil {
-			bootstrapLogger.Error("failed to cleanup otel", "error", err)
+			bootstrapLogger.Error(ctx, "failed to cleanup otel", "error", err)
 		}
 	}()
 
 	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(telemetryManager.GetMeterProvider())
 	if err != nil {
-		bootstrapLogger.Error("metrics initialization failed", "error", err)
+		bootstrapLogger.Error(ctx, "metrics initialization failed", "error", err)
 		return err
 	}
-	bootstrapLogger.Info("telemetry ready", "component", logging.ComponentTelemetry)
+	bootstrapLogger.Info(ctx, "telemetry ready", "component", logging.ComponentTelemetry)
 
 	traceProvider := telemetryManager.GetTracerProvider()
 	serviceTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing")
@@ -59,26 +59,26 @@ func run() error {
 	logger := logging.New(appConfig)
 	telemetry.SetLogger(logger)
 
-	db, err := internal.ConnectDatabase(logger, appConfig)
+	db, err := internal.ConnectDatabase(ctx, logger, appConfig)
 	if err != nil {
-		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
+		logger.Error(ctx, "database initialization failed", "component", logging.ComponentDatabase, "error", err)
 		return err
 	}
-	logger.Info("database ready", "component", logging.ComponentDatabase)
+	logger.Info(ctx, "database ready", "component", logging.ComponentDatabase)
 
 	s3, err := storage.NewAWSS3Storage(ctx, appConfig, storageTracer)
 	if err != nil {
-		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
+		logger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
-	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
+	logger.Info(ctx, "storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
 	batchQueue, err := queue.NewQueue(ctx, appConfig, logger, queueTracer)
 	if err != nil {
-		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error(ctx, "queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		return err
 	}
-	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
+	logger.Info(ctx, "queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
 	service := ServiceV1{
 		config:  appConfig,
@@ -106,7 +106,7 @@ func run() error {
 		IdleTimeout:  service.config.GetServerIdleTimeout(),
 	}
 
-	logger.Info(
+	logger.Info(ctx,
 		"server listening",
 		"component", logging.ComponentHTTP,
 		"listen_addr", server.Addr,
@@ -116,10 +116,10 @@ func run() error {
 		"idle_timeout", server.IdleTimeout.String(),
 	)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
+		logger.Error(ctx, "server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
 		return err
 	}
 
-	logger.Info("server stopped", "component", logging.ComponentHTTP)
+	logger.Info(ctx, "server stopped", "component", logging.ComponentHTTP)
 	return nil
 }

@@ -91,7 +91,7 @@ func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination
 			continue
 		}
 
-		logger.Debug(
+		logger.Debug(ctx,
 			"successfully sent email",
 			"component", logging.ComponentNotifier,
 			"operation", logging.OperationNotificationSend,

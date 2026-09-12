@@ -601,12 +601,12 @@ func (m *MockBatchQueue) GetQueueAttributes(ctx context.Context, params *sqs.Get
 
 type MockLogger struct{}
 
-func (m *MockLogger) Debug(message string, args ...any) {}
+func (m *MockLogger) Debug(context.Context, string, ...any) {}
 
-func (m *MockLogger) Info(message string, args ...any) {}
+func (m *MockLogger) Info(context.Context, string, ...any) {}
 
-func (m *MockLogger) Warn(message string, args ...any) {}
+func (m *MockLogger) Warn(context.Context, string, ...any) {}
 
-func (m *MockLogger) Error(message string, args ...any) {}
+func (m *MockLogger) Error(context.Context, string, ...any) {}
 
 func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }

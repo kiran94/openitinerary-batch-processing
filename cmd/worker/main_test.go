@@ -122,10 +122,10 @@ func TestStartWorkReturnsDeadlineExceededBeforePickingUpDelivery(t *testing.T) {
 
 type mockLogger struct{}
 
-func (*mockLogger) Debug(string, ...any)                         {}
-func (*mockLogger) Info(string, ...any)                          {}
-func (*mockLogger) Warn(string, ...any)                          {}
-func (*mockLogger) Error(string, ...any)                         {}
+func (*mockLogger) Debug(context.Context, string, ...any)        {}
+func (*mockLogger) Info(context.Context, string, ...any)         {}
+func (*mockLogger) Warn(context.Context, string, ...any)         {}
+func (*mockLogger) Error(context.Context, string, ...any)        {}
 func (m *mockLogger) WithContext(context.Context) logging.Logger { return m }
 
 var (

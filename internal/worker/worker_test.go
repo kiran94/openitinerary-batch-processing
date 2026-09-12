@@ -954,10 +954,10 @@ func (m *MockAdapter) Convert(
 
 type MockLogger struct{}
 
-func (*MockLogger) Debug(string, ...any)                         {}
-func (*MockLogger) Info(string, ...any)                          {}
-func (*MockLogger) Warn(string, ...any)                          {}
-func (*MockLogger) Error(string, ...any)                         {}
+func (*MockLogger) Debug(context.Context, string, ...any)        {}
+func (*MockLogger) Info(context.Context, string, ...any)         {}
+func (*MockLogger) Warn(context.Context, string, ...any)         {}
+func (*MockLogger) Error(context.Context, string, ...any)        {}
 func (m *MockLogger) WithContext(context.Context) logging.Logger { return m }
 
 type MockNotifier struct {

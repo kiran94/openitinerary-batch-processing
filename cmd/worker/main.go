@@ -38,7 +38,7 @@ func run() error {
 
 	telemetryManager, err := telemetry.NewTelemetryManager(ctx, config.GetOtelWorkerName(), config)
 	if err != nil {
-		bootstrapLogger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
+		bootstrapLogger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
 	defer func() {
@@ -46,11 +46,11 @@ func run() error {
 		defer cancel()
 
 		if err := telemetryManager.Close(cleanupCtx); err != nil {
-			bootstrapLogger.Error("failed to cleanup otel", "error", err)
+			bootstrapLogger.Error(cleanupCtx, "failed to cleanup otel", "error", err)
 		}
 	}()
 	if err := telemetryManager.Ready(); err != nil {
-		bootstrapLogger.Error("otel ready failed", "error", err)
+		bootstrapLogger.Error(ctx, "otel ready failed", "error", err)
 		return err
 	}
 
@@ -59,10 +59,10 @@ func run() error {
 
 	applicationMetrics, err := telemetry.NewApplicationOtelMetrics(telemetryManager.GetMeterProvider())
 	if err != nil {
-		logger.Error("metrics initialization failed", "error", err)
+		logger.Error(ctx, "metrics initialization failed", "error", err)
 		return err
 	}
-	logger.Info("telemtry ready", "component", logging.ComponentTelemetry)
+	logger.Info(ctx, "telemtry ready", "component", logging.ComponentTelemetry)
 
 	traceProvider := telemetryManager.GetTracerProvider()
 	workerTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/cmd/worker")
@@ -74,35 +74,35 @@ func run() error {
 
 	storage, err := storage.NewAWSS3Storage(ctx, config, storageTracer)
 	if err != nil {
-		logger.Error("storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
+		logger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
-	logger.Info("storage ready", "component", logging.ComponentStorage, "backend", "s3")
+	logger.Info(ctx, "storage ready", "component", logging.ComponentStorage, "backend", "s3")
 
-	db, err := internal.ConnectDatabase(logger, config)
+	db, err := internal.ConnectDatabase(ctx, logger, config)
 	if err != nil {
-		logger.Error("database initialization failed", "component", logging.ComponentDatabase, "error", err)
+		logger.Error(ctx, "database initialization failed", "component", logging.ComponentDatabase, "error", err)
 		return err
 	}
-	logger.Info("database ready", "component", logging.ComponentDatabase)
+	logger.Info(ctx, "database ready", "component", logging.ComponentDatabase)
 
 	queueService, err := queue.NewQueue(ctx, config, logger, queueTracer)
 	if err != nil {
-		logger.Error("queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error(ctx, "queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		return err
 	}
 	if err = queueService.Ready(ctx); err != nil {
-		logger.Error("queue readiness check failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error(ctx, "queue readiness check failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
 		return err
 	}
-	logger.Info("queue ready", "component", logging.ComponentQueue, "backend", "sqs")
+	logger.Info(ctx, "queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
 	notifier, err := notification.NewNotifier(ctx, config, logger, notificationTracer)
 	if err != nil {
-		logger.Error("notifier readiness check failed", "component", logging.ComponentNotifier, "backend", "ses", "error", err)
+		logger.Error(ctx, "notifier readiness check failed", "component", logging.ComponentNotifier, "backend", "ses", "error", err)
 		return err
 	}
-	logger.Info("notifier ready", "component", logging.ComponentNotifier, "backend", "ses")
+	logger.Info(ctx, "notifier ready", "component", logging.ComponentNotifier, "backend", "ses")
 
 	ticketRepository := job.NewTicketRepository(db, jobTracer)
 
@@ -114,7 +114,7 @@ func run() error {
 	wg := &sync.WaitGroup{}
 
 	workerErrors := make([]error, numberWorkers)
-	logger.Info(
+	logger.Info(ctx,
 		"worker pool starting",
 		"component", logging.ComponentWorker,
 		"worker_count", numberWorkers,
@@ -151,7 +151,7 @@ func run() error {
 
 	err = errors.Join(workerErrors...)
 	if err != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"worker pool failed",
 			"component", logging.ComponentWorker,
 			"worker_count", numberWorkers,
@@ -160,7 +160,7 @@ func run() error {
 		return err
 	}
 
-	logger.Info("worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
+	logger.Info(ctx, "worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
 	return nil
 }
 
@@ -173,7 +173,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	logger := l.WithContext(ctx)
 
 	defer func() {
-		logger.Info(
+		logger.Info(ctx,
 			"worker completed",
 			"component", logging.ComponentWorker,
 			"polling_duration_ms", wr.GetPollingDurationMs(),
@@ -187,7 +187,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	dequeueResult, err := w.Polling(ctx)
 	wr.MarkPollingTime()
 	if err != nil {
-		logger.Debug(
+		logger.Debug(ctx,
 			"worker returned error during polling",
 			"component", logging.ComponentWorker,
 			"error", err,
@@ -203,12 +203,12 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	logger = logger.WithContext(ctx)
 
 	if telemetryCarrier, err := dequeueResult.GetTelemetryCarrier(); err != nil {
-		logger.Warn("telemetry headers were not correct", "error", err)
+		logger.Warn(ctx, "telemetry headers were not correct", "error", err)
 	} else {
 		remoteCtx := otel.GetTextMapPropagator().Extract(ctx, telemetryCarrier)
 		spanCtx := trace.SpanContextFromContext(remoteCtx)
 		if !spanCtx.IsValid() || !spanCtx.IsRemote() {
-			logger.Warn("telemetry headers were not correct", "error", errors.New("span context was not remote or valid"))
+			logger.Warn(ctx, "telemetry headers were not correct", "error", errors.New("span context was not remote or valid"))
 		} else {
 			ctx = remoteCtx
 		}
@@ -217,7 +217,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	err = w.Start(ctx, *dequeueResult)
 	wr.MarkProcessingTime()
 	if err != nil {
-		logger.Debug(
+		logger.Debug(ctx,
 			"worker returned error during processing",
 			"component", logging.ComponentWorker,
 			"error", err,

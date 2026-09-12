@@ -85,7 +85,7 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 		uploadDone <- uploadErr
 	}()
 
-	logger.Debug(
+	logger.Debug(ctx,
 		"calling adapter api",
 		"component", logging.ComponentAdapter,
 		"operation", logging.OperationAdapterConvert,
