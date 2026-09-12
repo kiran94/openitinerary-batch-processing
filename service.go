@@ -76,7 +76,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 		err := r.MultipartForm.RemoveAll()
 		if err != nil {
-			logger.Warn("multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", logging.OperationMultipartCleanup, "error", err)
+			logger.Warn(ctx, "multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", logging.OperationMultipartCleanup, "error", err)
 		}
 	}()
 
@@ -214,7 +214,7 @@ func (s *ServiceV1) storeAndEnqueue(
 			ContentType: &request.metricContentType,
 			InputBytes:  &inputBytes,
 		})
-		logger.Error("document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", request.contentType, "error", err)
+		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", request.contentType, "error", err)
 		return err
 	}
 	s.metrics.RecordStorageUpload(
@@ -223,7 +223,7 @@ func (s *ServiceV1) storeAndEnqueue(
 	)
 
 	if err := s.job.Create(ctx, ticket); err != nil {
-		logger.Error("ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
+		logger.Error(ctx, "ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
@@ -246,14 +246,14 @@ func (s *ServiceV1) storeAndEnqueue(
 		updated, updateErr := s.job.MarkFailed(ctx, ticket.ID, job.EnqueueFailed, detail)
 		if updateErr != nil {
 			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr)
-			logger.Error("ticket failure update failed", commonUpdateErrLoggingFields...)
+			logger.Error(ctx, "ticket failure update failed", commonUpdateErrLoggingFields...)
 		} else if !updated {
-			logger.Warn("ticket failure update skipped", commonUpdateErrLoggingFields...)
+			logger.Warn(ctx, "ticket failure update skipped", commonUpdateErrLoggingFields...)
 		} else {
-			logger.Info("ticket marked failed", commonUpdateErrLoggingFields...)
+			logger.Info(ctx, "ticket marked failed", commonUpdateErrLoggingFields...)
 		}
 
-		logger.Error("queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
+		logger.Error(ctx, "queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
@@ -290,7 +290,7 @@ func (s *ServiceV1) writeSubmitResponse(
 	responseBody, err := json.Marshal(ticket)
 	inputBytes := request.fileHeader.Size
 	if err != nil {
-		logger.Error("submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
@@ -313,7 +313,7 @@ func (s *ServiceV1) writeSubmitResponse(
 	w.WriteHeader(http.StatusAccepted)
 
 	if _, err := w.Write(responseBody); err != nil {
-		logger.Warn(
+		logger.Warn(ctx,
 			"response write failed",
 			"component", logging.ComponentHTTP,
 			"status_code", http.StatusAccepted,
@@ -325,7 +325,7 @@ func (s *ServiceV1) writeSubmitResponse(
 		return
 	}
 
-	logger.Info(
+	logger.Info(ctx,
 		"submit accepted",
 		"content_type", request.contentType,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
@@ -402,7 +402,7 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusNotFound, "ticket was not found", span)
 		} else {
-			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
 			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
 		}
 		return
@@ -410,14 +410,14 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		logger.Error("ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(responseBody); err != nil {
-		logger.Warn("response write failed", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
+		logger.Warn(ctx, "response write failed", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: metrics.EndpointStatus})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
@@ -469,7 +469,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusNotFound, "ticket was not found", span)
 		} else {
-			logger.Error("ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
 			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		}
 		return
@@ -484,7 +484,7 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	link, expiration, err := s.storage.GetLink(ctx, outputPath)
 	if err != nil {
-		logger.Error("failed to generate presigned link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
+		logger.Error(ctx, "failed to generate presigned link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		return
 	}
@@ -496,14 +496,14 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	b, err := json.Marshal(result)
 	if err != nil {
-		logger.Error("failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(b); err != nil {
-		logger.Error("failed to write response", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
+		logger.Error(ctx, "failed to write response", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: metrics.EndpointResults})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
@@ -539,7 +539,7 @@ func (s *ServiceV1) writeAPIError(
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: endpoint})
 		span.SetStatus(codes.Error, "failed to serialise api error to json")
 		span.RecordError(err)
-		logger.Warn(
+		logger.Warn(ctx,
 			"error response write failed",
 			"component", logging.ComponentHTTP,
 			"status_code", statusCode,

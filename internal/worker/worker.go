@@ -76,12 +76,12 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 	defer span.End()
 
 	logger := w.logger.WithContext(ctx)
-	logger.Info("worker polling", "component", logging.ComponentWorker)
+	logger.Info(ctx, "worker polling", "component", logging.ComponentWorker)
 
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug(
+			logger.Debug(ctx,
 				"worker polling stopped",
 				"component", logging.ComponentWorker,
 				"error", ctx.Err(),
@@ -109,7 +109,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 		})
 
 		if dequeueResult == nil && err == nil {
-			logger.Debug(
+			logger.Debug(ctx,
 				"queue was empty",
 				"component", logging.ComponentQueue,
 			)
@@ -118,7 +118,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 
 		if err != nil {
 			if ctx.Err() != nil {
-				logger.Debug(
+				logger.Debug(ctx,
 					"worker polling stopped",
 					"component", logging.ComponentWorker,
 					"error", ctx.Err(),
@@ -131,7 +131,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 				// We will attempt to delete it to stop it from reprocessing
 				if dequeueResult.QueueReference != nil {
 					if err := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference); err != nil {
-						logger.Error(
+						logger.Error(ctx,
 							"invalid queue message deletion failed",
 							"component", logging.ComponentQueue,
 							"error", err,
@@ -142,7 +142,7 @@ func (w *BatchWorker) Polling(ctx context.Context) (*queue.DequeueResult, error)
 				continue
 			}
 
-			logger.Error(
+			logger.Error(ctx,
 				"queue dequeue failed",
 				"component", logging.ComponentQueue,
 				"operation", logging.OperationDequeue,
@@ -170,7 +170,7 @@ func (w *BatchWorker) updateTicketAndError(
 	logger logging.Logger,
 	span trace.Span,
 ) error {
-	logger.Error(
+	logger.Error(ctx,
 		"ticket operation failed",
 		"component", component,
 		"operation", operation,
@@ -192,7 +192,7 @@ func (w *BatchWorker) updateTicketAndError(
 	ticket.UpdateStatus(job.Failed, &tsr, err)
 	updateErr := w.job.Update(cleanupCtx, ticket)
 	if updateErr != nil {
-		logger.Error(
+		logger.Error(cleanupCtx,
 			"ticket failure status update failed",
 			"component", logging.ComponentDatabase,
 			"operation", logging.OperationTicketUpdate,
@@ -218,7 +218,7 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 		return nil
 	}
 
-	logger.Warn(
+	logger.Warn(ctx,
 		"completed ticket was received again",
 		"component", logging.ComponentWorker,
 		"operation", logging.OperationDuplicateDelivery,
@@ -226,7 +226,7 @@ func (w *BatchWorker) detectAlreadyCompleteJob(ctx context.Context, ticket *job.
 
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dr.QueueReference)
 	if deleteMessageErr != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"completed ticket message deletion failed",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDeleteMessage,
@@ -246,7 +246,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	defer span.End()
 
 	logger := w.logger.WithContext(ctx)
-	logger.Info(
+	logger.Info(ctx,
 		"worker started",
 		"component", logging.ComponentWorker,
 	)
@@ -266,7 +266,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	parsedID, err := uuid.Parse(ticketID)
 	if err != nil {
-		logger.Warn(
+		logger.Warn(ctx,
 			"queue message contained an invalid ticket ID",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDequeue,
@@ -276,7 +276,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		// If the Ticket ID pushed into the queue is not a valid then it suggests a corrupt message
 		// We should log and delete the message from the queue to ensure that it does not repeatedly retry
 		if deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference); deleteMessageErr != nil {
-			logger.Error(
+			logger.Error(ctx,
 				"invalid ticket message deletion failed",
 				"component", logging.ComponentQueue,
 				"operation", logging.OperationDeleteMessage,
@@ -297,7 +297,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	// Get the Ticket for that Job Database
 	ticket, err := w.job.Get(ctx, parsedID)
 	if err != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"ticket lookup failed",
 			"component", logging.ComponentDatabase,
 			"operation", logging.OperationTicketLookup,
@@ -343,7 +343,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	ticket.UpdateStatus(job.Processing, nil, nil)
 	ticket.AttemptCount++
 	if err := w.job.Update(ctx, ticket); err != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"ticket processing status update failed",
 			"component", logging.ComponentDatabase,
 			"operation", logging.OperationTicketUpdate,
@@ -356,7 +356,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		span.SetStatus(codes.Error, "")
 		return err
 	}
-	logger.Debug(
+	logger.Debug(ctx,
 		"ticket marked for processing",
 		"component", logging.ComponentDatabase,
 		"operation", logging.OperationTicketUpdate,
@@ -387,12 +387,12 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		Duration: time.Since(conversionStartedAt),
 		Outcome:  conversionOutcome,
 	})
-	w.closeStream(reader, "source_document", logger)
+	w.closeStream(ctx, reader, "source_document", logger)
 	if convertErr != nil {
-		w.closeStream(response, "adapter_response", logger)
+		w.closeStream(ctx, response, "adapter_response", logger)
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
-		err := w.classifyAdapterResponseSizeError(convertErr, logger)
+		err := w.classifyAdapterResponseSizeError(ctx, convertErr, logger)
 		return w.updateTicketAndError(ctx, ticket, err, job.ConvertFailed, logging.ComponentAdapter, logging.OperationAdapterConvert, logger, span)
 	}
 
@@ -403,7 +403,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	}
 
 	resultOutputPath := w.config.GetOutputPath(w.config.GetBucket(), w.config.GetBucketPath(), ticket.ID.String())
-	logger.Debug(
+	logger.Debug(ctx,
 		"writing processed ticket output",
 		"component", logging.ComponentStorage,
 		"operation", logging.OperationStorageWrite,
@@ -413,7 +413,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	storageUploadStartedAt := time.Now()
 	countedResponse := &byteCountingReadCloser{ReadCloser: response}
 	writeErr := w.storage.Write(ctx, countedResponse, resultOutputPath)
-	w.closeStream(response, "adapter_response", logger)
+	w.closeStream(ctx, response, "adapter_response", logger)
 	if writeErr != nil {
 		w.metrics.RecordStorageUpload(ctx, metrics.StorageUploadObservation{
 			Duration: time.Since(storageUploadStartedAt),
@@ -422,7 +422,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 		})
 
 		metric.Outcome = metrics.WorkerRunOutcomeFailed
-		err := w.classifyAdapterResponseSizeError(writeErr, logger)
+		err := w.classifyAdapterResponseSizeError(ctx, writeErr, logger)
 		return w.updateTicketAndError(ctx, ticket, err, job.StorageWriteFailed, logging.ComponentStorage, logging.OperationStorageWrite, logger, span)
 	}
 
@@ -439,7 +439,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	// Mark the Ticket Status
 	ticket.UpdateStatus(job.Complete, nil, nil)
 	if err := w.job.Update(ctx, ticket); err != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"ticket completion status update failed",
 			"component", logging.ComponentDatabase,
 			"operation", logging.OperationTicketUpdate,
@@ -461,7 +461,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 
 	deleteMessageErr := w.queue.DeleteMessage(ctx, *dequeueResult.QueueReference)
 	if deleteMessageErr != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"processed ticket message deletion failed",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDeleteMessage,
@@ -476,10 +476,10 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	// Notify User
 	notificationContent := fmt.Sprintf("Successfully processed ticket %v", ticket.ID)
 	if err := w.notifier.Notify(ctx, "Processing Success", ticket.NotificationEmails, &notificationContent); err != nil {
-		logger.Warn("issue notifying", "component", logging.ComponentNotifier, "operation", logging.OperationNotificationSend, "error", err)
+		logger.Warn(ctx, "issue notifying", "component", logging.ComponentNotifier, "operation", logging.OperationNotificationSend, "error", err)
 	}
 
-	logger.Info(
+	logger.Info(ctx,
 		"ticket processed successfully",
 		"component", logging.ComponentWorker,
 		"attempt_count", ticket.AttemptCount,
@@ -489,13 +489,13 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	return nil
 }
 
-func (w *BatchWorker) classifyAdapterResponseSizeError(err error, logger logging.Logger) error {
+func (w *BatchWorker) classifyAdapterResponseSizeError(ctx context.Context, err error, logger logging.Logger) error {
 	var maxBytesErr *http.MaxBytesError
 	if !errors.As(err, &maxBytesErr) {
 		return err
 	}
 
-	logger.Error(
+	logger.Error(ctx,
 		"adapter response exceeded maximum size",
 		"component", logging.ComponentAdapter,
 		"operation", logging.OperationAdapterConvert,
@@ -523,9 +523,9 @@ func (r *byteCountingReadCloser) BytesRead() int64 {
 	return r.bytesRead
 }
 
-func (w *BatchWorker) closeStream(stream io.Closer, streamName string, logger logging.Logger) {
+func (w *BatchWorker) closeStream(ctx context.Context, stream io.Closer, streamName string, logger logging.Logger) {
 	if stream == nil {
-		logger.Debug(
+		logger.Debug(ctx,
 			"nil stream was provided for closing",
 			"component", logging.ComponentWorker,
 			"stream", streamName,
@@ -534,7 +534,7 @@ func (w *BatchWorker) closeStream(stream io.Closer, streamName string, logger lo
 	}
 
 	if err := stream.Close(); err != nil {
-		logger.Warn(
+		logger.Warn(ctx,
 			"worker stream close failed",
 			"component", logging.ComponentWorker,
 			"stream", streamName,

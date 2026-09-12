@@ -105,7 +105,7 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 		return err
 	}
 
-	logger.Debug(
+	logger.Debug(ctx,
 		"queue enqueue succeeded",
 		"component", logging.ComponentQueue,
 		"operation", logging.OperationEnqueue,
@@ -191,7 +191,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	message := result.Messages[0]
 	if message.ReceiptHandle == nil {
 		err := errors.New("receipt handle was nil")
-		logger.Error(
+		logger.Error(ctx,
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDequeue,
@@ -213,7 +213,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 
 	if message.Body == nil {
 		err := errors.New("message body was nil")
-		logger.Error(
+		logger.Error(ctx,
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDequeue,
@@ -238,7 +238,7 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	}
 
 	if err := json.Unmarshal([]byte(*message.Body), &dequeueResult.Result); err != nil {
-		logger.Error(
+		logger.Error(ctx,
 			"queue message invalid",
 			"component", logging.ComponentQueue,
 			"operation", logging.OperationDequeue,
