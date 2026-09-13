@@ -32,6 +32,10 @@ const (
 	ComponentTelemetry Component = "telemetry"
 )
 
+func (c Component) LogValue() slog.Value {
+	return slog.StringValue(string(c))
+}
+
 type Operation string
 
 const (
@@ -55,6 +59,10 @@ const (
 	OperationErrorResponseWrite    Operation = "response_write"
 	OperationErrorWriteFailed      Operation = "error_response_write"
 )
+
+func (o Operation) LogValue() slog.Value {
+	return slog.StringValue(string(o))
+}
 
 type SlogLogger struct {
 	logger *slog.Logger
