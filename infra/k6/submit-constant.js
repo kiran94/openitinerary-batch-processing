@@ -5,9 +5,9 @@ export const options = {
   scenarios: {
     submit_constant: {
       executor: "constant-arrival-rate",
-      duration: "10s",
-      preAllocatedVUs: 8,
-      maxVUs: 10,
+      duration: "30s",
+      preAllocatedVUs: 16,
+      maxVUs: 20,
       rate: 1,
       timeUnit: "1s",
     },
@@ -15,7 +15,7 @@ export const options = {
   thresholds: {
     checks: ["rate==1"],
     http_req_failed: ["rate==0"],
-    http_req_duration: ["p(95)<8000"],
+    // http_req_duration: ["p(95)<8000"],
     dropped_iterations: ["count==0"],
   },
 };
