@@ -1,25 +1,24 @@
 # k6 endpoint load tests
 
-These scripts intentionally contain one sustained load test per endpoint:
-
-- `status-constant.js` — `GET /api/v1/status/{id}` at 5 requests/second
-- `result-constant.js` — `GET /api/v1/result/{id}` at 5 requests/second
-- `submit-constant.js` — `POST /api/v1/submit` at 1 request/second
-- `submit-rejected.js` — one negative-request contract check
-
-The baseline and ramp variants were removed because they duplicated the endpoint
-tests without providing a better p95 signal. The constant-arrival tests produce
-the traffic; the API's request-duration metrics are used for Grafana analysis.
-
-Run the read-endpoint tests with an existing ticket ID:
+This repository uses [k6](https://grafana.com/docs/k6/latest/) for load testing and performance verification.
 
 ```bash
+# Check the status endpoint
 TICKET_ID=<ticket-id> k6 run infra/k6/status-constant.js
+
+# Check the result endpoint
 TICKET_ID=<ticket-id> k6 run infra/k6/result-constant.js
+
+# Check the submit endpoint
+# Note that this endpoint will generate pending work for the workers
+# so if you don't want workers to start executing all the work then remove them from the queue/database
+k6 run infra/k6/submit-constant.js
 ```
 
-Run the submit load test with the sample PDF expected by the script:
+## Data File
+
+For the `submit` endpoint load tests, you need to put a PDF file locally so it can be loaded into memory and simulate a document submission. Everyone should use the same PDF so that metrics are comparable therefore the base PDF file has been uploaded in the AWS bucket. Download it via:
 
 ```bash
-k6 run infra/k6/submit-constant.js
+aws s3 cp s3://openitinerary-batch-processing/k6/data/test.pdf infra/k6/data/test.pdf
 ```
