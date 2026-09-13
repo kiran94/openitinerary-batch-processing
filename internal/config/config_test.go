@@ -186,7 +186,6 @@ func TestApplicationConfigOtelDefaults(t *testing.T) {
 	assert.Equal(t, "openitinerary-batch-api", config.GetOtelServiceName())
 	assert.Equal(t, "openitinerary-batch-worker", config.GetOtelWorkerName())
 	assert.Equal(t, "0.0.1", config.GetOtelServiceVersion())
-	assert.Equal(t, 15*time.Second, config.GetOtelExportInterval())
 }
 
 func TestApplicationConfigOtelEnabledDefault(t *testing.T) {

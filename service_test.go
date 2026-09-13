@@ -1417,10 +1417,6 @@ func (m *MockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
 }
 
-func (m *MockConfig) GetOtelExportInterval() time.Duration {
-	return m.Called().Get(0).(time.Duration)
-}
-
 type MockTicketRepository struct {
 	mock.Mock
 }

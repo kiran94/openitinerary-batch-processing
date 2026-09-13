@@ -42,7 +42,6 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
-	GetOtelExportInterval() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -155,10 +154,6 @@ func (ac ApplicationConfig) GetOtelWorkerName() string {
 
 func (ac ApplicationConfig) GetOtelServiceVersion() string {
 	return "0.0.1"
-}
-
-func (ac ApplicationConfig) GetOtelExportInterval() time.Duration {
-	return time.Duration(15) * time.Second
 }
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {

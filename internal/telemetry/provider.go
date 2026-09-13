@@ -70,7 +70,7 @@ func newLoggerProvider(ctx context.Context, resource *resource.Resource, cfg con
 		return nil, err
 	}
 
-	batchExporter := log.NewBatchProcessor(exporter, log.WithExportInterval(cfg.GetOtelExportInterval()))
+	batchExporter := log.NewBatchProcessor(exporter)
 
 	return log.NewLoggerProvider(
 		log.WithResource(resource),
@@ -88,10 +88,7 @@ func newMetricsProvider(ctx context.Context, resource *resource.Resource, cfg co
 	metricProvider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(resource),
 		sdkmetric.WithReader(
-			sdkmetric.NewPeriodicReader(
-				metricExporter,
-				sdkmetric.WithInterval(cfg.GetOtelExportInterval()),
-			),
+			sdkmetric.NewPeriodicReader(metricExporter),
 		),
 	)
 
@@ -186,7 +183,7 @@ func (m *TelemetryManager) Ready() error {
 	global.SetLoggerProvider(m.lg)
 
 	// Go runtime memory metrics
-	if err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(m.cfg.GetOtelExportInterval())); err != nil {
+	if err := runtime.Start(); err != nil {
 		return err
 	}
 
