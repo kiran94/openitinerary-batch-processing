@@ -12,6 +12,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -28,6 +29,7 @@ func NewNotifier(ctx context.Context, cfg config.Config, logger logging.Logger, 
 
 	cfg.GetSESAddressFrom()
 	cfg.GetSESConfigurationSetName()
+	otelaws.AppendMiddlewares(&c.APIOptions)
 
 	client := ses.NewFromConfig(c)
 	return &StatusNotifier{client, cfg, logger, tracer}, nil
