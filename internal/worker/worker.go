@@ -174,7 +174,7 @@ func (w *BatchWorker) updateTicketAndError(
 		"ticket operation failed",
 		"component", component,
 		"operation", operation,
-		"status_reason", tsr,
+		"status_reason", string(tsr),
 		"error", err,
 	)
 
@@ -196,7 +196,7 @@ func (w *BatchWorker) updateTicketAndError(
 			"ticket failure status update failed",
 			"component", logging.ComponentDatabase,
 			"operation", logging.OperationTicketUpdate,
-			"status_reason", tsr,
+			"status_reason", string(tsr),
 			"error", updateErr,
 			"original_error", err,
 		)
