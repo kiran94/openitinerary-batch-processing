@@ -15,7 +15,7 @@ export const options = {
   thresholds: {
     checks: ["rate==1"],
     http_req_failed: ["rate==0"],
-    // http_req_duration: ["p(95)<8000"],
+    http_req_duration: ["p(95)<8000"],
     dropped_iterations: ["count==0"],
   },
 };
