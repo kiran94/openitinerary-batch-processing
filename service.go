@@ -237,7 +237,7 @@ func (s *ServiceV1) storeAndEnqueue(
 	if err := s.queue.Enqueue(ctx, ticket); err != nil {
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
 		commonUpdateErrLoggingFields := []any{
-			"component", string(logging.ComponentDatabase),
+			"component", logging.ComponentDatabase,
 			"reason", string(job.EnqueueFailed),
 			"original_error", err,
 			"operation", logging.OperationMarkFailed,
