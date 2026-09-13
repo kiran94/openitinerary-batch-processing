@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
@@ -16,6 +19,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
+// Together these values will control how long it takes the server to shutdown
+// in a worse case scenario so be careful when adjusting them.
+const (
+	shutdownTelemetryTimeout = 15 * time.Second
+	shutdownServerTimeout    = 15 * time.Second
+)
+
 func main() {
 	if err := run(); err != nil {
 		os.Exit(1)
@@ -24,6 +34,10 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
+
+	interruptCtx, interruptCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer interruptCancel()
+
 	appConfig := config.ApplicationConfig{}
 	bootstrapLogger := logging.New(appConfig)
 
@@ -32,16 +46,12 @@ func run() error {
 		bootstrapLogger.Error(ctx, "otel initialization failed", "error", err)
 		return err
 	}
+	defer shutdownTelemetry(telemetryManager, bootstrapLogger)
+
 	if err := telemetryManager.Ready(); err != nil {
 		bootstrapLogger.Error(ctx, "otel ready failed", "error", err)
 		return err
 	}
-
-	defer func() {
-		if err := telemetryManager.Close(ctx); err != nil {
-			bootstrapLogger.Error(ctx, "failed to cleanup otel", "error", err)
-		}
-	}()
 
 	serviceMetrics, err := telemetry.NewApplicationOtelMetrics(telemetryManager.GetMeterProvider())
 	if err != nil {
@@ -115,11 +125,42 @@ func run() error {
 		"write_timeout", server.WriteTimeout.String(),
 		"idle_timeout", server.IdleTimeout.String(),
 	)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error(ctx, "server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
-		return err
+
+	errorCh := make(chan error, 1)
+	go func() {
+		errorCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errorCh:
+		if !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, "server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
+			return err
+		}
+	case <-interruptCtx.Done():
+		logger.Info(ctx, "server cancellation was signaled", "component", logging.ComponentHTTP, "timeout_seconds", shutdownServerTimeout.Seconds())
+
+		shutdownCtx := context.Background()
+		shutdownCtx, shutdownCancel := context.WithTimeout(shutdownCtx, shutdownServerTimeout)
+		defer shutdownCancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error(shutdownCtx, "error shutting down server", "component", logging.ComponentHTTP, "error", err)
+			return err
+		}
 	}
 
-	logger.Info(ctx, "server stopped", "component", logging.ComponentHTTP)
 	return nil
+}
+
+func shutdownTelemetry(tm *telemetry.TelemetryManager, l logging.Logger) {
+	ctx := context.Background()
+
+	l.Debug(ctx, "shutting down telemetry", "timeout_seconds", shutdownTelemetryTimeout.Seconds())
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, shutdownTelemetryTimeout)
+	defer cancelFunc()
+
+	if err := tm.Close(cancelCtx); err != nil {
+		l.Error(cancelCtx, "failed to cleanup otel", "error", err)
+	}
 }
