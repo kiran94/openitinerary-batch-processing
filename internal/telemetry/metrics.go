@@ -74,12 +74,22 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricJobsEnqueued), err)
 	}
 
-	documentInputSizeHisto, err := meter.Int64Histogram(string(otelMetricDocumentInputSize), metric.WithUnit("By"), metric.WithDescription("tracks uploaded document sizes"))
+	documentInputSizeHisto, err := meter.Int64Histogram(
+		string(otelMetricDocumentInputSize),
+		metric.WithUnit("By"),
+		metric.WithDescription("tracks uploaded document sizes"),
+		metric.WithExplicitBucketBoundaries([]float64{16_384, 65_536, 131_072, 262_144, 524_288, 1_048_576, 2_097_152, 4_194_304, 5_242_880, 8_388_608, 10_485_760}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricDocumentInputSize), err)
 	}
 
-	storageUploadDurationHisto, err := meter.Float64Histogram(string(otelMetricStorageUploadDuration), metric.WithUnit("s"), metric.WithDescription("tracks upload times to storage"))
+	storageUploadDurationHisto, err := meter.Float64Histogram(
+		string(otelMetricStorageUploadDuration),
+		metric.WithUnit("s"),
+		metric.WithDescription("tracks upload times to storage"),
+		metric.WithExplicitBucketBoundaries([]float64{0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 15, 30, 60, 120, 180, 300}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricStorageUploadDuration), err)
 	}
@@ -99,27 +109,52 @@ func NewApplicationOtelMetrics(mp metric.MeterProvider) (*ApplicationOtelMetrics
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerRuns), err)
 	}
 
-	workerPollingDurationHisto, err := meter.Float64Histogram(string(otelMetricWorkerPollingDuration), metric.WithUnit("s"), metric.WithDescription("tracks the polling time for the worker"))
+	workerPollingDurationHisto, err := meter.Float64Histogram(
+		string(otelMetricWorkerPollingDuration),
+		metric.WithUnit("s"),
+		metric.WithDescription("tracks the polling time for the worker"),
+		metric.WithExplicitBucketBoundaries([]float64{0.1, 0.5, 1, 2.5, 5, 10, 15, 20, 30}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerPollingDuration), err)
 	}
 
-	workerProcessingDurationHisto, err := meter.Float64Histogram(string(otelMetricWorkerProcessingDuration), metric.WithUnit("s"), metric.WithDescription("tracks the processing time for the worker"))
+	workerProcessingDurationHisto, err := meter.Float64Histogram(
+		string(otelMetricWorkerProcessingDuration),
+		metric.WithUnit("s"),
+		metric.WithDescription("tracks the processing time for the worker"),
+		metric.WithExplicitBucketBoundaries([]float64{0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 15, 30, 60, 120, 180, 300}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricWorkerProcessingDuration), err)
 	}
 
-	adapterConversionDurationHisto, err := meter.Float64Histogram(string(otelMetricAdapterConvertDuration), metric.WithUnit("s"), metric.WithDescription("tracks adapter conversion times"))
+	adapterConversionDurationHisto, err := meter.Float64Histogram(
+		string(otelMetricAdapterConvertDuration),
+		metric.WithUnit("s"),
+		metric.WithDescription("tracks adapter conversion times"),
+		metric.WithExplicitBucketBoundaries([]float64{0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 15, 30, 60, 75}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricAdapterConvertDuration), err)
 	}
 
-	adapterResponseSizeHisto, err := meter.Int64Histogram(string(otelMetricAdapterResponseSize), metric.WithUnit("By"), metric.WithDescription("tracks adapter response sizes"))
+	adapterResponseSizeHisto, err := meter.Int64Histogram(
+		string(otelMetricAdapterResponseSize),
+		metric.WithUnit("By"),
+		metric.WithDescription("tracks adapter response sizes"),
+		metric.WithExplicitBucketBoundaries([]float64{1_024, 4_096, 16_384, 65_536, 262_144, 524_288, 1_048_576, 2_097_152, 5_242_880, 10_485_760, 15_728_640, 20_971_520, 26_214_400}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricAdapterResponseSize), err)
 	}
 
-	jobEndDuration, err := meter.Float64Histogram(string(otelMetricJobEndDuration), metric.WithUnit("s"), metric.WithDescription("tracks the number of seconds the job took from submission to completion"))
+	jobEndDuration, err := meter.Float64Histogram(
+		string(otelMetricJobEndDuration),
+		metric.WithUnit("s"),
+		metric.WithDescription("tracks the number of seconds the job took from submission to completion"),
+		metric.WithExplicitBucketBoundaries([]float64{1, 5, 10, 30, 60, 120, 300, 360, 600, 720, 900, 1_800, 3_600}...),
+	)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create metric %v", otelMetricJobEndDuration), err)
 	}
