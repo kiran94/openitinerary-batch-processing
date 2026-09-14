@@ -75,3 +75,5 @@ terraform.rc
 .go-mod-cache/
 .golangci-lint-cache/
 .env
+infra/k6/data/
+.DS_Store
