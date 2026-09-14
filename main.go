@@ -11,6 +11,7 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
+	"github.com/kiran94/openitinerary-batch-processing/internal/health"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
@@ -90,6 +91,15 @@ func run() error {
 	}
 	logger.Info(ctx, "queue ready", "component", logging.ComponentQueue, "backend", "sqs")
 
+	internalDB, err := db.DB()
+	if err != nil {
+		logger.Error(ctx, "could not get internal db", "component", logging.ComponentDatabase, "error", err)
+		return err
+	}
+
+	srm := health.NewServiceReadyManager(appConfig, logger, internalDB)
+	srm.Start(interruptCtx)
+
 	service := ServiceV1{
 		config:  appConfig,
 		job:     job.NewTicketRepository(db, jobTracer),
@@ -104,6 +114,8 @@ func run() error {
 	mux.HandleFunc("POST /api/v1/submit", service.submit)
 	mux.HandleFunc("GET /api/v1/status/{id}", service.status)
 	mux.HandleFunc("GET /api/v1/result/{id}", service.result)
+	mux.HandleFunc("GET /health/live", srm.Live())
+	mux.HandleFunc("GET /health/ready", srm.Ready())
 
 	server := &http.Server{
 		Handler: logging.RequestIDMiddleware(
@@ -144,6 +156,7 @@ func run() error {
 		shutdownCtx, shutdownCancel := context.WithTimeout(shutdownCtx, shutdownServerTimeout)
 		defer shutdownCancel()
 
+		srm.Shutdown()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error(shutdownCtx, "error shutting down server", "component", logging.ComponentHTTP, "error", err)
 			return err
