@@ -4,10 +4,10 @@ This repository uses [k6](https://grafana.com/docs/k6/latest/) for load testing 
 
 ```bash
 # Check the status endpoint
-TICKET_ID=<ticket-id> k6 run infra/k6/status-constant.js
+TICKET_ID=EXISTING_TICKET k6 run infra/k6/status-constant.js
 
 # Check the result endpoint
-TICKET_ID=<ticket-id> k6 run infra/k6/result-constant.js
+TICKET_ID=COMPLETED_TICKET k6 run infra/k6/result-constant.js
 
 # Check the submit endpoint
 # Note that this endpoint will generate pending work for the workers
