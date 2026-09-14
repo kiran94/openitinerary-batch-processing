@@ -43,6 +43,9 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
+
+	GetServiceReadinessPollingInterval() time.Duration
+	GetServiceReadinessPollingTimeout() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -166,6 +169,15 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
 	return getBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+}
+
+func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
+	return 5 * time.Second
+}
+
+func (ac ApplicationConfig) GetServiceReadinessPollingTimeout() time.Duration {
+	return 5 * time.Second
+
 }
 
 func GetEnvOrDefault(name, defaultValue string) string {
