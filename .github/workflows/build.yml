@@ -7,9 +7,21 @@ on:
       - main
     paths-ignore:
       - "infra/**"
+      - "terraform/**"
+      - "docs/**"
+      - "README.md"
+      - "compose.yaml"
+      - ".github/workflows/terraform.yml"
+      - ".github/pull_request_template.md"
   pull_request:
     paths-ignore:
       - "infra/**"
+      - "terraform/**"
+      - "docs/**"
+      - "README.md"
+      - "compose.yaml"
+      - ".github/workflows/terraform.yml"
+      - ".github/pull_request_template.md"
 
 permissions:
   contents: read
