@@ -13,7 +13,7 @@ import (
 )
 
 type serviceReadyManager struct {
-	sync.Mutex
+	sync.RWMutex
 	ready    bool
 	shutdown bool
 	logger   logging.Logger
@@ -53,8 +53,8 @@ func (srm *serviceReadyManager) Ready() http.HandlerFunc {
 
 // isReady returns the result of the latest run
 func (srm *serviceReadyManager) isReady() bool {
-	srm.Lock()
-	defer srm.Unlock()
+	srm.RLock()
+	defer srm.RUnlock()
 	return srm.ready
 }
 
