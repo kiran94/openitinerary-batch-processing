@@ -31,6 +31,31 @@ func TestApplicationConfigServerDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Second, config.GetServerIdleTimeout())
 }
 
+func TestApplicationConfigServiceReadinessDefaults(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 5*time.Second, config.GetServiceReadinessPollingInterval())
+	assert.Equal(t, 2*time.Second, config.GetServiceReadinessPollingTimeout())
+}
+
+func TestApplicationConfigDatabaseConnectionDefault(t *testing.T) {
+	t.Setenv("DATABASE_DSN", "")
+	config := ApplicationConfig{}
+
+	assert.Equal(
+		t,
+		"host=localhost user=openitinerary password=openitinerary dbname=openitinerary_batch_processing port=5432 sslmode=disable",
+		config.GetDatabaseConnection(),
+	)
+}
+
+func TestApplicationConfigDatabaseConnectionEnvironmentOverride(t *testing.T) {
+	t.Setenv("DATABASE_DSN", "test-database-connection")
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "test-database-connection", config.GetDatabaseConnection())
+}
+
 func TestApplicationConfigUploadDefaults(t *testing.T) {
 	t.Setenv("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", "")
 	config := ApplicationConfig{}

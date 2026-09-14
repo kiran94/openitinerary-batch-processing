@@ -457,6 +457,10 @@ func (m *MockConfig) GetLoggingLevel() slog.Level {
 	return m.Called().Get(0).(slog.Level)
 }
 
+func (m *MockConfig) GetDatabaseConnection() string {
+	return m.Called().String(0)
+}
+
 func (m *MockConfig) GetServerReadTimeout() time.Duration {
 	return m.Called().Get(0).(time.Duration)
 }
@@ -543,6 +547,14 @@ func (m *MockConfig) GetOtelWorkerName() string {
 
 func (m *MockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetServiceReadinessPollingInterval() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetServiceReadinessPollingTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
 }
 
 type MockBatchQueue struct {

@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
@@ -14,13 +13,8 @@ import (
 )
 
 func ConnectDatabase(ctx context.Context, logger logging.Logger, cfg config.Config) (*gorm.DB, error) {
-	DATABASE_DSN := os.Getenv("DATABASE_DSN")
-	if DATABASE_DSN == "" {
-		logger.Warn(ctx, "database dsn defaulted", "component", logging.ComponentDatabase, "dsn_source", "default")
-		DATABASE_DSN = "host=localhost user=openitinerary password=openitinerary dbname=openitinerary_batch_processing port=5432 sslmode=disable"
-	}
-
-	db, err := gorm.Open(postgres.Open(DATABASE_DSN), &gorm.Config{})
+	databaseDSN := cfg.GetDatabaseConnection()
+	db, err := gorm.Open(postgres.Open(databaseDSN), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}

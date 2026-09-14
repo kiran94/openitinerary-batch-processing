@@ -39,4 +39,11 @@ We collect the following metrics from the API and Worker.
 | `oibp.worker.processing.duration` | Histogram | `s` | `outcome` |
 | `oibp.job.end_to_end.duration` | Histogram | `s` | `outcome`, optional `status_reason` |
 
+### Service Health
 
+This service provides the following endpoint for health check pruposes:
+
+* `/health/live`: returns `200` if the service is alive and accepting requests
+* `/health/ready` returns `200` if the services underlying services are available
+
+The `/health/ready` result is based on a long-running background go routine which periodically checks if the underlying services (such as the db) is still available.

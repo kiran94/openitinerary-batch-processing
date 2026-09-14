@@ -13,6 +13,7 @@ type Config interface {
 	GetEnvironment() string
 	GetPort() string
 	GetLoggingLevel() slog.Level
+	GetDatabaseConnection() string
 
 	GetServerReadTimeout() time.Duration
 	GetServerWriteTimeout() time.Duration
@@ -42,6 +43,9 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
+
+	GetServiceReadinessPollingInterval() time.Duration
+	GetServiceReadinessPollingTimeout() time.Duration
 }
 
 type ApplicationConfig struct{}
@@ -52,6 +56,13 @@ func (ac ApplicationConfig) GetEnvironment() string {
 
 func (ac ApplicationConfig) GetPort() string {
 	return ":8080"
+}
+
+func (ac ApplicationConfig) GetDatabaseConnection() string {
+	return GetEnvOrDefault(
+		"DATABASE_DSN",
+		"host=localhost user=openitinerary password=openitinerary dbname=openitinerary_batch_processing port=5432 sslmode=disable",
+	)
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
@@ -158,6 +169,15 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
 	return getBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+}
+
+func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
+	return 5 * time.Second
+}
+
+func (ac ApplicationConfig) GetServiceReadinessPollingTimeout() time.Duration {
+	return 2 * time.Second
+
 }
 
 func GetEnvOrDefault(name, defaultValue string) string {

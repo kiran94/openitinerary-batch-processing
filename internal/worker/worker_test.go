@@ -850,6 +850,14 @@ func (m *MockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
 }
 
+func (m *MockConfig) GetServiceReadinessPollingInterval() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetServiceReadinessPollingTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
 type MockTicketRepository struct {
 	mock.Mock
 }
