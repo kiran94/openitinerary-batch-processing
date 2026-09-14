@@ -5,7 +5,11 @@ on:
     branches:
       - master
       - main
+    paths-ignore:
+      - "infra/**"
   pull_request:
+    paths-ignore:
+      - "infra/**"
 
 permissions:
   contents: read
