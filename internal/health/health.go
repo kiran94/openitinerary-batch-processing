@@ -70,7 +70,7 @@ func (srm *serviceReadyManager) Start(ctx context.Context) {
 
 			select {
 			case <-ctx.Done():
-				srm.logger.Info(ctx, "received signal to stop polling loop.")
+				srm.logger.Info(ctx, "received signal to stop health polling loop.")
 				srm.updateReady(false)
 				return
 			case <-time.After(srm.pollingInterval):
