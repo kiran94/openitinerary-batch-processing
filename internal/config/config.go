@@ -13,6 +13,7 @@ type Config interface {
 	GetEnvironment() string
 	GetPort() string
 	GetLoggingLevel() slog.Level
+	GetDatabaseConnection() string
 
 	GetServerReadTimeout() time.Duration
 	GetServerWriteTimeout() time.Duration
@@ -52,6 +53,13 @@ func (ac ApplicationConfig) GetEnvironment() string {
 
 func (ac ApplicationConfig) GetPort() string {
 	return ":8080"
+}
+
+func (ac ApplicationConfig) GetDatabaseConnection() string {
+	return GetEnvOrDefault(
+		"DATABASE_DSN",
+		"host=localhost user=openitinerary password=openitinerary dbname=openitinerary_batch_processing port=5432 sslmode=disable",
+	)
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {

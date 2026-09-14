@@ -457,6 +457,10 @@ func (m *MockConfig) GetLoggingLevel() slog.Level {
 	return m.Called().Get(0).(slog.Level)
 }
 
+func (m *MockConfig) GetDatabaseConnection() string {
+	return m.Called().String(0)
+}
+
 func (m *MockConfig) GetServerReadTimeout() time.Duration {
 	return m.Called().Get(0).(time.Duration)
 }
