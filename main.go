@@ -120,7 +120,8 @@ func run() error {
 	server := &http.Server{
 		Handler: logging.RequestIDMiddleware(
 			otelhttp.NewHandler(
-				logging.RequestIDSpanMiddleware(mux), "api"),
+				logging.RequestIDSpanMiddleware(mux), "api", otelhttp.WithFilter(telemetry.FilterRequests),
+			),
 		),
 		Addr:         service.config.GetPort(),
 		ReadTimeout:  service.config.GetServerReadTimeout(),
