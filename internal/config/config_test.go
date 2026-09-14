@@ -31,6 +31,13 @@ func TestApplicationConfigServerDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Second, config.GetServerIdleTimeout())
 }
 
+func TestApplicationConfigServiceReadinessDefaults(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, 5*time.Second, config.GetServiceReadinessPollingInterval())
+	assert.Equal(t, 2*time.Second, config.GetServiceReadinessPollingTimeout())
+}
+
 func TestApplicationConfigDatabaseConnectionDefault(t *testing.T) {
 	t.Setenv("DATABASE_DSN", "")
 	config := ApplicationConfig{}
