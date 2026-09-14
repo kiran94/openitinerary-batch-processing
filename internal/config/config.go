@@ -176,7 +176,7 @@ func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
 }
 
 func (ac ApplicationConfig) GetServiceReadinessPollingTimeout() time.Duration {
-	return 5 * time.Second
+	return 2 * time.Second
 
 }
 
