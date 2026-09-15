@@ -20,6 +20,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
+	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
@@ -92,40 +93,32 @@ func TestParseNotificationEmails(t *testing.T) {
 	tests := []struct {
 		name          string
 		raw           string
-		limit         int
 		expected      []string
 		expectedError string
 	}{
 		{
 			name:     "valid",
 			raw:      `["traveller@example.com"]`,
-			limit:    1,
 			expected: []string{"traveller@example.com"},
 		},
 		{
 			name:          "invalid JSON",
 			raw:           "not-json",
-			limit:         1,
 			expectedError: "notification_emails must be a JSON array of strings",
 		},
 		{
-			name:          "too many",
-			raw:           `["one@example.com", "two@example.com"]`,
-			limit:         1,
-			expectedError: "notification_emails must contain at most 1 entries",
+			name:     "multiple",
+			raw:      `["one@example.com", "two@example.com"]`,
+			expected: []string{"one@example.com", "two@example.com"},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := new(MockConfig)
-			if test.name != "invalid JSON" {
-				mockConfig.On("GetNotificationEmailLimit").Return(test.limit).Once()
-			}
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/submit", nil)
 			request.Form = url.Values{"notification_emails": []string{test.raw}}
 
-			service := ServiceV1{config: mockConfig, tracer: testutils.NewMockTracer()}
+			service := ServiceV1{}
 			emails, err := service.parseNotificationEmails(request)
 
 			if test.expectedError != "" {
@@ -135,7 +128,6 @@ func TestParseNotificationEmails(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, test.expected, emails)
 			}
-			mockConfig.AssertExpectations(t)
 		})
 	}
 }
@@ -313,7 +305,6 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 	mockMetrics := new(MockServiceMetrics)
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
-	mockConfig.On("GetNotificationEmailLimit").Return(5).Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
@@ -344,7 +335,9 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 func TestServiceSubmitStorageWriteError(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockMetrics := new(MockServiceMetrics)
+	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
+	mockTicketRepository := new(MockTicketRepository)
 	document := []byte("my pdf data")
 	expectedContentType := telemetrymetrics.ContentTypePDF
 	expectedInputBytes := int64(len(document))
@@ -375,11 +368,12 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 		Once()
 
 	service := ServiceV1{
-		config:  mockConfig,
-		logger:  &MockLogger{},
-		metrics: mockMetrics,
-		storage: mockStorage,
-		tracer:  testutils.NewMockTracer(),
+		config:        mockConfig,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		storage:       mockStorage,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
 	}
 
 	writer := httptest.NewRecorder()
@@ -397,12 +391,15 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 
 	mockConfig.AssertExpectations(t)
 	mockMetrics.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
 }
 
 func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockMetrics := new(MockServiceMetrics)
+	mockQueue := new(MockBatchQueue)
 	mockTicketRepository := new(MockTicketRepository)
 	mockStorage := new(MockStorage)
 	document := []byte("my pdf data")
@@ -436,12 +433,13 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockTicketRepository.On("Create", contextHasTicketID(), mock.Anything).Return(jobCreateError).Once()
 
 	service := ServiceV1{
-		config:  mockConfig,
-		job:     mockTicketRepository,
-		logger:  &MockLogger{},
-		metrics: mockMetrics,
-		storage: mockStorage,
-		tracer:  testutils.NewMockTracer(),
+		config:        mockConfig,
+		job:           mockTicketRepository,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		storage:       mockStorage,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
 	}
 
 	writer := httptest.NewRecorder()
@@ -459,6 +457,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 
 	mockConfig.AssertExpectations(t)
 	mockMetrics.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 	mockTicketRepository.AssertExpectations(t)
 }
@@ -534,13 +533,13 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 		Once()
 
 	service := ServiceV1{
-		config:  mockConfig,
-		job:     mockTicketRepository,
-		logger:  &MockLogger{},
-		metrics: mockMetrics,
-		queue:   mockQueue,
-		storage: mockStorage,
-		tracer:  testutils.NewMockTracer(),
+		config:        mockConfig,
+		job:           mockTicketRepository,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		storage:       mockStorage,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
 	}
 
 	writer := httptest.NewRecorder()
@@ -607,13 +606,13 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 		Once()
 
 	service := ServiceV1{
-		config:  mockConfig,
-		job:     mockTicketRepository,
-		logger:  &MockLogger{},
-		metrics: mockMetrics,
-		queue:   mockQueue,
-		storage: mockStorage,
-		tracer:  testutils.NewMockTracer(),
+		config:        mockConfig,
+		job:           mockTicketRepository,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		storage:       mockStorage,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
 	}
 
 	body, contentType := createTestMultipartFormBuffer(t, document, "application/pdf")
@@ -636,16 +635,24 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	mockConfig := new(MockConfig)
 	mockMetrics := new(MockServiceMetrics)
+	mockQueue := new(MockBatchQueue)
+	mockStorage := new(MockStorage)
+	mockTicketRepository := new(MockTicketRepository)
+	expectedContentType := telemetrymetrics.ContentTypePDF
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
 	mockConfig.On("GetNotificationEmailLimit").Return(1).Once()
+	mockConfig.On("GetBucket").Return("bucket").Once()
+	mockConfig.On("GetBucketPath").Return("path").Once()
+	mockConfig.On("GetDocumentPath", "bucket", "path", mock.Anything, "pdf").Return("s3://document/path").Once()
 	mockMetrics.
 		On(
 			"RecordSubmission",
-			t.Context(),
+			contextHasTicketID(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
+				ContentType: &expectedContentType,
 			},
 		).
 		Once()
@@ -655,7 +662,13 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	request.Header.Set("Content-Type", contentType)
 
 	writer := httptest.NewRecorder()
-	service := ServiceV1{config: mockConfig, logger: &MockLogger{}, metrics: mockMetrics, tracer: testutils.NewMockTracer()}
+	service := ServiceV1{
+		config:        mockConfig,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
+	}
 	service.submit(writer, request)
 
 	response := writer.Result()
@@ -664,6 +677,9 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	assertAPIError(t, response, http.StatusBadRequest, "notification_emails must contain at most 1 entries")
 	mockConfig.AssertExpectations(t)
 	mockMetrics.AssertExpectations(t)
+	mockQueue.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+	mockTicketRepository.AssertExpectations(t)
 }
 
 func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
@@ -1183,13 +1199,13 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 		Once()
 
 	service := ServiceV1{
-		config:  mockConfig,
-		job:     mockTicketRepository,
-		logger:  &MockLogger{},
-		metrics: mockMetrics,
-		queue:   mockQueue,
-		storage: mockStorage,
-		tracer:  testutils.NewMockTracer(),
+		config:        mockConfig,
+		job:           mockTicketRepository,
+		logger:        &MockLogger{},
+		metrics:       mockMetrics,
+		storage:       mockStorage,
+		tracer:        testutils.NewMockTracer(),
+		submitService: service.NewSubmitService(mockConfig, &MockLogger{}, testutils.NewMockTracer(), mockStorage, mockMetrics, mockTicketRepository, mockQueue),
 	}
 
 	body, requestContentType := createTestMultipartFormBuffer(t, test.data, test.contentType)

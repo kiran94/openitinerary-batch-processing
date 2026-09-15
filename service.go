@@ -14,23 +14,22 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
-	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
+	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type ServiceV1 struct {
-	config  config.Config
-	job     job.TicketRepository
-	logger  logging.Logger
-	queue   queue.BatchQueue
-	storage storage.Storage
-	metrics telemetry.ServiceMetrics
-	tracer  trace.Tracer
+	config        config.Config
+	job           job.TicketRepository
+	logger        logging.Logger
+	storage       storage.Storage
+	metrics       telemetry.ServiceMetrics
+	tracer        trace.Tracer
+	submitService service.SubmitService
 }
 
 type submitRequest struct {
@@ -66,7 +65,6 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	logger := s.logger.WithContext(ctx)
-
 	span := trace.SpanFromContext(r.Context())
 
 	defer func() {
@@ -94,18 +92,27 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticket := job.NewTicket()
-	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), request.fileType)
-	ticket.ContentType = string(request.metricContentType)
-	ticket.NotificationEmails = request.notificationEmails
+	input := service.SubmitInput{
+		Document:           request.file,
+		SizeBytes:          request.fileHeader.Size,
+		ContentType:        request.metricContentType,
+		NotificationEmails: request.notificationEmails,
+		SubmitStartedAt:    startedAt,
+	}
 
-	ctx = logging.WithTicketID(ctx, ticket.ID.String())
-	logger = logger.WithContext(ctx)
+	ticket, err := s.submitService.Submit(ctx, input)
+	if err != nil {
+		if e, ok := errors.AsType[service.ErrInvalidNotificationEmails](err); ok {
+			s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusBadRequest, e.Error(), span)
+			return
+		}
 
-	if err := s.storeAndEnqueue(ctx, logger, request, ticket, startedAt); err != nil {
 		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
 		return
 	}
+
+	ctx = logging.WithTicketID(ctx, ticket.ID.String())
+	logger = logger.WithContext(ctx)
 
 	s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt)
 }
@@ -183,97 +190,6 @@ func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (
 	request.metricContentType = metricContentType
 	request.notificationEmails = emails
 	return request, nil
-}
-
-func (s *ServiceV1) storeAndEnqueue(
-	ctx context.Context,
-	logger logging.Logger,
-	request submitRequest,
-	ticket *job.Ticket,
-	startedAt time.Time,
-) error {
-	ctx, span := s.tracer.Start(ctx, string(telemetry.TracingSpanStoreAndEnqueue), trace.WithAttributes(attribute.String("ticket.id", ticket.ID.String())))
-	defer span.End()
-
-	inputBytes := request.fileHeader.Size
-
-	storageStart := time.Now()
-
-	if err := s.storage.Write(ctx, request.file, ticket.DocumentPath); err != nil {
-		s.metrics.RecordStorageUpload(
-			ctx,
-			metrics.StorageUploadObservation{
-				Duration: time.Since(storageStart),
-				Purpose:  metrics.StorageUploadPurposeDocument,
-				Outcome:  metrics.StorageUploadFailed,
-			},
-		)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", request.contentType, "error", err)
-		return err
-	}
-	s.metrics.RecordStorageUpload(
-		ctx,
-		metrics.StorageUploadObservation{Duration: time.Since(storageStart), Purpose: metrics.StorageUploadPurposeDocument, Outcome: metrics.StorageUploadSuccess},
-	)
-
-	if err := s.job.Create(ctx, ticket); err != nil {
-		logger.Error(ctx, "ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		span.RecordError(err)
-		return err
-	}
-
-	if err := s.queue.Enqueue(ctx, ticket); err != nil {
-		detail := fmt.Sprintf("enqueue failed. err: %v", err)
-		commonUpdateErrLoggingFields := []any{
-			"component", logging.ComponentDatabase,
-			"reason", string(job.EnqueueFailed),
-			"original_error", err,
-			"operation", logging.OperationMarkFailed,
-		}
-
-		updated, updateErr := s.job.MarkFailed(ctx, ticket.ID, job.EnqueueFailed, detail)
-		if updateErr != nil {
-			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr)
-			logger.Error(ctx, "ticket failure update failed", commonUpdateErrLoggingFields...)
-		} else if !updated {
-			logger.Warn(ctx, "ticket failure update skipped", commonUpdateErrLoggingFields...)
-		} else {
-			logger.Info(ctx, "ticket marked failed", commonUpdateErrLoggingFields...)
-		}
-
-		logger.Error(ctx, "queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		s.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{
-			Outcome: metrics.TerminalFailed,
-			Reason:  new(metrics.TerminalReasonEnqueueFailed),
-		})
-		s.metrics.RecordJobEndToEnd(ctx, metrics.JobEndObservation{
-			Duration: time.Since(startedAt),
-			Outcome:  metrics.JobEndOutcomeFailed,
-			Reason:   new(metrics.TerminalReasonEnqueueFailed),
-		})
-		span.RecordError(err)
-		return err
-	}
-
-	return nil
 }
 
 func (s *ServiceV1) writeSubmitResponse(
@@ -356,11 +272,6 @@ func (s *ServiceV1) parseNotificationEmails(r *http.Request) ([]string, error) {
 	var emails []string
 	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
 		return nil, errors.New("notification_emails must be a JSON array of strings")
-	}
-
-	notificationEmailLimit := s.config.GetNotificationEmailLimit()
-	if len(emails) > notificationEmailLimit {
-		return nil, fmt.Errorf("notification_emails must contain at most %d entries", notificationEmailLimit)
 	}
 
 	return emails, nil
