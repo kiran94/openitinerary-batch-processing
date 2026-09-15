@@ -7,7 +7,8 @@ POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
 
-.PHONY: build ci client_test format format_check generate_oi_go_models install_tools lint login_db test vuln
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_tools lint login_db test vuln
+
 
 build:
 	go build ./...
@@ -57,3 +58,10 @@ login_db:
 
 terraform_output:
 	terraform -chdir=terraform output
+
+D2 ?= d2
+DIAGRAM_SOURCE := docs/io_batch_processing.d2
+DIAGRAM_OUTPUT := docs/io_batch_processing.svg
+
+diagram:
+	$(D2) --layout=elk $(DIAGRAM_SOURCE) $(DIAGRAM_OUTPUT)
