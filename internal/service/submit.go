@@ -13,6 +13,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -66,6 +67,7 @@ func (s *submitService) Submit(ctx context.Context, input SubmitInput) (*job.Tic
 
 	ctx = logging.WithTicketID(ctx, ticket.ID.String())
 	logger := s.logger.WithContext(ctx)
+	span.SetAttributes(attribute.String("ticket_id", ticket.ID.String()))
 
 	if err := s.validateInput(ctx, input); err != nil {
 		return nil, err
