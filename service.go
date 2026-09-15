@@ -33,12 +33,12 @@ type ServiceV1 struct {
 }
 
 type submitRequest struct {
-	file               multipart.File
-	fileHeader         *multipart.FileHeader
-	contentType        string
-	fileType           string
-	metricContentType  metrics.ContentType
-	notificationEmails []string
+	file                multipart.File
+	fileHeader          *multipart.FileHeader
+	contentType         string
+	fileType            string
+	documentContentType config.ContentType
+	notificationEmails  []string
 }
 
 type submitRequestError struct {
@@ -95,7 +95,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	input := service.SubmitInput{
 		Document:           request.file,
 		SizeBytes:          request.fileHeader.Size,
-		ContentType:        request.metricContentType,
+		ContentType:        request.documentContentType,
 		NotificationEmails: request.notificationEmails,
 		SubmitStartedAt:    startedAt,
 	}
@@ -176,7 +176,7 @@ func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (
 		}
 	}
 
-	fileType, metricContentType, err := contentTypeConversion(contentType)
+	fileType, documentContentType, err := contentTypeConversion(contentType)
 	if err != nil {
 		return request, &submitRequestError{
 			statusCode: http.StatusUnsupportedMediaType,
@@ -187,7 +187,7 @@ func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (
 
 	request.contentType = contentType
 	request.fileType = fileType
-	request.metricContentType = metricContentType
+	request.documentContentType = documentContentType
 	request.notificationEmails = emails
 	return request, nil
 }
@@ -211,7 +211,7 @@ func (s *ServiceV1) writeSubmitResponse(
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonResponseSerializationFailed),
-			ContentType: &request.metricContentType,
+			ContentType: &request.documentContentType,
 			InputBytes:  &inputBytes,
 			Enqueued:    true,
 		})
@@ -223,7 +223,7 @@ func (s *ServiceV1) writeSubmitResponse(
 		Outcome:     metrics.SubmissionAccepted,
 		Enqueued:    true,
 		InputBytes:  &inputBytes,
-		ContentType: &request.metricContentType,
+		ContentType: &request.documentContentType,
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -252,14 +252,14 @@ func (s *ServiceV1) writeSubmitResponse(
 	span.SetStatus(codes.Ok, "")
 }
 
-func contentTypeConversion(contentType string) (string, metrics.ContentType, error) {
+func contentTypeConversion(contentType string) (string, config.ContentType, error) {
 	switch contentType {
 	case "application/pdf":
-		return "pdf", metrics.ContentTypePDF, nil
+		return "pdf", config.ContentTypePDF, nil
 	case "text/html":
-		return "html", metrics.ContentTypeHTML, nil
+		return "html", config.ContentTypeHTML, nil
 	case "message/rfc822":
-		return "eml", metrics.ContentTypeEmail, nil
+		return "eml", config.ContentTypeEmail, nil
 	default:
 	}
 

@@ -61,21 +61,21 @@ func TestServiceSubmit(t *testing.T) {
 
 func TestContentTypeConversion(t *testing.T) {
 	tests := []struct {
-		name             string
-		input            string
-		expectedFileType string
-		expectedMetric   telemetrymetrics.ContentType
-		expectsError     bool
+		name                string
+		input               string
+		expectedFileType    string
+		expectedContentType config.ContentType
+		expectsError        bool
 	}{
-		{name: "PDF", input: "application/pdf", expectedFileType: "pdf", expectedMetric: telemetrymetrics.ContentTypePDF},
-		{name: "HTML", input: "text/html", expectedFileType: "html", expectedMetric: telemetrymetrics.ContentTypeHTML},
-		{name: "Email", input: "message/rfc822", expectedFileType: "eml", expectedMetric: telemetrymetrics.ContentTypeEmail},
+		{name: "PDF", input: "application/pdf", expectedFileType: "pdf", expectedContentType: config.ContentTypePDF},
+		{name: "HTML", input: "text/html", expectedFileType: "html", expectedContentType: config.ContentTypeHTML},
+		{name: "Email", input: "message/rfc822", expectedFileType: "eml", expectedContentType: config.ContentTypeEmail},
 		{name: "Unsupported", input: "image/png", expectsError: true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fileType, metricContentType, err := contentTypeConversion(test.input)
+			fileType, documentContentType, err := contentTypeConversion(test.input)
 			if test.expectsError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.input)
@@ -84,7 +84,7 @@ func TestContentTypeConversion(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedFileType, fileType)
-			assert.Equal(t, test.expectedMetric, metricContentType)
+			assert.Equal(t, test.expectedContentType, documentContentType)
 		})
 	}
 }
@@ -339,7 +339,7 @@ func TestServiceSubmitStorageWriteError(t *testing.T) {
 	mockStorage := new(MockStorage)
 	mockTicketRepository := new(MockTicketRepository)
 	document := []byte("my pdf data")
-	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedContentType := config.ContentTypePDF
 	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -403,7 +403,7 @@ func TestServiceSubmitJobCreateError(t *testing.T) {
 	mockTicketRepository := new(MockTicketRepository)
 	mockStorage := new(MockStorage)
 	document := []byte("my pdf data")
-	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedContentType := config.ContentTypePDF
 	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -469,7 +469,7 @@ func TestServiceSubmitEnqueueError(t *testing.T) {
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
 	document := []byte("my pdf data")
-	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedContentType := config.ContentTypePDF
 	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -569,7 +569,7 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
 	document := []byte("my pdf data")
-	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedContentType := config.ContentTypePDF
 	expectedInputBytes := int64(len(document))
 
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
@@ -638,7 +638,7 @@ func TestServiceSubmitTooManyNotificationEmails(t *testing.T) {
 	mockQueue := new(MockBatchQueue)
 	mockStorage := new(MockStorage)
 	mockTicketRepository := new(MockTicketRepository)
-	expectedContentType := telemetrymetrics.ContentTypePDF
+	expectedContentType := config.ContentTypePDF
 	mockConfig.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
 	mockConfig.On("GetMaximumBufferMultipartForm").Return(int64(5 << 20)).Once()
 	mockConfig.On("GetNotificationEmailLimit").Return(1).Once()
@@ -1160,7 +1160,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 	mockMetrics.
 		On("RecordStorageUpload", contextHasTicketID(), matchesDocumentStorageUpload(telemetrymetrics.StorageUploadSuccess)).
 		Once()
-	expectedContentType := telemetrymetrics.ContentType(test.contentType)
+	expectedContentType := config.ContentType(test.contentType)
 	expectedInputBytes := int64(len(test.data))
 	mockMetrics.
 		On(

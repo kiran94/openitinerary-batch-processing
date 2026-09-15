@@ -2,7 +2,8 @@ package metrics
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 )
 
 type SubmissionRecorder interface {
@@ -20,7 +21,7 @@ type SubmissionRecorder interface {
 type SubmissionObservation struct {
 	Outcome     SubmissionOutcome
 	Reason      *SubmissionReason
-	ContentType *ContentType
+	ContentType *config.ContentType
 	InputBytes  *int64
 	Enqueued    bool
 }
@@ -48,24 +49,3 @@ const (
 	SubmissionReasonQueueEnqueueFailed          SubmissionReason = "queue_enqueue_failed"
 	SubmissionReasonResponseSerializationFailed SubmissionReason = "response_serialization_failed"
 )
-
-type ContentType string
-
-const (
-	ContentTypePDF   ContentType = "application/pdf"
-	ContentTypeHTML  ContentType = "text/html"
-	ContentTypeEmail ContentType = "message/rfc822"
-)
-
-func (c ContentType) FileType() (string, error) {
-	switch c {
-	case ContentTypePDF:
-		return "pdf", nil
-	case ContentTypeHTML:
-		return "html", nil
-	case ContentTypeEmail:
-		return "eml", nil
-	default:
-		return "", fmt.Errorf("could not convert content type '%v' to a file type", string(c))
-	}
-}

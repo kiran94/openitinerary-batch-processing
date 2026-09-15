@@ -20,7 +20,7 @@ import (
 type SubmitInput struct {
 	Document           io.Reader
 	SizeBytes          int64
-	ContentType        metrics.ContentType
+	ContentType        config.ContentType
 	NotificationEmails []string
 	SubmitStartedAt    time.Time
 }

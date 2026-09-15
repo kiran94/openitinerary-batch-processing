@@ -433,7 +433,7 @@ func (w *BatchWorker) Start(ctx context.Context, dequeueResult queue.DequeueResu
 	})
 	w.metrics.RecordAdapterResponse(ctx, metrics.AdapterResponseObservation{
 		SizeBytes:   countedResponse.BytesRead(),
-		ContentType: metrics.ContentType(ticket.ContentType),
+		ContentType: config.ContentType(ticket.ContentType),
 	})
 
 	// Mark the Ticket Status
