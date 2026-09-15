@@ -1,0 +1,202 @@
+direction: right
+
+title: OpenItinerary Batch Processing {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 28
+    bold: true
+    fill: "#0f172a"
+  }
+}
+
+client: Client {
+  icon: https://cdn.simpleicons.org/googlechrome
+  shape: person
+  style: {
+    fill: "#f8fafc"
+    stroke: "#64748b"
+    font-color: "#0f172a"
+  }
+}
+
+application: Batch Processing API {
+  api: Go API {
+    icon: https://cdn.simpleicons.org/go
+    style: {
+      fill: "#dbeafe"
+      stroke: "#2563eb"
+      font-color: "#1e3a8a"
+      bold: true
+    }
+  }
+  worker: Go worker {
+    icon: https://cdn.simpleicons.org/go
+    style: {
+      fill: "#dbeafe"
+      stroke: "#2563eb"
+      font-color: "#1e3a8a"
+      bold: true
+    }
+  }
+  style: {
+    fill: "#eff6ff"
+    stroke: "#93c5fd"
+    stroke-width: 2
+    border-radius: 16
+  }
+}
+
+aws: AWS Services {
+  queue: SQS job queue {
+    icon: https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/amazonsqs.svg
+    style: {
+      fill: "#fff7ed"
+      stroke: "#ea580c"
+      font-color: "#7c2d12"
+    }
+  }
+  dlq: SQS dead-letter queue {
+    icon: https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/amazonsqs.svg
+    style: {
+      fill: "#fff7ed"
+      stroke: "#ea580c"
+      font-color: "#7c2d12"
+    }
+  }
+  storage: S3 object storage {
+    icon: https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/amazons3.svg
+    style: {
+      fill: "#fff7ed"
+      stroke: "#ea580c"
+      font-color: "#7c2d12"
+    }
+  }
+  email: SES notifications {
+    icon: https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/amazonsimpleemailservice.svg
+    style: {
+      fill: "#fff7ed"
+      stroke: "#ea580c"
+      font-color: "#7c2d12"
+    }
+  }
+  style: {
+    fill: "#fffaf5"
+    stroke: "#fdba74"
+    stroke-width: 2
+    border-radius: 16
+  }
+}
+
+database: Postgres {
+  icon: https://cdn.simpleicons.org/postgresql
+  style: {
+    fill: "#fef3c7"
+    stroke: "#d97706"
+    font-color: "#78350f"
+    bold: true
+  }
+}
+
+adapter: Adapter API {
+  icon: https://cdn.simpleicons.org/python
+  style: {
+    fill: "#f3e8ff"
+    stroke: "#9333ea"
+    font-color: "#581c87"
+  }
+}
+
+observability: Local Observability {
+  collector: OTel Collector {
+    icon: https://cdn.simpleicons.org/opentelemetry
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+    }
+  }
+  metrics: Prometheus {
+    icon: https://cdn.simpleicons.org/prometheus
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+    }
+  }
+  logs: Loki {
+    icon: https://cdn.simpleicons.org/grafana
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+    }
+  }
+  traces: Tempo {
+    icon: https://cdn.simpleicons.org/grafana
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+    }
+  }
+  grafana: Grafana {
+    icon: https://cdn.simpleicons.org/grafana
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+      bold: true
+    }
+  }
+  collector -> metrics: metrics
+  collector -> logs: logs
+  collector -> traces: traces
+  metrics -> grafana
+  logs -> grafana
+  traces -> grafana
+  style: {
+    fill: "#f0fdf4"
+    stroke: "#86efac"
+    stroke-width: 2
+    border-radius: 16
+  }
+}
+
+client -> application.api: submit / status / result
+application.api -> aws.queue: enqueue job
+application.worker -> aws.queue: dequeue message
+aws.queue -> application.worker: job payload
+aws.queue -> aws.dlq: terminal failure
+application.api -> aws.storage: input + result links
+application.worker -> aws.storage: read + write documents
+application.api -> database: ticket state
+application.worker -> database: job status
+application.worker -> adapter: convert itinerary
+application.worker -> aws.email: notify user
+
+application.api -> observability.collector: OTLP {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+application.worker -> observability.collector: OTLP {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+adapter -> observability.collector: OTLP {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+application.api -> aws.queue: W3C trace context {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+
+classes: {
+  infrastructure: {
+    style: {
+      border-radius: 16
+      stroke-width: 2
+    }
+  }
+}

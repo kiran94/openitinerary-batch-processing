@@ -1,25 +1,44 @@
 # OpenItinerary Batch Processing
 
+[![build](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml) [![terraform](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml)
+
+> The OpenItinerary Batch Processing (OIBP) service provides an asynchronous solution to converting traditional travel documents into the [OpenItinerary Standard](http://github.com/kiran94/openitinerary).
+
+## Features
+
+- Submit PDF, HTML, and RFC 822 email documents for asynchronous itinerary processing.
+- Receive a processing ticket and track its status through the API.
+- Convert submitted documents through the [OpenItinerary Adapter API](http://github.com/kiran94/openitinerary#adapter-api-configuration).
+- Retrieve completed itineraries through temporary download links.
+- Send completion notifications to configured email recipients.
+- Expose liveness and readiness endpoints for service operations.
+- Route terminally failed jobs to an SQS dead-letter queue.
+
 ## Architecture
 
-![io_batch_processing](./docs/io_batch_processing.png)
+![Architecture](./docs/io_batch_processing.svg)
 
+*Solid arrows show application and data flow; dashed arrows show telemetry and trace-context propagation.*
 
-## Features
+### Technical overview
 
+- [Go](https://go.dev/) API and worker services.
+- [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for input and result document storage.
+- [Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) for asynchronous job processing and dead-letter handling.
+- [PostgreSQL](https://www.postgresql.org/docs/) for ticket and job state.
+- [OpenItinerary Adapter API](https://github.com/kiran94/openitinerary) for document conversion.
+- [Amazon SES](https://docs.aws.amazon.com/ses/latest/dg/Welcome.html) for email notifications.
+- [OpenTelemetry](https://opentelemetry.io/docs/) for metrics, logs, and traces.
+- [Prometheus](https://prometheus.io/docs/introduction/overview/), [Loki](https://grafana.com/docs/loki/latest/), [Tempo](https://grafana.com/docs/tempo/latest/), and [Grafana](https://grafana.com/docs/grafana/latest/) for local observability; see [Observability](#observability).
+- [Docker Compose](https://docs.docker.com/compose/) for the local dependency stack.
+- [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
+- [k6 load testing](./infra/k6/README.md) for performance verification.
 
-## Observability
+## Observability
 
-This project includes observaility of the following structure:
+The Observability components can be viewed in the [Architecture diagram](#architecture)
 
-
-```
-Go API / Worker → OTLP → OpenTelemetry Collector → Prometheus → Grafana
-                                             later → Tempo
-                                             later → Loki
-```
-
-### Metrics
+### Metrics
 
 We collect the following metrics from the API and Worker.
 
