@@ -2,8 +2,9 @@
 
 ## Architecture
 
-![io_batch_processing](./docs/io_batch_processing.png)
+![Architecture](./docs/io_batch_processing.svg)
 
+*Solid arrows show application and data flow; dashed arrows show telemetry and trace-context propagation.*
 
 ## Features
 
