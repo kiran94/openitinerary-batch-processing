@@ -39,6 +39,34 @@ func TestNewLoggerUsesColoredTextOutsideProduction(t *testing.T) {
 	assert.Contains(t, outputStr, "ticket-123")
 }
 
+func TestMinimumLevelHandlerFiltersRecordsBelowConfiguredLevel(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(&minimumLevelHandler{
+		level:   slog.LevelInfo,
+		handler: slog.NewJSONHandler(&output, nil),
+	})
+
+	logger.DebugContext(t.Context(), "debug message")
+	logger.InfoContext(t.Context(), "info message")
+
+	assert.NotContains(t, output.String(), "debug message")
+	assert.Contains(t, output.String(), "info message")
+}
+
+func TestMinimumLevelHandlerPreservesHandlerConfiguration(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(&minimumLevelHandler{
+		level:   slog.LevelInfo,
+		handler: slog.NewJSONHandler(&output, nil),
+	}).WithGroup("context").With("component", "logging")
+
+	logger.InfoContext(t.Context(), "info message")
+
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(output.Bytes(), &entry))
+	assert.Equal(t, map[string]any{"component": "logging"}, entry["context"])
+}
+
 func TestSlogLoggerMethodsUseExpectedLevels(t *testing.T) {
 	var output bytes.Buffer
 	logger := &SlogLogger{
