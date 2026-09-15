@@ -34,22 +34,11 @@
 - [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
 - [k6 load testing](./infra/k6/README.md) for performance verification.
 
+## Observability
 
+The Observability components can be viewed in the [Architecture diagram](#architecture)
 
-
-## Observability
-
-This project includes observaility of the following structure:
-
-
-```
-Go API / Worker / Adapter API → OTLP → OpenTelemetry Collector
-                                      ├── metrics → Prometheus ─┐
-                                      ├── logs    → Loki       ├── Grafana
-                                      └── traces  → Tempo      ┘
-```
-
-### Metrics
+### Metrics
 
 We collect the following metrics from the API and Worker.
 
