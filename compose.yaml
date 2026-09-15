@@ -13,7 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql
 
   adapter_api:
-    image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.4
+    image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.6
     container_name: oi-adapter-api
     restart: always
     environment:
