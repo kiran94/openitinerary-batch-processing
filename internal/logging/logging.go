@@ -68,6 +68,37 @@ type SlogLogger struct {
 	logger *slog.Logger
 }
 
+type minimumLevelHandler struct {
+	level   slog.Level
+	handler slog.Handler
+}
+
+func (h *minimumLevelHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level && h.handler.Enabled(ctx, level)
+}
+
+func (h *minimumLevelHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Level < h.level {
+		return nil
+	}
+
+	return h.handler.Handle(ctx, record)
+}
+
+func (h *minimumLevelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &minimumLevelHandler{
+		level:   h.level,
+		handler: h.handler.WithAttrs(attrs),
+	}
+}
+
+func (h *minimumLevelHandler) WithGroup(name string) slog.Handler {
+	return &minimumLevelHandler{
+		level:   h.level,
+		handler: h.handler.WithGroup(name),
+	}
+}
+
 func New(config config.Config) Logger {
 	return newLogger(os.Stdout, config.GetEnvironment(), config.GetLoggingLevel(), config.GetOtelEnabled())
 }
@@ -94,7 +125,7 @@ func newLogger(output io.Writer, environment string, level slog.Level, otelEnabl
 
 	if otelEnabled {
 		handler := otelslog.NewHandler("github.com/kiran94/openitinerary-batch-processing/internal/logging")
-		handlers = append(handlers, handler)
+		handlers = append(handlers, &minimumLevelHandler{level: level, handler: handler})
 	}
 
 	handler := slog.NewMultiHandler(handlers...)
