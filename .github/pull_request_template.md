@@ -2,16 +2,14 @@
 
 ## Summary
 
-What does this change do, and why?
+What does this change do
+
+Why are we making the change?
 
 ## Changes
 
 - 
 - 
-
-## Why
-
-Why are we making this change
 
 ## Verification
 
