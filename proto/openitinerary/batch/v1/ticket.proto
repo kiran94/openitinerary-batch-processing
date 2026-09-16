@@ -1,0 +1,39 @@
+syntax = "proto3";
+package openitinerary.batch.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message Ticket {
+  string id = 1;
+  DocumentContentType content_type = 2;
+  TicketStatus ticket_status = 3;
+  TicketStatusReason ticket_status_reason = 4;
+
+  google.protobuf.Timestamp created_at = 98;
+  google.protobuf.Timestamp updated_at = 99;
+}
+
+enum DocumentContentType {
+  DOCUMENT_CONTENT_TYPE_UNSPECIFIED = 0;
+  DOCUMENT_CONTENT_TYPE_PDF = 1;
+  DOCUMENT_CONTENT_TYPE_HTML = 2;
+  DOCUMENT_CONTENT_TYPE_RFC822 = 3;
+}
+
+enum TicketStatus {
+  TICKET_STATUS_UNSPECIFIED = 0;
+  TICKET_STATUS_QUEUED = 1;
+  TICKET_STATUS_PROCESSING = 2;
+  TICKET_STATUS_COMPLETE = 3;
+  TICKET_STATUS_FAILED = 4;
+}
+
+enum TicketStatusReason {
+  TICKET_STATUS_REASON_UNSPECIFIED = 0;
+  TICKET_STATUS_REASON_ENQUEUE_FAILED = 1;
+  TICKET_STATUS_REASON_STORAGE_READ_FAILED = 2;
+  TICKET_STATUS_REASON_STORAGE_READ_NIL = 3;
+  TICKET_STATUS_REASON_CONVERT_FAILED = 4;
+  TICKET_STATUS_REASON_RESPONSE_READER_NIL = 5;
+  TICKET_STATUS_REASON_STORAGE_WRITE_FAILED = 6;
+}
