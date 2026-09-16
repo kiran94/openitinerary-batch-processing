@@ -156,7 +156,7 @@ func TestSubmitTooManyNotificationEmails(t *testing.T) {
 
 	var invalidEmailsError ErrInvalidNotificationEmails
 	require.ErrorAs(t, err, &invalidEmailsError)
-	assert.EqualError(t, err, "notification_emails must contain at most 1 entries")
+	require.EqualError(t, err, "notification_emails must contain at most 1 entries")
 	assert.Nil(t, ticket)
 
 	harness.storage.AssertNotCalled(t, "Write", mock.Anything, mock.Anything, mock.Anything)
