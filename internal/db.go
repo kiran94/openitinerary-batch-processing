@@ -24,7 +24,7 @@ func ConnectDatabase(ctx context.Context, logger logging.Logger, cfg config.Conf
 	}
 
 	options := []tracing.Option{}
-	if cfg.GetLoggingLevel() == slog.LevelDebug {
+	if cfg.GetLoggingLevel() != slog.LevelDebug {
 		options = append(options, tracing.WithoutQueryVariables())
 	}
 
