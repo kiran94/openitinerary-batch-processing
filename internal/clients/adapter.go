@@ -20,6 +20,7 @@ import (
 
 type Adapter interface {
 	Convert(ctx context.Context, document io.Reader, filename string, contentType string) (io.ReadCloser, error)
+	Close() error
 }
 
 type AdapterClient struct {
@@ -153,6 +154,11 @@ func writeMultipart(writer *multipart.Writer, document io.Reader, filename strin
 
 	// Closes the Multipart document, ready for upload
 	return writer.Close()
+}
+
+func (a *AdapterClient) Close() error {
+	a.http.CloseIdleConnections()
+	return nil
 }
 
 func getAdapterAPIURL() string {
