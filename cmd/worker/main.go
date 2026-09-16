@@ -3,23 +3,15 @@ package main
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal"
-	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
-	"github.com/kiran94/openitinerary-batch-processing/internal/job"
+	"github.com/kiran94/openitinerary-batch-processing/internal/di"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
-	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
-	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
-	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
-	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/worker"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -33,88 +25,21 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
-	config := config.ApplicationConfig{}
+	config := config.NewConfig()
 	bootstrapLogger := logging.New(config)
 
-	telemetryManager, err := telemetry.NewTelemetryManager(ctx, config.GetOtelWorkerName(), config)
+	services, err := di.NewServices(ctx, config.GetOtelWorkerName(), bootstrapLogger, config)
 	if err != nil {
-		bootstrapLogger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
 		return err
 	}
-	defer func() {
-		cleanupCtx, cancel := context.WithDeadline(ctx, time.Now().Add(60*time.Second))
-		defer cancel()
+	defer services.Shutdown()
 
-		if err := telemetryManager.Close(cleanupCtx); err != nil {
-			bootstrapLogger.Error(cleanupCtx, "failed to cleanup otel", "error", err)
-		}
-	}()
-	if err := telemetryManager.Ready(); err != nil {
-		bootstrapLogger.Error(ctx, "otel ready failed", "error", err)
-		return err
-	}
-
-	logger := logging.New(config)
-	telemetry.SetLogger(logger)
-
-	applicationMetrics, err := telemetry.NewApplicationOtelMetrics(telemetryManager.GetMeterProvider())
-	if err != nil {
-		logger.Error(ctx, "metrics initialization failed", "error", err)
-		return err
-	}
-	logger.Info(ctx, "telemtry ready", "component", logging.ComponentTelemetry)
-
-	traceProvider := telemetryManager.GetTracerProvider()
-	workerTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/cmd/worker")
-	storageTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/storage")
-	queueTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/queue")
-	jobTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/job")
-	notificationTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/notification")
-	adapterTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/clients")
-
-	storage, err := storage.NewAWSS3Storage(ctx, config, storageTracer)
-	if err != nil {
-		logger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
-		return err
-	}
-	logger.Info(ctx, "storage ready", "component", logging.ComponentStorage, "backend", "s3")
-
-	db, err := internal.ConnectDatabase(ctx, logger, config)
-	if err != nil {
-		logger.Error(ctx, "database initialization failed", "component", logging.ComponentDatabase, "error", err)
-		return err
-	}
-	logger.Info(ctx, "database ready", "component", logging.ComponentDatabase)
-
-	queueService, err := queue.NewQueue(ctx, config, logger, queueTracer)
-	if err != nil {
-		logger.Error(ctx, "queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
-		return err
-	}
-	if err = queueService.Ready(ctx); err != nil {
-		logger.Error(ctx, "queue readiness check failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
-		return err
-	}
-	logger.Info(ctx, "queue ready", "component", logging.ComponentQueue, "backend", "sqs")
-
-	notifier, err := notification.NewNotifier(ctx, config, logger, notificationTracer)
-	if err != nil {
-		logger.Error(ctx, "notifier readiness check failed", "component", logging.ComponentNotifier, "backend", "ses", "error", err)
-		return err
-	}
-	logger.Info(ctx, "notifier ready", "component", logging.ComponentNotifier, "backend", "ses")
-
-	ticketRepository := job.NewTicketRepository(db, jobTracer)
-
-	httpClient := &http.Client{Timeout: time.Duration(60) * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
-	adapter := clients.NewAdapterClient(httpClient, logger, adapterTracer, config.GetMaximumAdapterResponseSizeBytes())
-	defer httpClient.CloseIdleConnections()
-
+	workerTracer := services.GetTracer("github.com/kiran94/openitinerary-batch-processing/cmd/worker")
 	numberWorkers := runtime.NumCPU()
 	wg := &sync.WaitGroup{}
 
 	workerErrors := make([]error, numberWorkers)
-	logger.Info(ctx,
+	services.Logger.Info(ctx,
 		"worker pool starting",
 		"component", logging.ComponentWorker,
 		"worker_count", numberWorkers,
@@ -123,10 +48,10 @@ func run() error {
 
 	for i := 0; i < numberWorkers; i++ {
 		wg.Go(func() {
-			worker := worker.NewBatchWorker(config, ticketRepository, queueService, storage, adapter, logger, notifier, applicationMetrics, workerTracer)
+			worker := worker.NewBatchWorker(services.Config, services.TicketRepository, services.Queue, services.Storage, services.Adapter, services.Logger, services.Notifier, services.WorkerMetrics, workerTracer)
 
 			workerCtx := logging.WithWorkerID(ctx, worker.GetID())
-			workerLogger := logger.WithContext(workerCtx)
+			workerLogger := services.Logger.WithContext(workerCtx)
 
 			processingItem, err := startWork(workerCtx, worker, config, workerLogger)
 
@@ -151,7 +76,7 @@ func run() error {
 
 	err = errors.Join(workerErrors...)
 	if err != nil {
-		logger.Error(ctx,
+		services.Logger.Error(ctx,
 			"worker pool failed",
 			"component", logging.ComponentWorker,
 			"worker_count", numberWorkers,
@@ -160,7 +85,7 @@ func run() error {
 		return err
 	}
 
-	logger.Info(ctx, "worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
+	services.Logger.Info(ctx, "worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
 	return nil
 }
 

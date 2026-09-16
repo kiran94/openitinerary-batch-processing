@@ -12,6 +12,13 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 )
 
+type ServiceReadyManager interface {
+	Live() http.HandlerFunc
+	Ready() http.HandlerFunc
+	Start(ctx context.Context)
+	Shutdown()
+}
+
 type serviceReadyManager struct {
 	sync.RWMutex
 	ready    bool
@@ -24,6 +31,8 @@ type serviceReadyManager struct {
 
 	services []readyService
 }
+
+var _ ServiceReadyManager = (*serviceReadyManager)(nil)
 
 func NewServiceReadyManager(cfg config.Config, logger logging.Logger, db *sql.DB) *serviceReadyManager {
 	return &serviceReadyManager{
