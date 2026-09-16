@@ -41,6 +41,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Cache golangci-lint
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/golangci-lint
+          key: ${{ runner.os }}-${{ runner.arch }}-golangci-lint-${{ hashFiles('go.mod', 'go.sum', '.golangci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-golangci-lint-
+
       - name: Install tools
         run: make install_tools
 
