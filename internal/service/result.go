@@ -63,7 +63,7 @@ func (r *resultService) GetResultLink(ctx context.Context, ticketID uuid.UUID) (
 	outputPath := r.config.GetOutputPath(r.config.GetBucket(), r.config.GetBucketPath(), ticket.ID.String())
 	link, expiration, err := r.storage.GetLink(ctx, outputPath)
 	if err != nil {
-		logger.Error(ctx, "failed to generate link", "component", logging.ComponentStorage, "error", err)
+		logger.Error(ctx, "failed to generate link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
 		return nil, err
 	}
 
