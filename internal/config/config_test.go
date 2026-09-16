@@ -10,7 +10,7 @@ import (
 
 func TestApplicationConfigGetEnvironment(t *testing.T) {
 	t.Setenv("ENV", "production")
-	config := ApplicationConfig{}
+	config := NewConfig()
 
 	assert.Equal(t, "production", config.GetEnvironment())
 }
