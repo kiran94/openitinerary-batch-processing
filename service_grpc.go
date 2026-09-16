@@ -112,6 +112,8 @@ func (s *OpenItineraryBatchProcessingGrpcService) Status(ctx context.Context, re
 		return nil, status.Error(codes.InvalidArgument, "ticket was not a valid uuid")
 	}
 
+	ctx = logging.WithTicketID(ctx, request.TicketId)
+
 	ticket, err := s.statusService.GetStatus(ctx, ticketID)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
@@ -142,10 +144,17 @@ func (s *OpenItineraryBatchProcessingGrpcService) ResultLink(ctx context.Context
 		return nil, status.Error(codes.InvalidArgument, "ticket was not a valid uuid")
 	}
 
+	ctx = logging.WithTicketID(ctx, request.TicketId)
+
 	result, err := s.resultService.GetResultLink(ctx, ticketID)
 	if err != nil {
 		if errors.Is(err, service.ErrJobNotComplete) {
 			return nil, status.Error(codes.NotFound, "job has not completed yet. Result does not exist yet.")
+		}
+
+		if errors.Is(err, job.ErrRecordNotFound) {
+			logger.Error(ctx, "ticket was not found", "ticket_id", request.TicketId)
+			return nil, status.Error(codes.NotFound, "ticket was not found")
 		}
 
 		logger.Error(ctx, "error getting results link", "ticket_id", request.TicketId, "error", err)
