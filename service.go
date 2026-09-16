@@ -14,32 +14,31 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
-	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
-	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type ServiceV1 struct {
 	config  config.Config
-	job     job.TicketRepository
 	logger  logging.Logger
-	queue   queue.BatchQueue
-	storage storage.Storage
 	metrics telemetry.ServiceMetrics
 	tracer  trace.Tracer
+
+	submitService service.SubmitService
+	resultService service.ResultService
+	statusService service.StatusService
 }
 
 type submitRequest struct {
-	file               multipart.File
-	fileHeader         *multipart.FileHeader
-	contentType        string
-	fileType           string
-	metricContentType  metrics.ContentType
-	notificationEmails []string
+	file                multipart.File
+	fileHeader          *multipart.FileHeader
+	contentType         string
+	fileType            string
+	documentContentType config.ContentType
+	notificationEmails  []string
 }
 
 type submitRequestError struct {
@@ -66,7 +65,6 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	logger := s.logger.WithContext(ctx)
-
 	span := trace.SpanFromContext(r.Context())
 
 	defer func() {
@@ -85,7 +83,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		defer request.file.Close()
 	}
 	if requestErr != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, requestErr.statusCode, requestErr.detail, span)
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, requestErr.statusCode, requestErr.detail, span)
 		reason := requestErr.reason
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome: metrics.SubmissionRejected,
@@ -94,18 +92,27 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticket := job.NewTicket()
-	ticket.DocumentPath = s.config.GetDocumentPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String(), request.fileType)
-	ticket.ContentType = string(request.metricContentType)
-	ticket.NotificationEmails = request.notificationEmails
+	input := service.SubmitInput{
+		Document:           request.file,
+		SizeBytes:          request.fileHeader.Size,
+		ContentType:        request.documentContentType,
+		NotificationEmails: request.notificationEmails,
+		SubmitStartedAt:    startedAt,
+	}
+
+	ticket, err := s.submitService.Submit(ctx, input)
+	if err != nil {
+		if e, ok := errors.AsType[service.ErrInvalidNotificationEmails](err); ok {
+			s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusBadRequest, e.Error(), span)
+			return
+		}
+
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
+		return
+	}
 
 	ctx = logging.WithTicketID(ctx, ticket.ID.String())
 	logger = logger.WithContext(ctx)
-
-	if err := s.storeAndEnqueue(ctx, logger, request, ticket, startedAt); err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
-		return
-	}
 
 	s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt)
 }
@@ -169,7 +176,7 @@ func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (
 		}
 	}
 
-	fileType, metricContentType, err := contentTypeConversion(contentType)
+	fileType, documentContentType, err := contentTypeConversion(contentType)
 	if err != nil {
 		return request, &submitRequestError{
 			statusCode: http.StatusUnsupportedMediaType,
@@ -180,100 +187,9 @@ func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (
 
 	request.contentType = contentType
 	request.fileType = fileType
-	request.metricContentType = metricContentType
+	request.documentContentType = documentContentType
 	request.notificationEmails = emails
 	return request, nil
-}
-
-func (s *ServiceV1) storeAndEnqueue(
-	ctx context.Context,
-	logger logging.Logger,
-	request submitRequest,
-	ticket *job.Ticket,
-	startedAt time.Time,
-) error {
-	ctx, span := s.tracer.Start(ctx, string(telemetry.TracingSpanStoreAndEnqueue), trace.WithAttributes(attribute.String("ticket.id", ticket.ID.String())))
-	defer span.End()
-
-	inputBytes := request.fileHeader.Size
-
-	storageStart := time.Now()
-
-	if err := s.storage.Write(ctx, request.file, ticket.DocumentPath); err != nil {
-		s.metrics.RecordStorageUpload(
-			ctx,
-			metrics.StorageUploadObservation{
-				Duration: time.Since(storageStart),
-				Purpose:  metrics.StorageUploadPurposeDocument,
-				Outcome:  metrics.StorageUploadFailed,
-			},
-		)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", request.contentType, "error", err)
-		return err
-	}
-	s.metrics.RecordStorageUpload(
-		ctx,
-		metrics.StorageUploadObservation{Duration: time.Since(storageStart), Purpose: metrics.StorageUploadPurposeDocument, Outcome: metrics.StorageUploadSuccess},
-	)
-
-	if err := s.job.Create(ctx, ticket); err != nil {
-		logger.Error(ctx, "ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		span.RecordError(err)
-		return err
-	}
-
-	if err := s.queue.Enqueue(ctx, ticket); err != nil {
-		detail := fmt.Sprintf("enqueue failed. err: %v", err)
-		commonUpdateErrLoggingFields := []any{
-			"component", logging.ComponentDatabase,
-			"reason", string(job.EnqueueFailed),
-			"original_error", err,
-			"operation", logging.OperationMarkFailed,
-		}
-
-		updated, updateErr := s.job.MarkFailed(ctx, ticket.ID, job.EnqueueFailed, detail)
-		if updateErr != nil {
-			commonUpdateErrLoggingFields = append(commonUpdateErrLoggingFields, "error", updateErr)
-			logger.Error(ctx, "ticket failure update failed", commonUpdateErrLoggingFields...)
-		} else if !updated {
-			logger.Warn(ctx, "ticket failure update skipped", commonUpdateErrLoggingFields...)
-		} else {
-			logger.Info(ctx, "ticket marked failed", commonUpdateErrLoggingFields...)
-		}
-
-		logger.Error(ctx, "queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
-		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome:     metrics.SubmissionFailed,
-			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
-			ContentType: &request.metricContentType,
-			InputBytes:  &inputBytes,
-		})
-		s.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{
-			Outcome: metrics.TerminalFailed,
-			Reason:  new(metrics.TerminalReasonEnqueueFailed),
-		})
-		s.metrics.RecordJobEndToEnd(ctx, metrics.JobEndObservation{
-			Duration: time.Since(startedAt),
-			Outcome:  metrics.JobEndOutcomeFailed,
-			Reason:   new(metrics.TerminalReasonEnqueueFailed),
-		})
-		span.RecordError(err)
-		return err
-	}
-
-	return nil
 }
 
 func (s *ServiceV1) writeSubmitResponse(
@@ -291,11 +207,11 @@ func (s *ServiceV1) writeSubmitResponse(
 	inputBytes := request.fileHeader.Size
 	if err != nil {
 		logger.Error(ctx, "submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonResponseSerializationFailed),
-			ContentType: &request.metricContentType,
+			ContentType: &request.documentContentType,
 			InputBytes:  &inputBytes,
 			Enqueued:    true,
 		})
@@ -307,7 +223,7 @@ func (s *ServiceV1) writeSubmitResponse(
 		Outcome:     metrics.SubmissionAccepted,
 		Enqueued:    true,
 		InputBytes:  &inputBytes,
-		ContentType: &request.metricContentType,
+		ContentType: &request.documentContentType,
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -320,7 +236,7 @@ func (s *ServiceV1) writeSubmitResponse(
 			"error", err,
 			"operation", logging.OperationErrorResponseWrite,
 		)
-		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: metrics.EndpointSubmit})
+		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointSubmit})
 		span.RecordError(err)
 		return
 	}
@@ -336,14 +252,14 @@ func (s *ServiceV1) writeSubmitResponse(
 	span.SetStatus(codes.Ok, "")
 }
 
-func contentTypeConversion(contentType string) (string, metrics.ContentType, error) {
+func contentTypeConversion(contentType string) (string, config.ContentType, error) {
 	switch contentType {
 	case "application/pdf":
-		return "pdf", metrics.ContentTypePDF, nil
+		return "pdf", config.ContentTypePDF, nil
 	case "text/html":
-		return "html", metrics.ContentTypeHTML, nil
+		return "html", config.ContentTypeHTML, nil
 	case "message/rfc822":
-		return "eml", metrics.ContentTypeEmail, nil
+		return "eml", config.ContentTypeEmail, nil
 	default:
 	}
 
@@ -356,11 +272,6 @@ func (s *ServiceV1) parseNotificationEmails(r *http.Request) ([]string, error) {
 	var emails []string
 	if err := json.Unmarshal([]byte(emailRaw), &emails); err != nil {
 		return nil, errors.New("notification_emails must be a JSON array of strings")
-	}
-
-	notificationEmailLimit := s.config.GetNotificationEmailLimit()
-	if len(emails) > notificationEmailLimit {
-		return nil, fmt.Errorf("notification_emails must contain at most %d entries", notificationEmailLimit)
 	}
 
 	return emails, nil
@@ -384,41 +295,42 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusBadRequest, "id parameter must be provided", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id parameter must be provided", span)
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusBadRequest, "id must be a valid UUID", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id must be a valid UUID", span)
 		return
 	}
 
 	ctx = logging.WithTicketID(ctx, ticketIDParsed.String())
 	logger = logger.WithContext(ctx)
 
-	ticket, err := s.job.Get(ctx, ticketIDParsed)
+	ticket, err := s.statusService.GetStatus(ctx, ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
-			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusNotFound, "ticket was not found", span)
-		} else {
-			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
-			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
+			s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusNotFound, "ticket was not found", span)
+			return
 		}
+
+		logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
 		logger.Error(ctx, "ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(responseBody); err != nil {
 		logger.Warn(ctx, "response write failed", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
-		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: metrics.EndpointStatus})
+		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointStatus})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
 		return
@@ -427,18 +339,13 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "")
 }
 
-type resultOutput struct {
-	Link    string    `json:"link"`
-	Expires time.Time `json:"expires"`
-}
-
 // result returns a temporary download link for a successfully completed ticket.
 // @Summary      Get processing result
 // @Description  Generate a temporary download link for the result of a successfully completed ticket.
 // @Tags         batch
 // @Produce      json
 // @Param        id  path      string        true  "Ticket UUID"
-// @Success      200 {object}  resultOutput  "Temporary result download link"
+// @Success      200 {object}  service.ResultOutput  "Temporary result download link"
 // @Success      204 "Ticket has not successfully completed"
 // @Failure      400 {object}  apiError     "Missing or invalid ticket UUID"
 // @Failure      404 {object}  apiError     "Ticket not found"
@@ -451,60 +358,46 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusBadRequest, "id parameter must be provided", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id parameter must be provided", span)
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusBadRequest, "id must be a valid UUID", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id must be a valid UUID", span)
 		return
 	}
 
 	ctx = logging.WithTicketID(ctx, ticketIDParsed.String())
 	logger = logger.WithContext(ctx)
 
-	ticket, err := s.job.Get(ctx, ticketIDParsed)
+	result, err := s.resultService.GetResultLink(ctx, ticketIDParsed)
 	if err != nil {
-		if errors.Is(err, job.ErrRecordNotFound) {
-			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusNotFound, "ticket was not found", span)
-		} else {
-			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
-			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
+		if errors.Is(err, service.ErrJobNotComplete) {
+			w.WriteHeader(http.StatusNoContent)
+			return
 		}
+
+		if errors.Is(err, job.ErrRecordNotFound) {
+			s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusNotFound, "ticket was not found", span)
+			return
+		}
+
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		return
-	}
-
-	if ticket.Status != job.Complete {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	outputPath := s.config.GetOutputPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String())
-
-	link, expiration, err := s.storage.GetLink(ctx, outputPath)
-	if err != nil {
-		logger.Error(ctx, "failed to generate presigned link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
-		return
-	}
-
-	result := resultOutput{
-		Link:    link,
-		Expires: expiration,
 	}
 
 	b, err := json.Marshal(result)
 	if err != nil {
 		logger.Error(ctx, "failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(b); err != nil {
 		logger.Error(ctx, "failed to write response", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
-		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: metrics.EndpointResults})
+		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointResults})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
 		return
@@ -521,7 +414,7 @@ func (s *ServiceV1) writeAPIError(
 	ctx context.Context,
 	logger logging.Logger,
 	w http.ResponseWriter,
-	endpoint metrics.EndpointV1,
+	endpoint config.EndpointV1,
 	statusCode int,
 	detail string,
 	span trace.Span,

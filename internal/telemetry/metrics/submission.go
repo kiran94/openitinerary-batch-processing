@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"context"
+
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 )
 
 type SubmissionRecorder interface {
@@ -19,7 +21,7 @@ type SubmissionRecorder interface {
 type SubmissionObservation struct {
 	Outcome     SubmissionOutcome
 	Reason      *SubmissionReason
-	ContentType *ContentType
+	ContentType *config.ContentType
 	InputBytes  *int64
 	Enqueued    bool
 }
@@ -46,12 +48,4 @@ const (
 	SubmissionReasonTicketCreationFailed        SubmissionReason = "ticket_creation_failed"
 	SubmissionReasonQueueEnqueueFailed          SubmissionReason = "queue_enqueue_failed"
 	SubmissionReasonResponseSerializationFailed SubmissionReason = "response_serialization_failed"
-)
-
-type ContentType string
-
-const (
-	ContentTypePDF   ContentType = "application/pdf"
-	ContentTypeHTML  ContentType = "text/html"
-	ContentTypeEmail ContentType = "message/rfc822"
 )

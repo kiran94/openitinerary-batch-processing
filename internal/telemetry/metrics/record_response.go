@@ -2,10 +2,12 @@ package metrics
 
 import (
 	"context"
+
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 )
 
 type ResponseObservation struct {
-	Endpoint EndpointV1
+	Endpoint config.EndpointV1
 }
 
 type ResponseWriteErrorRecorder interface {
@@ -17,11 +19,3 @@ type ResponseWriteErrorRecorder interface {
 	*/
 	RecordResponseWriteError(context.Context, ResponseObservation)
 }
-
-type EndpointV1 string
-
-const (
-	EndpointSubmit  EndpointV1 = "/api/v1/submit"
-	EndpointStatus  EndpointV1 = "/api/v1/status/{id}"
-	EndpointResults EndpointV1 = "/api/v1/result/{id}"
-)

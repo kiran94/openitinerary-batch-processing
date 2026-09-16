@@ -480,7 +480,7 @@ func TestStartClosesSourceAndResponse(t *testing.T) {
 	assert.Positive(t, harness.metrics.adapterConversionObservations[0].Duration)
 	require.Len(t, harness.metrics.adapterResponseObservations, 1)
 	assert.Equal(t, int64(len(`[{"type":"flight"}]`)), harness.metrics.adapterResponseObservations[0].SizeBytes)
-	assert.Equal(t, telemetrymetrics.ContentTypePDF, harness.metrics.adapterResponseObservations[0].ContentType)
+	assert.Equal(t, config.ContentTypePDF, harness.metrics.adapterResponseObservations[0].ContentType)
 	require.Len(t, harness.metrics.workerProcessingObservations, 1)
 	assert.Equal(t, telemetrymetrics.WorkerProcessingOutcomeSuccess, harness.metrics.workerProcessingObservations[0].Outcome)
 	assert.Positive(t, harness.metrics.workerProcessingObservations[0].Duration)

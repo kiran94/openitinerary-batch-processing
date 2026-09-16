@@ -15,6 +15,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
+	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -66,6 +67,7 @@ func run() error {
 	storageTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/storage")
 	queueTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/queue")
 	jobTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/job")
+	submitServiceTracer := traceProvider.Tracer("github.com/kiran94/openitinerary-batch-processing/internal/service")
 
 	logger := logging.New(appConfig)
 	telemetry.SetLogger(logger)
@@ -97,17 +99,19 @@ func run() error {
 		return err
 	}
 
+	jobService := job.NewTicketRepository(db, jobTracer)
+
 	srm := health.NewServiceReadyManager(appConfig, logger, internalDB)
 	srm.Start(interruptCtx)
 
 	service := ServiceV1{
-		config:  appConfig,
-		job:     job.NewTicketRepository(db, jobTracer),
-		logger:  logger,
-		queue:   batchQueue,
-		storage: s3,
-		metrics: serviceMetrics,
-		tracer:  serviceTracer,
+		config:        appConfig,
+		logger:        logger,
+		metrics:       serviceMetrics,
+		tracer:        serviceTracer,
+		submitService: service.NewSubmitService(appConfig, logger, submitServiceTracer, s3, serviceMetrics, jobService, batchQueue),
+		resultService: service.NewResultService(appConfig, logger, submitServiceTracer, jobService, s3),
+		statusService: service.NewStatusService(jobService, submitServiceTracer),
 	}
 
 	mux := http.NewServeMux()

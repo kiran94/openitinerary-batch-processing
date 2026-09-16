@@ -1,6 +1,10 @@
 package metrics
 
-import "context"
+import (
+	"context"
+
+	"github.com/kiran94/openitinerary-batch-processing/internal/config"
+)
 
 type AdapterResponseRecorder interface {
 	/*
@@ -16,5 +20,5 @@ type AdapterResponseRecorder interface {
 // consumed successfully.
 type AdapterResponseObservation struct {
 	SizeBytes   int64
-	ContentType ContentType
+	ContentType config.ContentType
 }
