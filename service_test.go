@@ -398,7 +398,7 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 		On(
 			"RecordResponseWriteError",
 			contextHasTicketIDValue(expectedTicket.ID),
-			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointSubmit},
+			telemetrymetrics.ResponseObservation{Endpoint: config.EndpointSubmit},
 		).
 		Once()
 
@@ -635,7 +635,7 @@ func TestServiceStatusResponseWriteError(t *testing.T) {
 		On(
 			"RecordResponseWriteError",
 			contextHasTicketIDValue(inputTicket),
-			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointStatus},
+			telemetrymetrics.ResponseObservation{Endpoint: config.EndpointStatus},
 		).
 		Once()
 
@@ -836,7 +836,7 @@ func TestServiceResultResponseWriteError(t *testing.T) {
 		On(
 			"RecordResponseWriteError",
 			contextHasTicketIDValue(inputTicket),
-			telemetrymetrics.ResponseObservation{Endpoint: telemetrymetrics.EndpointResults},
+			telemetrymetrics.ResponseObservation{Endpoint: config.EndpointResults},
 		).
 		Once()
 
@@ -862,11 +862,11 @@ func TestServiceResultResponseWriteError(t *testing.T) {
 func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
 	tests := []struct {
 		name     string
-		endpoint telemetrymetrics.EndpointV1
+		endpoint config.EndpointV1
 	}{
-		{name: "submit", endpoint: telemetrymetrics.EndpointSubmit},
-		{name: "status", endpoint: telemetrymetrics.EndpointStatus},
-		{name: "results", endpoint: telemetrymetrics.EndpointResults},
+		{name: "submit", endpoint: config.EndpointSubmit},
+		{name: "status", endpoint: config.EndpointStatus},
+		{name: "results", endpoint: config.EndpointResults},
 	}
 
 	for _, tt := range tests {
