@@ -38,6 +38,9 @@ generate_oi_go_models:
 api:
 	 go run .
 
+api_grpc:
+	go run . --grpc
+
 # Live reload
 api_dev:
 	go tool air
