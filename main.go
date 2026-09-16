@@ -23,12 +23,21 @@ const (
 )
 
 func main() {
-	if err := run(); err != nil {
-		os.Exit(1)
+
+	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "--grpc" {
+		if err := StartGRPCService(); err != nil {
+			os.Exit(1)
+		}
+	} else {
+		if err := StartHTTPService(); err != nil {
+			os.Exit(1)
+		}
 	}
+
 }
 
-func run() error {
+func StartHTTPService() error {
 	ctx := context.Background()
 	interruptCtx, interruptCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer interruptCancel()
