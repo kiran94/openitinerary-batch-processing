@@ -210,6 +210,7 @@ func TestApplicationConfigOtelDefaults(t *testing.T) {
 
 	assert.Equal(t, "openitinerary-batch-api", config.GetOtelServiceName())
 	assert.Equal(t, "openitinerary-batch-worker", config.GetOtelWorkerName())
+	assert.Equal(t, "openitinerary-batch-grpc", config.GetOtelGrpcName())
 	assert.Equal(t, "0.0.1", config.GetOtelServiceVersion())
 }
 

@@ -43,6 +43,7 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
+	GetOtelGrpcName() string
 
 	GetServiceReadinessPollingInterval() time.Duration
 	GetServiceReadinessPollingTimeout() time.Duration
@@ -165,6 +166,10 @@ func (ac ApplicationConfig) GetOtelServiceName() string {
 
 func (ac ApplicationConfig) GetOtelWorkerName() string {
 	return "openitinerary-batch-worker"
+}
+
+func (ac ApplicationConfig) GetOtelGrpcName() string {
+	return "openitinerary-batch-grpc"
 }
 
 func (ac ApplicationConfig) GetOtelServiceVersion() string {

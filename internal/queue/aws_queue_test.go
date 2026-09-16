@@ -545,6 +545,10 @@ func (m *MockConfig) GetOtelWorkerName() string {
 	return m.Called().String(0)
 }
 
+func (m *MockConfig) GetOtelGrpcName() string {
+	return m.Called().String(0)
+}
+
 func (m *MockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
 }
