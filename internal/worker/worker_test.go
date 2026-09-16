@@ -956,6 +956,10 @@ func (m *MockAdapter) Convert(
 	return nil, args.Error(1)
 }
 
+func (m *MockAdapter) Close() error {
+	return m.Called().Error(0)
+}
+
 type MockLogger struct{}
 
 func (*MockLogger) Debug(context.Context, string, ...any)        {}

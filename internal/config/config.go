@@ -50,6 +50,10 @@ type Config interface {
 
 type ApplicationConfig struct{}
 
+func NewConfig() Config {
+	return ApplicationConfig{}
+}
+
 func (ac ApplicationConfig) GetEnvironment() string {
 	return os.Getenv("ENV")
 }
