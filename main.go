@@ -113,6 +113,7 @@ func run() error {
 		tracer:        serviceTracer,
 		submitService: service.NewSubmitService(appConfig, logger, submitServiceTracer, s3, serviceMetrics, jobService, batchQueue),
 		resultService: service.NewResultService(appConfig, logger, submitServiceTracer, jobService, s3),
+		statusService: service.NewStatusService(jobService, submitServiceTracer),
 	}
 
 	mux := http.NewServeMux()

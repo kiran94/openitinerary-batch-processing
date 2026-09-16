@@ -513,17 +513,23 @@ func TestServiceStatusInvalidTicket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			statusService := new(MockStatusService)
 			writer := httptest.NewRecorder()
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			request.SetPathValue("id", tt.inputTicket)
 
-			service := ServiceV1{logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
-			service.status(writer, request)
+			httpService := ServiceV1{
+				logger:        &MockLogger{},
+				tracer:        testutils.NewMockTracer(),
+				statusService: statusService,
+			}
+			httpService.status(writer, request)
 
 			response := writer.Result()
 			defer response.Body.Close()
 
 			assertAPIError(t, response, http.StatusBadRequest, tt.expectedDetail)
+			statusService.AssertNotCalled(t, "GetStatus", mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -552,23 +558,65 @@ func TestServiceStatusTicketLookupFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jobRepo := new(MockTicketRepository)
-			jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(nil, tt.getJobError).Once()
+			statusService := new(MockStatusService)
+			statusService.
+				On("GetStatus", contextHasTicketIDValue(inputTicket), inputTicket).
+				Return(nil, tt.getJobError).
+				Once()
 
 			writer := httptest.NewRecorder()
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			request.SetPathValue("id", inputTicket.String())
 
-			service := ServiceV1{job: jobRepo, logger: &MockLogger{}, tracer: testutils.NewMockTracer()}
-			service.status(writer, request)
+			httpService := ServiceV1{
+				logger:        &MockLogger{},
+				tracer:        testutils.NewMockTracer(),
+				statusService: statusService,
+			}
+			httpService.status(writer, request)
 
 			response := writer.Result()
 			defer response.Body.Close()
 
 			assertAPIError(t, response, tt.expectedStatus, tt.expectedDetail)
-			jobRepo.AssertExpectations(t)
+			statusService.AssertExpectations(t)
 		})
 	}
+}
+
+func TestServiceStatusSuccess(t *testing.T) {
+	inputTicket := uuid.New()
+	expectedTicket := job.NewTicket()
+	expectedTicket.ID = inputTicket
+	statusService := new(MockStatusService)
+	statusService.
+		On("GetStatus", contextHasTicketIDValue(inputTicket), inputTicket).
+		Return(expectedTicket, nil).
+		Once()
+
+	writer := httptest.NewRecorder()
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
+	request.SetPathValue("id", inputTicket.String())
+
+	httpService := ServiceV1{
+		logger:        &MockLogger{},
+		tracer:        testutils.NewMockTracer(),
+		statusService: statusService,
+	}
+	httpService.status(writer, request)
+
+	response := writer.Result()
+	defer response.Body.Close()
+
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+
+	var ticket job.Ticket
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&ticket))
+	assert.Equal(t, expectedTicket.ID, ticket.ID)
+	assert.Equal(t, expectedTicket.Status, ticket.Status)
+
+	statusService.AssertExpectations(t)
 }
 
 func TestServiceStatusResponseWriteError(t *testing.T) {
@@ -576,8 +624,11 @@ func TestServiceStatusResponseWriteError(t *testing.T) {
 	ticket := job.NewTicket()
 	ticket.ID = inputTicket
 
-	jobRepo := new(MockTicketRepository)
-	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
+	statusService := new(MockStatusService)
+	statusService.
+		On("GetStatus", contextHasTicketIDValue(inputTicket), inputTicket).
+		Return(ticket, nil).
+		Once()
 
 	serviceMetrics := new(MockServiceMetrics)
 	serviceMetrics.
@@ -595,11 +646,16 @@ func TestServiceStatusResponseWriteError(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	request.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{job: jobRepo, logger: &MockLogger{}, metrics: serviceMetrics, tracer: testutils.NewMockTracer()}
-	service.status(writer, request)
+	httpService := ServiceV1{
+		logger:        &MockLogger{},
+		metrics:       serviceMetrics,
+		tracer:        testutils.NewMockTracer(),
+		statusService: statusService,
+	}
+	httpService.status(writer, request)
 
-	jobRepo.AssertExpectations(t)
 	serviceMetrics.AssertExpectations(t)
+	statusService.AssertExpectations(t)
 }
 
 func TestServiceResultInvalidTicket(t *testing.T) {
@@ -1048,6 +1104,7 @@ var (
 	_ config.Config            = (*MockConfig)(nil)
 	_ job.TicketRepository     = (*MockTicketRepository)(nil)
 	_ service.ResultService    = (*MockResultService)(nil)
+	_ service.StatusService    = (*MockStatusService)(nil)
 	_ service.SubmitService    = (*MockSubmitService)(nil)
 	_ storage.Storage          = (*MockStorage)(nil)
 	_ telemetry.ServiceMetrics = (*MockServiceMetrics)(nil)
@@ -1179,6 +1236,21 @@ type MockSubmitService struct {
 
 type MockResultService struct {
 	mock.Mock
+}
+
+type MockStatusService struct {
+	mock.Mock
+}
+
+func (m *MockStatusService) GetStatus(ctx context.Context, ticketID uuid.UUID) (*job.Ticket, error) {
+	args := m.Called(ctx, ticketID)
+
+	var ticket *job.Ticket
+	if value := args.Get(0); value != nil {
+		ticket = value.(*job.Ticket)
+	}
+
+	return ticket, args.Error(1)
 }
 
 func (m *MockResultService) GetResultLink(ctx context.Context, ticketID uuid.UUID) (*service.ResultOutput, error) {

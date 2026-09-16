@@ -32,6 +32,7 @@ type ServiceV1 struct {
 
 	submitService service.SubmitService
 	resultService service.ResultService
+	statusService service.StatusService
 }
 
 type submitRequest struct {
@@ -310,14 +311,15 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 	ctx = logging.WithTicketID(ctx, ticketIDParsed.String())
 	logger = logger.WithContext(ctx)
 
-	ticket, err := s.job.Get(ctx, ticketIDParsed)
+	ticket, err := s.statusService.GetStatus(ctx, ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusNotFound, "ticket was not found", span)
-		} else {
-			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
-			s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
+			return
 		}
+
+		logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+		s.writeAPIError(ctx, logger, w, metrics.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
 		return
 	}
 
