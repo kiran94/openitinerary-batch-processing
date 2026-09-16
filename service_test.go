@@ -615,23 +615,24 @@ func TestServiceResultInvalidTicket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			config := new(MockConfig)
-			logger := new(MockLogger)
-			jobRepo := new(MockTicketRepository)
-			storage := new(MockStorage)
+			resultService := new(MockResultService)
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			r.SetPathValue("id", tt.inputTicket)
 
-			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
-			service.result(w, r)
+			httpService := ServiceV1{
+				logger:        new(MockLogger),
+				tracer:        testutils.NewMockTracer(),
+				resultService: resultService,
+			}
+			httpService.result(w, r)
 
 			result := w.Result()
 			defer result.Body.Close()
 
 			assertAPIError(t, result, http.StatusBadRequest, tt.expectedDetail)
+			resultService.AssertNotCalled(t, "GetResultLink", mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -660,46 +661,51 @@ func TestServiceResultTicketNotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			config := new(MockConfig)
-			logger := new(MockLogger)
-			jobRepo := new(MockTicketRepository)
-			storage := new(MockStorage)
-
-			jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(nil, tt.getJobError).Once()
+			resultService := new(MockResultService)
+			resultService.
+				On("GetResultLink", contextHasTicketIDValue(inputTicket), inputTicket).
+				Return(nil, tt.getJobError).
+				Once()
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 			r.SetPathValue("id", inputTicket.String())
 
-			service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
-			service.result(w, r)
+			httpService := ServiceV1{
+				logger:        new(MockLogger),
+				tracer:        testutils.NewMockTracer(),
+				resultService: resultService,
+			}
+			httpService.result(w, r)
 
 			result := w.Result()
 			defer result.Body.Close()
 
 			assertAPIError(t, result, tt.expectedStatus, tt.expectedDetail)
 
-			jobRepo.AssertExpectations(t)
+			resultService.AssertExpectations(t)
 		})
 	}
 }
 
 func TestServiceResultTicketNotComplete(t *testing.T) {
 	inputTicket := uuid.New()
-
-	jobRepo := new(MockTicketRepository)
-	storage := new(MockStorage)
-	ticket := job.NewTicket()
-	ticket.ID = inputTicket
-	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
+	resultService := new(MockResultService)
+	resultService.
+		On("GetResultLink", contextHasTicketIDValue(inputTicket), inputTicket).
+		Return(nil, service.ErrJobNotComplete).
+		Once()
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	r.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{job: jobRepo, logger: new(MockLogger), storage: storage, tracer: testutils.NewMockTracer()}
-	service.result(w, r)
+	httpService := ServiceV1{
+		logger:        new(MockLogger),
+		tracer:        testutils.NewMockTracer(),
+		resultService: resultService,
+	}
+	httpService.result(w, r)
 
 	result := w.Result()
 	defer result.Body.Close()
@@ -709,69 +715,38 @@ func TestServiceResultTicketNotComplete(t *testing.T) {
 	responseBody, err := io.ReadAll(result.Body)
 	require.NoError(t, err)
 	assert.Empty(t, responseBody)
-	jobRepo.AssertExpectations(t)
-	storage.AssertNotCalled(t, "GetLink", mock.Anything, mock.Anything)
+
+	resultService.AssertExpectations(t)
 }
 
-func TestServiceResultFailedGetLink(t *testing.T) {
+func TestServiceResultSuccess(t *testing.T) {
 	inputTicket := uuid.New()
-
-	config := new(MockConfig)
-	logger := new(MockLogger)
-	jobRepo := new(MockTicketRepository)
-	storage := new(MockStorage)
-
-	ticket := job.NewTicket()
-	ticket.Status = job.Complete
-	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
-	storage.On("GetLink", contextHasTicketIDValue(inputTicket), mock.Anything).Return("", time.Now(), errors.New("failed to get link")).Once()
-	config.On("GetBucket").Return("bucket")
-	config.On("GetBucketPath").Return("path")
-	config.On("GetOutputPath", "bucket", "path", ticket.ID.String()).Return("s3://bucket/path")
+	expectedPresignedLink := "http://s3_presigned_link"
+	expectedExpiration := time.Now().Add(time.Second * 60)
+	expectedResult := &service.ResultOutput{
+		Link:    expectedPresignedLink,
+		Expires: expectedExpiration,
+	}
+	resultService := new(MockResultService)
+	resultService.
+		On("GetResultLink", contextHasTicketIDValue(inputTicket), inputTicket).
+		Return(expectedResult, nil).
+		Once()
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	r.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
-	service.result(w, r)
+	httpService := ServiceV1{
+		logger:        new(MockLogger),
+		tracer:        testutils.NewMockTracer(),
+		resultService: resultService,
+	}
+	httpService.result(w, r)
 
 	result := w.Result()
 	defer result.Body.Close()
 
-	assertAPIError(t, result, http.StatusInternalServerError, "failed to retrieve processing result")
-
-	jobRepo.AssertExpectations(t)
-	storage.AssertExpectations(t)
-}
-
-func TestServiceGetLinkSuccess(t *testing.T) {
-	inputTicket := uuid.New()
-
-	config := new(MockConfig)
-	logger := new(MockLogger)
-	jobRepo := new(MockTicketRepository)
-	storage := new(MockStorage)
-
-	expectedPresignedLink := "http://s3_presigned_link"
-	expectedExpiration := time.Now().Add(time.Second * 60)
-
-	ticket := job.NewTicket()
-	ticket.Status = job.Complete
-	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
-	storage.On("GetLink", contextHasTicketIDValue(inputTicket), mock.Anything).Return(expectedPresignedLink, expectedExpiration, nil).Once()
-	config.On("GetBucket").Return("bucket")
-	config.On("GetBucketPath").Return("path")
-	config.On("GetOutputPath", "bucket", "path", ticket.ID.String()).Return("s3://bucket/path")
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
-	r.SetPathValue("id", inputTicket.String())
-
-	service := ServiceV1{config: config, logger: logger, job: jobRepo, storage: storage, tracer: testutils.NewMockTracer()}
-	service.result(w, r)
-
-	result := w.Result()
 	require.Equal(t, http.StatusOK, result.StatusCode)
 
 	b, err := io.ReadAll(result.Body)
@@ -780,32 +755,25 @@ func TestServiceGetLinkSuccess(t *testing.T) {
 	assert.Contains(t, string(b), `"link":"`+expectedPresignedLink+`"`)
 	assert.Contains(t, string(b), `"expires":"`+expectedExpiration.Format(time.RFC3339Nano)+`"`)
 
-	var ro resultOutput
+	var ro service.ResultOutput
 	require.NoError(t, json.Unmarshal(b, &ro))
 
 	assert.Equal(t, expectedPresignedLink, ro.Link)
 	assert.Equal(t, expectedExpiration.UnixMicro(), ro.Expires.UnixMicro())
 
-	jobRepo.AssertExpectations(t)
-	storage.AssertExpectations(t)
+	resultService.AssertExpectations(t)
 }
 
 func TestServiceResultResponseWriteError(t *testing.T) {
 	inputTicket := uuid.New()
-	ticket := job.NewTicket()
-	ticket.ID = inputTicket
-	ticket.Status = job.Complete
-
-	config := new(MockConfig)
-	config.On("GetBucket").Return("bucket").Once()
-	config.On("GetBucketPath").Return("path").Once()
-	config.On("GetOutputPath", "bucket", "path", inputTicket.String()).Return("s3://bucket/path").Once()
-
-	jobRepo := new(MockTicketRepository)
-	jobRepo.On("Get", contextHasTicketIDValue(inputTicket), inputTicket).Return(ticket, nil).Once()
-
-	storage := new(MockStorage)
-	storage.On("GetLink", contextHasTicketIDValue(inputTicket), "s3://bucket/path").Return("http://s3-presigned-link", time.Now(), nil).Once()
+	resultService := new(MockResultService)
+	resultService.
+		On("GetResultLink", contextHasTicketIDValue(inputTicket), inputTicket).
+		Return(
+			&service.ResultOutput{Link: "http://s3-presigned-link", Expires: time.Now()},
+			nil,
+		).
+		Once()
 
 	serviceMetrics := new(MockServiceMetrics)
 	serviceMetrics.
@@ -823,20 +791,16 @@ func TestServiceResultResponseWriteError(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://test.com", http.NoBody)
 	request.SetPathValue("id", inputTicket.String())
 
-	service := ServiceV1{
-		config:  config,
-		job:     jobRepo,
-		logger:  &MockLogger{},
-		metrics: serviceMetrics,
-		storage: storage,
-		tracer:  testutils.NewMockTracer(),
+	httpService := ServiceV1{
+		logger:        &MockLogger{},
+		metrics:       serviceMetrics,
+		tracer:        testutils.NewMockTracer(),
+		resultService: resultService,
 	}
-	service.result(writer, request)
+	httpService.result(writer, request)
 
-	config.AssertExpectations(t)
-	jobRepo.AssertExpectations(t)
 	serviceMetrics.AssertExpectations(t)
-	storage.AssertExpectations(t)
+	resultService.AssertExpectations(t)
 }
 
 func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
@@ -1083,6 +1047,7 @@ func createTestMultipartFormWithoutContentType(t *testing.T) (*bytes.Buffer, str
 var (
 	_ config.Config            = (*MockConfig)(nil)
 	_ job.TicketRepository     = (*MockTicketRepository)(nil)
+	_ service.ResultService    = (*MockResultService)(nil)
 	_ service.SubmitService    = (*MockSubmitService)(nil)
 	_ storage.Storage          = (*MockStorage)(nil)
 	_ telemetry.ServiceMetrics = (*MockServiceMetrics)(nil)
@@ -1210,6 +1175,21 @@ type MockTicketRepository struct {
 
 type MockSubmitService struct {
 	mock.Mock
+}
+
+type MockResultService struct {
+	mock.Mock
+}
+
+func (m *MockResultService) GetResultLink(ctx context.Context, ticketID uuid.UUID) (*service.ResultOutput, error) {
+	args := m.Called(ctx, ticketID)
+
+	var result *service.ResultOutput
+	if value := args.Get(0); value != nil {
+		result = value.(*service.ResultOutput)
+	}
+
+	return result, args.Error(1)
 }
 
 func (m *MockSubmitService) Submit(ctx context.Context, input service.SubmitInput) (*job.Ticket, error) {

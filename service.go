@@ -23,13 +23,15 @@ import (
 )
 
 type ServiceV1 struct {
-	config        config.Config
-	job           job.TicketRepository
-	logger        logging.Logger
-	storage       storage.Storage
-	metrics       telemetry.ServiceMetrics
-	tracer        trace.Tracer
+	config  config.Config
+	job     job.TicketRepository
+	logger  logging.Logger
+	storage storage.Storage
+	metrics telemetry.ServiceMetrics
+	tracer  trace.Tracer
+
 	submitService service.SubmitService
+	resultService service.ResultService
 }
 
 type submitRequest struct {
@@ -338,18 +340,13 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "")
 }
 
-type resultOutput struct {
-	Link    string    `json:"link"`
-	Expires time.Time `json:"expires"`
-}
-
 // result returns a temporary download link for a successfully completed ticket.
 // @Summary      Get processing result
 // @Description  Generate a temporary download link for the result of a successfully completed ticket.
 // @Tags         batch
 // @Produce      json
 // @Param        id  path      string        true  "Ticket UUID"
-// @Success      200 {object}  resultOutput  "Temporary result download link"
+// @Success      200 {object}  service.ResultOutput  "Temporary result download link"
 // @Success      204 "Ticket has not successfully completed"
 // @Failure      400 {object}  apiError     "Missing or invalid ticket UUID"
 // @Failure      404 {object}  apiError     "Ticket not found"
@@ -375,34 +372,20 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 	ctx = logging.WithTicketID(ctx, ticketIDParsed.String())
 	logger = logger.WithContext(ctx)
 
-	ticket, err := s.job.Get(ctx, ticketIDParsed)
+	result, err := s.resultService.GetResultLink(ctx, ticketIDParsed)
 	if err != nil {
+		if errors.Is(err, service.ErrJobNotComplete) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if errors.Is(err, job.ErrRecordNotFound) {
 			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusNotFound, "ticket was not found", span)
-		} else {
-			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
-			s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
+			return
 		}
-		return
-	}
 
-	if ticket.Status != job.Complete {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	outputPath := s.config.GetOutputPath(s.config.GetBucket(), s.config.GetBucketPath(), ticket.ID.String())
-
-	link, expiration, err := s.storage.GetLink(ctx, outputPath)
-	if err != nil {
-		logger.Error(ctx, "failed to generate presigned link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
 		s.writeAPIError(ctx, logger, w, metrics.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
 		return
-	}
-
-	result := resultOutput{
-		Link:    link,
-		Expires: expiration,
 	}
 
 	b, err := json.Marshal(result)
