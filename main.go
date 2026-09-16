@@ -106,9 +106,7 @@ func run() error {
 
 	service := ServiceV1{
 		config:        appConfig,
-		job:           jobService,
 		logger:        logger,
-		storage:       s3,
 		metrics:       serviceMetrics,
 		tracer:        serviceTracer,
 		submitService: service.NewSubmitService(appConfig, logger, submitServiceTracer, s3, serviceMetrics, jobService, batchQueue),

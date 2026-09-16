@@ -15,7 +15,6 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
-	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"go.opentelemetry.io/otel/codes"
@@ -24,9 +23,7 @@ import (
 
 type ServiceV1 struct {
 	config  config.Config
-	job     job.TicketRepository
 	logger  logging.Logger
-	storage storage.Storage
 	metrics telemetry.ServiceMetrics
 	tracer  trace.Tracer
 
