@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -16,9 +17,10 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	batchv1 "github.com/kiran94/openitinerary-batch-processing/proto/gen/go/openitinerary/batch/v1"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -49,12 +51,17 @@ func StartGRPCService() error {
 		return err
 	}
 
-	server := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
+	server := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.UnaryInterceptor(logging.RequestIDUnaryInterceptor),
+		grpc.StreamInterceptor(logging.RequestIDStreamingInterceptor),
+	)
 	defer shutdownGrpcServer(server, bootstrapLogger)
 
 	batchv1.RegisterOpenItineraryBatchProcessingServiceServer(server, &OpenItineraryBatchProcessingGrpcService{
 		cfg:           services.Config,
 		logger:        services.Logger,
+		metrics:       services.ServiceMetrics,
 		submitService: services.SubmitService,
 		statusService: services.StatusService,
 		resultService: services.ResultService,
@@ -82,9 +89,9 @@ func StartGRPCService() error {
 type OpenItineraryBatchProcessingGrpcService struct {
 	batchv1.UnimplementedOpenItineraryBatchProcessingServiceServer
 
-	cfg    config.Config
-	logger logging.Logger
-	tracer trace.Tracer
+	cfg     config.Config
+	logger  logging.Logger
+	metrics telemetry.ServiceMetrics
 
 	submitService service.SubmitService
 	statusService service.StatusService
@@ -92,10 +99,108 @@ type OpenItineraryBatchProcessingGrpcService struct {
 }
 
 func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStreamingServer[batchv1.SubmitRequest, batchv1.SubmitResponse]) error {
-	// ctx := request.Context()
-	// span := trace.SpanFromContext(ctx)
+	startedAt := time.Now().UTC()
 
-	panic("not implemented")
+	ctx := request.Context()
+	logger := s.logger.WithContext(ctx)
+
+	message, err := request.Recv()
+	if err != nil {
+		return status.Error(codes.FailedPrecondition, "initial message was not found")
+	}
+
+	var contentType config.ContentType
+	var notificationEmails []string
+
+	if metadata := message.GetMetadata(); metadata != nil {
+		notificationEmails = metadata.NotificationEmails
+		contentType, err = convertGrpcDocumentTypeToContentType(metadata.ContentType)
+		if err != nil {
+			logger.Error(ctx, "content type was unknown", "component", logging.ComponentGRPC, "error", err)
+			return status.Error(codes.FailedPrecondition, "content type was unknown")
+		}
+	} else {
+		return status.Error(codes.FailedPrecondition, "initial message must start with metadata")
+	}
+
+	reader, writer := io.Pipe()
+	defer reader.Close()
+
+	fileSize := int64(0)
+	go func() {
+		defer writer.Close()
+
+		for {
+			message, err := request.Recv()
+			if err == io.EOF {
+				logger.Debug(ctx, "end of stream received")
+				break
+			}
+
+			if err != nil {
+				logger.Error(ctx, "error fetching stream", "error", err, "component", logging.ComponentGRPC)
+				writer.CloseWithError(err)
+				break
+			}
+
+			buffer := message.GetChunk()
+			if buffer == nil {
+				logger.Error(ctx, "error fetching chunk", "error", errors.New("chunk was nil"), "component", logging.ComponentGRPC)
+				writer.CloseWithError(errors.New("buffer was nil upon reading"))
+			}
+			fileSize += int64(len(buffer))
+
+			if _, err := writer.Write(buffer); err != nil {
+				logger.Error(ctx, "error writing chunk", "error", err, "component", logging.ComponentGRPC)
+				writer.CloseWithError(err)
+				break
+			}
+		}
+	}()
+
+	input := service.SubmitInput{
+		Document:           reader,
+		SizeBytes:          0, // TODO: This is unrealiable during streaming
+		ContentType:        contentType,
+		NotificationEmails: notificationEmails,
+		SubmitStartedAt:    startedAt,
+	}
+
+	ticket, err := s.submitService.Submit(ctx, input)
+	if err != nil {
+		// TODO: Check specific errors and manipulate GRPC error returrned
+		logger.Error(ctx, "error submitting ticket", "component", logging.ComponentGRPC, "error", err)
+		return status.Error(codes.Internal, "error submitting ticket")
+	}
+
+	ctx = logging.WithTicketID(ctx, ticket.ID.String())
+	logger = logger.WithContext(ctx)
+
+	err = request.SendAndClose(&batchv1.SubmitResponse{
+		Ticket: convertTicketToGRPCTicket(ctx, ticket, logger),
+	})
+
+	if err != nil {
+		logger.Error(ctx, "error sending result", "component", logging.ComponentGRPC, "error", err)
+		return status.Error(codes.Internal, "error sending result")
+	}
+
+	s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+		Outcome:     metrics.SubmissionAccepted,
+		Enqueued:    true,
+		InputBytes:  new(fileSize),
+		ContentType: &contentType,
+		ServiceType: metrics.SubmissionServiceTypeGRPC,
+	})
+
+	logger.Info(ctx,
+		"submit accepted",
+		"content_type", contentType,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"component", logging.ComponentGRPC,
+		"operation", logging.OperationSubmit,
+	)
+	return nil
 }
 
 func (s *OpenItineraryBatchProcessingGrpcService) Status(ctx context.Context, request *batchv1.StatusRequest) (*batchv1.StatusResponse, error) {
@@ -243,4 +348,17 @@ func convertTicketToGRPCTicket(ctx context.Context, t *job.Ticket, logger loggin
 	grpcTicket.CreatedAt = timestamppb.New(t.CreatedAt)
 	grpcTicket.UpdatedAt = timestamppb.New(t.UpdatedAt)
 	return &grpcTicket
+}
+
+func convertGrpcDocumentTypeToContentType(dct batchv1.DocumentContentType) (config.ContentType, error) {
+	switch dct {
+	case batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_PDF:
+		return config.ContentTypePDF, nil
+	case batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_HTML:
+		return config.ContentTypeHTML, nil
+	case batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_RFC822:
+		return config.ContentTypeEmail, nil
+	default:
+		return config.ContentTypeUndefined, fmt.Errorf("document type %v did not have a valid content type", dct.String())
+	}
 }
