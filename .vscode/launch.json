@@ -11,6 +11,18 @@
             "envFile": "${workspaceFolder}/.env"
         },
         {
+            "name": "Debug GRPC Server",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "args": [
+                "--grpc"
+            ]
+        },
+        {
             "name": "Debug Worker",
             "type": "go",
             "request": "launch",
