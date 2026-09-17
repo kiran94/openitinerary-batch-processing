@@ -53,14 +53,11 @@ func StartGRPCService() error {
 		return err
 	}
 
+	unaryIntercepts, streamingIntercepts := configureInterceptors()
 	server := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(
-			interceptors.RequestIDUnaryInterceptor,
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.RequestIDStreamingInterceptor,
-		),
+		grpc.ChainUnaryInterceptor(unaryIntercepts...),
+		grpc.ChainStreamInterceptor(streamingIntercepts...),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: cfg.GetGrpcServerIdleTimeout(),
 			MaxConnectionAge:  cfg.GetGrpcServerMaxConnectionAge(),
@@ -416,4 +413,19 @@ func convertGrpcDocumentTypeToContentType(dct batchv1.DocumentContentType) (conf
 	default:
 		return config.ContentTypeUndefined, fmt.Errorf("document type %v did not have a valid content type", dct.String())
 	}
+}
+
+func configureInterceptors() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	interceptors := []interceptors.GrpcInterceptor{
+		&interceptors.RequestIDGrpcInterceptor{},
+	}
+	unaryIntercepts := []grpc.UnaryServerInterceptor{}
+	streamingIntercepts := []grpc.StreamServerInterceptor{}
+
+	for _, interceptor := range interceptors {
+		unaryIntercepts = append(unaryIntercepts, interceptor.Unary)
+		streamingIntercepts = append(streamingIntercepts, interceptor.Streaming)
+	}
+
+	return unaryIntercepts, streamingIntercepts
 }

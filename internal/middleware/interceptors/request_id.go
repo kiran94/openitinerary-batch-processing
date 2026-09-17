@@ -21,7 +21,9 @@ var (
 	errCouldNotGetMetadata = errors.New("could not get metadata")
 )
 
-func RequestIDUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+type RequestIDGrpcInterceptor struct{}
+
+func (i *RequestIDGrpcInterceptor) Unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Internal, errCouldNotGetMetadata.Error())
@@ -47,7 +49,7 @@ func RequestIDUnaryInterceptor(ctx context.Context, req any, info *grpc.UnarySer
 	return handler(ctx, req)
 }
 
-func RequestIDStreamingInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (i *RequestIDGrpcInterceptor) Streaming(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx := ss.Context()
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {

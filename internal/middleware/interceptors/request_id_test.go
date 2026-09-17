@@ -16,18 +16,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestRequestIDUnaryInterceptor_MetadataNotFound(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_MetadataNotFound(t *testing.T) {
 	ctx := context.Background()
-	// Not adding any metadata
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, nil)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 	assert.Equal(t, errCouldNotGetMetadata.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDUnaryInterceptor_RequestIDNotExists(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_RequestIDNotExists(t *testing.T) {
 	var responseRequestID string
 	transportStreamMock := new(mockServerTransportStream)
 	transportStreamMock.On("SetHeader", mock.Anything).Run(func(args mock.Arguments) {
@@ -48,11 +47,11 @@ func TestRequestIDUnaryInterceptor_RequestIDNotExists(t *testing.T) {
 		return nil, nil
 	}
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, handler)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, handler)
 	assert.NoError(t, err)
 }
 
-func TestRequestIDUnaryInterceptor_RequestIDExists(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_RequestIDExists(t *testing.T) {
 	requestID := "b1e9ce0b-f95f-410b-9288-98dffe2b0956"
 
 	transportStreamMock := new(mockServerTransportStream)
@@ -71,37 +70,37 @@ func TestRequestIDUnaryInterceptor_RequestIDExists(t *testing.T) {
 		return nil, nil
 	}
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, handler)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, handler)
 	assert.NoError(t, err)
 }
 
-func TestRequestIDUnaryInterceptor_RequestIDSetButInvalid(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_RequestIDSetButInvalid(t *testing.T) {
 	requestID := "not-a-uuid"
 
 	ctx := grpc.NewContextWithServerTransportStream(context.Background(), &mockServerTransportStream{})
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{logging.HeaderRequestID: []string{requestID}})
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, nil)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Equal(t, errUUIDNotValid.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDUnaryInterceptor_MultipleRequestIDs(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_MultipleRequestIDs(t *testing.T) {
 	ctx := grpc.NewContextWithServerTransportStream(context.Background(), &mockServerTransportStream{})
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{
 		logging.HeaderRequestID: []string{uuid.NewString(), uuid.NewString()},
 	})
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, nil)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Equal(t, errMultipleRequestIDs.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDUnaryInterceptor_FailedSetHeader(t *testing.T) {
+func TestRequestIDGrpcInterceptorUnary_FailedSetHeader(t *testing.T) {
 	requestID := "b1e9ce0b-f95f-410b-9288-98dffe2b0956"
 
 	transportStreamMock := new(mockServerTransportStream)
@@ -110,23 +109,23 @@ func TestRequestIDUnaryInterceptor_FailedSetHeader(t *testing.T) {
 	ctx := grpc.NewContextWithServerTransportStream(context.Background(), transportStreamMock)
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{logging.HeaderRequestID: []string{requestID}})
 
-	_, err := RequestIDUnaryInterceptor(ctx, nil, nil, nil)
+	_, err := new(RequestIDGrpcInterceptor).Unary(ctx, nil, nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 	assert.Equal(t, errFailedSetHeader.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDStreamingInterceptor_MetadataNotFound(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_MetadataNotFound(t *testing.T) {
 	stream := &mockServerStream{ctx: context.Background()}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, nil)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 	assert.Equal(t, errCouldNotGetMetadata.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDStreamingInterceptor_RequestIDNotExists(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_RequestIDNotExists(t *testing.T) {
 	var responseRequestID string
 	transportStreamMock := new(mockServerTransportStream)
 	transportStreamMock.On("SetHeader", mock.Anything).Run(func(args mock.Arguments) {
@@ -148,11 +147,11 @@ func TestRequestIDStreamingInterceptor_RequestIDNotExists(t *testing.T) {
 		return nil
 	}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, handler)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, handler)
 	require.NoError(t, err)
 }
 
-func TestRequestIDStreamingInterceptor_RequestIDExists(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_RequestIDExists(t *testing.T) {
 	requestID := "b1e9ce0b-f95f-410b-9288-98dffe2b0956"
 
 	transportStreamMock := new(mockServerTransportStream)
@@ -172,39 +171,39 @@ func TestRequestIDStreamingInterceptor_RequestIDExists(t *testing.T) {
 		return nil
 	}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, handler)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, handler)
 	assert.NoError(t, err)
 }
 
-func TestRequestIDStreamingInterceptor_RequestIDSetButInvalid(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_RequestIDSetButInvalid(t *testing.T) {
 	requestID := "not-a-uuid"
 
 	ctx := grpc.NewContextWithServerTransportStream(context.Background(), &mockServerTransportStream{})
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{logging.HeaderRequestID: []string{requestID}})
 	stream := &mockServerStream{ctx: ctx}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, nil)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Equal(t, errUUIDNotValid.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDStreamingInterceptor_MultipleRequestIDs(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_MultipleRequestIDs(t *testing.T) {
 	ctx := grpc.NewContextWithServerTransportStream(context.Background(), &mockServerTransportStream{})
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{
 		logging.HeaderRequestID: []string{uuid.NewString(), uuid.NewString()},
 	})
 	stream := &mockServerStream{ctx: ctx}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, nil)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Equal(t, errMultipleRequestIDs.Error(), status.Convert(err).Message())
 }
 
-func TestRequestIDStreamingInterceptor_FailedSetHeader(t *testing.T) {
+func TestRequestIDGrpcInterceptorStreaming_FailedSetHeader(t *testing.T) {
 	requestID := "b1e9ce0b-f95f-410b-9288-98dffe2b0956"
 
 	transportStreamMock := new(mockServerTransportStream)
@@ -214,7 +213,7 @@ func TestRequestIDStreamingInterceptor_FailedSetHeader(t *testing.T) {
 	ctx = metadata.NewIncomingContext(ctx, metadata.MD{logging.HeaderRequestID: []string{requestID}})
 	stream := &mockServerStream{ctx: ctx}
 
-	err := RequestIDStreamingInterceptor(nil, stream, nil, nil)
+	err := new(RequestIDGrpcInterceptor).Streaming(nil, stream, nil, nil)
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 	assert.Equal(t, errFailedSetHeader.Error(), status.Convert(err).Message())
