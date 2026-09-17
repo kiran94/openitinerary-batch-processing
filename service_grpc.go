@@ -104,66 +104,70 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	ctx := request.Context()
 	logger := s.logger.WithContext(ctx)
 
-	message, err := request.Recv()
-	if err != nil {
-		return status.Error(codes.FailedPrecondition, "initial message was not found")
-	}
-
 	var contentType config.ContentType
 	var notificationEmails []string
 
-	if metadata := message.GetMetadata(); metadata != nil {
-		notificationEmails = metadata.NotificationEmails
-		contentType, err = convertGrpcDocumentTypeToContentType(metadata.ContentType)
-		if err != nil {
-			logger.Error(ctx, "content type was unknown", "component", logging.ComponentGRPC, "error", err)
-			return status.Error(codes.FailedPrecondition, "content type was unknown")
-		}
+	// Process Metadata
+
+	if r, err := request.Recv(); err != nil {
+		logger.Error(ctx, "failed to read first message", "error", err)
+		return status.Error(codes.Internal, "failed to read first message")
 	} else {
-		return status.Error(codes.FailedPrecondition, "initial message must start with metadata")
+		m := r.GetMetadata()
+		if m == nil {
+			logger.Error(ctx, "first message must be metadata", "error", err)
+			return status.Error(codes.Internal, "first message must be metadata")
+		}
+
+		notificationEmails = m.NotificationEmails
+		contentType, err = convertGrpcDocumentTypeToContentType(m.ContentType)
+		if err != nil {
+			logger.Error(ctx, "could not convert document type", "error", err)
+			return status.Error(codes.Internal, "unrecognised content type")
+		}
 	}
 
+	// Process Data Chunks
 	reader, writer := io.Pipe()
 	defer reader.Close()
 
-	fileSize := int64(0)
-	go func() {
-		defer writer.Close()
+	document := &CountingReader{reader: reader}
 
+	go func() {
 		for {
-			message, err := request.Recv()
+			rec, err := request.Recv()
 			if err == io.EOF {
-				logger.Debug(ctx, "end of stream received")
-				break
+				writer.Close()
+				return
 			}
 
 			if err != nil {
-				logger.Error(ctx, "error fetching stream", "error", err, "component", logging.ComponentGRPC)
 				writer.CloseWithError(err)
-				break
+				return
 			}
 
-			buffer := message.GetChunk()
-			if buffer == nil {
-				logger.Error(ctx, "error fetching chunk", "error", errors.New("chunk was nil"), "component", logging.ComponentGRPC)
-				writer.CloseWithError(errors.New("buffer was nil upon reading"))
+			chunk := rec.GetChunk()
+			if chunk == nil {
+				writer.CloseWithError(errors.New("chunk was nil"))
+				return
 			}
-			fileSize += int64(len(buffer))
 
-			if _, err := writer.Write(buffer); err != nil {
-				logger.Error(ctx, "error writing chunk", "error", err, "component", logging.ComponentGRPC)
+			if _, err := writer.Write(chunk); err != nil {
 				writer.CloseWithError(err)
-				break
+				return
 			}
 		}
+
 	}()
 
+	// Submit
+
 	input := service.SubmitInput{
-		Document:           reader,
-		SizeBytes:          0, // TODO: This is unrealiable during streaming
+		Document:           document,
 		ContentType:        contentType,
 		NotificationEmails: notificationEmails,
 		SubmitStartedAt:    startedAt,
+		ServiceType:        metrics.SubmissionServiceTypeGRPC,
 	}
 
 	ticket, err := s.submitService.Submit(ctx, input)
@@ -176,19 +180,10 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	ctx = logging.WithTicketID(ctx, ticket.ID.String())
 	logger = logger.WithContext(ctx)
 
-	err = request.SendAndClose(&batchv1.SubmitResponse{
-		Ticket: convertTicketToGRPCTicket(ctx, ticket, logger),
-	})
-
-	if err != nil {
-		logger.Error(ctx, "error sending result", "component", logging.ComponentGRPC, "error", err)
-		return status.Error(codes.Internal, "error sending result")
-	}
-
 	s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 		Outcome:     metrics.SubmissionAccepted,
 		Enqueued:    true,
-		InputBytes:  new(fileSize),
+		InputBytes:  new(document.SizeBytes()),
 		ContentType: &contentType,
 		ServiceType: metrics.SubmissionServiceTypeGRPC,
 	})
@@ -200,6 +195,15 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 		"component", logging.ComponentGRPC,
 		"operation", logging.OperationSubmit,
 	)
+
+	err = request.SendAndClose(&batchv1.SubmitResponse{
+		Ticket: convertTicketToGRPCTicket(ctx, ticket, logger),
+	})
+
+	if err != nil {
+		logger.Error(ctx, "error sending result", "component", logging.ComponentGRPC, "error", err)
+		return status.Error(codes.Internal, "error sending result")
+	}
 	return nil
 }
 
@@ -270,6 +274,21 @@ func (s *OpenItineraryBatchProcessingGrpcService) ResultLink(ctx context.Context
 		Link:    result.Link,
 		Expires: timestamppb.New(result.Expires),
 	}, nil
+}
+
+type CountingReader struct {
+	reader io.Reader
+	read   int64
+}
+
+func (r *CountingReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.read += int64(n)
+	return n, err
+}
+
+func (r *CountingReader) SizeBytes() int64 {
+	return r.read
 }
 
 func shutdownGrpcServer(server *grpc.Server, logger logging.Logger) {
