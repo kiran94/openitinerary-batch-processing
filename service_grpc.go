@@ -16,6 +16,7 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/di"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/internal/middleware/interceptors"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
@@ -54,8 +55,12 @@ func StartGRPCService() error {
 
 	server := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.UnaryInterceptor(logging.RequestIDUnaryInterceptor),
-		grpc.StreamInterceptor(logging.RequestIDStreamingInterceptor),
+		grpc.ChainUnaryInterceptor(
+			interceptors.RequestIDUnaryInterceptor,
+		),
+		grpc.ChainStreamInterceptor(
+			interceptors.RequestIDStreamingInterceptor,
+		),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle: cfg.GetGrpcServerIdleTimeout(),
 			MaxConnectionAge:  cfg.GetGrpcServerMaxConnectionAge(),

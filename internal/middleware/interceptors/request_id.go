@@ -1,4 +1,4 @@
-package logging
+package interceptors
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -13,10 +14,10 @@ import (
 )
 
 var (
-	errRequestIDNotSet     = fmt.Errorf("request id '%v' was not set", HeaderRequestID)
-	errUUIDNotValid        = fmt.Errorf("request id '%v' uuid was not valid", HeaderRequestID)
-	errMultipleRequestIDs  = fmt.Errorf("request id '%v' was provided multiple times", HeaderRequestID)
-	errFailedSetHeader     = fmt.Errorf("failed to set header: %v", HeaderRequestID)
+	errRequestIDNotSet     = fmt.Errorf("request id '%v' was not set", logging.HeaderRequestID)
+	errUUIDNotValid        = fmt.Errorf("request id '%v' uuid was not valid", logging.HeaderRequestID)
+	errMultipleRequestIDs  = fmt.Errorf("request id '%v' was provided multiple times", logging.HeaderRequestID)
+	errFailedSetHeader     = fmt.Errorf("failed to set header: %v", logging.HeaderRequestID)
 	errCouldNotGetMetadata = errors.New("could not get metadata")
 )
 
@@ -37,8 +38,8 @@ func RequestIDUnaryInterceptor(ctx context.Context, req any, info *grpc.UnarySer
 		}
 	}
 
-	ctx = WithRequestID(ctx, requestID.String())
-	responseMetadata := metadata.Pairs(HeaderRequestID, requestID.String())
+	ctx = logging.WithRequestID(ctx, requestID.String())
+	responseMetadata := metadata.Pairs(logging.HeaderRequestID, requestID.String())
 	if err = grpc.SetHeader(ctx, responseMetadata); err != nil {
 		return nil, status.Error(codes.Internal, errFailedSetHeader.Error())
 	}
@@ -64,8 +65,8 @@ func RequestIDStreamingInterceptor(srv any, ss grpc.ServerStream, info *grpc.Str
 		}
 	}
 
-	ctx = WithRequestID(ctx, requestID.String())
-	responseMetadata := metadata.Pairs(HeaderRequestID, requestID.String())
+	ctx = logging.WithRequestID(ctx, requestID.String())
+	responseMetadata := metadata.Pairs(logging.HeaderRequestID, requestID.String())
 	if err = grpc.SetHeader(ctx, responseMetadata); err != nil {
 		return status.Error(codes.Internal, errFailedSetHeader.Error())
 	}
@@ -83,7 +84,7 @@ func (s *contextServerStream) Context() context.Context {
 }
 
 func extractRequestID(md metadata.MD) (uuid.UUID, error) {
-	requestIds := md.Get(HeaderRequestID)
+	requestIds := md.Get(logging.HeaderRequestID)
 
 	if len(requestIds) == 0 {
 		return uuid.Nil, errRequestIDNotSet
