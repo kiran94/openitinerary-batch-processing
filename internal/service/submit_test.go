@@ -92,6 +92,7 @@ func TestSubmitSuccess(t *testing.T) {
 				ContentType:        tt.contentType,
 				NotificationEmails: notificationEmails,
 				SubmitStartedAt:    time.Now().UTC(),
+				ServiceType:        metrics.SubmissionServiceTypeHTTP,
 			}
 			ticket, err := harness.submitter.Submit(t.Context(), input)
 
@@ -118,6 +119,7 @@ func TestSubmitUnsupportedContentType(t *testing.T) {
 		SizeBytes:       int64(len("image data")),
 		ContentType:     config.ContentType("image/png"),
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	}
 
 	ticket, err := harness.submitter.Submit(t.Context(), input)
@@ -141,6 +143,7 @@ func TestSubmitTooManyNotificationEmails(t *testing.T) {
 				Outcome:     metrics.SubmissionRejected,
 				Reason:      new(metrics.SubmissionReasonInvalidNotificationEmails),
 				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -151,6 +154,7 @@ func TestSubmitTooManyNotificationEmails(t *testing.T) {
 		ContentType:        expectedContentType,
 		NotificationEmails: []string{"one@example.com", "two@example.com"},
 		SubmitStartedAt:    time.Now().UTC(),
+		ServiceType:        metrics.SubmissionServiceTypeHTTP,
 	}
 	ticket, err := harness.submitter.Submit(t.Context(), input)
 
@@ -188,6 +192,7 @@ func TestSubmitStorageWriteError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -197,6 +202,7 @@ func TestSubmitStorageWriteError(t *testing.T) {
 		SizeBytes:       expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, storageError)
@@ -234,6 +240,7 @@ func TestSubmitTicketCreateError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -243,6 +250,7 @@ func TestSubmitTicketCreateError(t *testing.T) {
 		SizeBytes:       expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, createError)
@@ -302,6 +310,7 @@ func TestSubmitEnqueueError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -324,6 +333,7 @@ func TestSubmitEnqueueError(t *testing.T) {
 		SizeBytes:       expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, enqueueError)

@@ -141,8 +141,9 @@ func TestServiceSubmitMaximumBytesRequest(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonRequestBodyTooLarge),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonRequestBodyTooLarge),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -174,8 +175,9 @@ func TestServiceSubmitBadMultipartForm(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonInvalidMultipartForm),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonInvalidMultipartForm),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -208,8 +210,9 @@ func TestServiceSubmitValidMultipartButNotFile(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonFileNotProvided),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonFileNotProvided),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -241,8 +244,9 @@ func TestServiceSubmitMissingInnerContentType(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonContentTypeNotProvided),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonContentTypeNotProvided),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -274,8 +278,9 @@ func TestServiceSubmitInvalidMimeContentType(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonInvalidContentType),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonInvalidContentType),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -306,8 +311,9 @@ func TestServiceSubmitUnsupportedFileFormat(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonUnsupportedContentType),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonUnsupportedContentType),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -391,6 +397,7 @@ func TestServiceSubmitResponseWriteError(t *testing.T) {
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
 				Enqueued:    true,
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -474,8 +481,9 @@ func TestServiceSubmitInvalidNotificationEmails(t *testing.T) {
 			"RecordSubmission",
 			t.Context(),
 			telemetrymetrics.SubmissionObservation{
-				Outcome: telemetrymetrics.SubmissionRejected,
-				Reason:  new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
+				Outcome:     telemetrymetrics.SubmissionRejected,
+				Reason:      new(telemetrymetrics.SubmissionReasonInvalidNotificationEmails),
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -960,6 +968,7 @@ func testServiceSubmitSuccess(t *testing.T, test submitSuccessCase) {
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
 				Enqueued:    true,
+				ServiceType: telemetrymetrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()

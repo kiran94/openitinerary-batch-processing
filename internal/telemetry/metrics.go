@@ -181,6 +181,7 @@ func (a *ApplicationOtelMetrics) RecordSubmission(ctx context.Context, m metrics
 	// oibp.api.submissions
 	submissionAttributes := []attribute.KeyValue{
 		attribute.String("outcome", string(m.Outcome)),
+		attribute.String("service_type", string(m.ServiceType)),
 	}
 
 	if m.Reason != nil {

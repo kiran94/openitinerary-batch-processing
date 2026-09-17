@@ -24,6 +24,7 @@ type SubmissionObservation struct {
 	ContentType *config.ContentType
 	InputBytes  *int64
 	Enqueued    bool
+	ServiceType SubmissionServiceType
 }
 
 type SubmissionOutcome string
@@ -48,4 +49,11 @@ const (
 	SubmissionReasonTicketCreationFailed        SubmissionReason = "ticket_creation_failed"
 	SubmissionReasonQueueEnqueueFailed          SubmissionReason = "queue_enqueue_failed"
 	SubmissionReasonResponseSerializationFailed SubmissionReason = "response_serialization_failed"
+)
+
+type SubmissionServiceType string
+
+const (
+	SubmissionServiceTypeHTTP = "http"
+	SubmissionServiceTypeGRPC = "grpc"
 )
