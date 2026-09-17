@@ -53,7 +53,7 @@ func StartGRPCService() error {
 		return err
 	}
 
-	unaryIntercepts, streamingIntercepts := configureInterceptors()
+	unaryIntercepts, streamingIntercepts := configureInterceptors(cfg)
 	server := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(unaryIntercepts...),
@@ -109,9 +109,6 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	startedAt := time.Now().UTC()
 
 	ctx := request.Context()
-	ctx, cancel := context.WithTimeout(ctx, s.cfg.GetGRPCUploadTimeout())
-	defer cancel()
-
 	logger := s.logger.WithContext(ctx)
 
 	var contentType config.ContentType
@@ -415,8 +412,9 @@ func convertGrpcDocumentTypeToContentType(dct batchv1.DocumentContentType) (conf
 	}
 }
 
-func configureInterceptors() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+func configureInterceptors(cfg config.Config) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	interceptors := []interceptors.GrpcInterceptor{
+		&interceptors.TimeoutGrpcInterceptor{Config: cfg},
 		&interceptors.RequestIDGrpcInterceptor{},
 	}
 	unaryIntercepts := []grpc.UnaryServerInterceptor{}
