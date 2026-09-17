@@ -99,6 +99,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		ContentType:        request.documentContentType,
 		NotificationEmails: request.notificationEmails,
 		SubmitStartedAt:    startedAt,
+		ServiceType:        metrics.SubmissionServiceTypeHTTP,
 	}
 
 	ticket, err := s.submitService.Submit(ctx, input)
