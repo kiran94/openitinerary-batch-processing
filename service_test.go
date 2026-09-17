@@ -1026,6 +1026,7 @@ func assertSubmitInput(t *testing.T, document []byte, contentType config.Content
 		assert.Equal(t, notificationEmails, input.NotificationEmails)
 		assert.False(t, input.SubmitStartedAt.IsZero())
 		assert.Equal(t, time.UTC, input.SubmitStartedAt.Location())
+		assert.Equal(t, telemetrymetrics.SubmissionServiceTypeHTTP, string(input.ServiceType))
 	}
 }
 
