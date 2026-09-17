@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -29,6 +30,8 @@ type SubmitInput struct {
 type SubmitService interface {
 	Submit(ctx context.Context, input SubmitInput) (*job.Ticket, error)
 }
+
+var ErrDocumentTooLarge = errors.New("document exceeds maximum size")
 
 func NewSubmitService(cfg config.Config, lg logging.Logger, t trace.Tracer, s storage.Storage, m telemetry.ServiceMetrics, j job.TicketRepository, q queue.BatchQueue) SubmitService {
 	return &submitService{
@@ -128,6 +131,18 @@ func (s *submitService) storeDocument(ctx context.Context, logger logging.Logger
 				Outcome:  metrics.StorageUploadFailed,
 			},
 		)
+
+		if errors.Is(err, ErrDocumentTooLarge) {
+			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonRequestBodyTooLarge),
+				ContentType: &input.ContentType,
+				InputBytes:  input.SizeBytes,
+				ServiceType: input.ServiceType,
+			})
+			return err
+		}
+
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),

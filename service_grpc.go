@@ -111,19 +111,19 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 
 	if r, err := request.Recv(); err != nil {
 		logger.Error(ctx, "failed to read first message", "error", err)
-		return status.Error(codes.Internal, "failed to read first message")
+		return err
 	} else {
 		m := r.GetMetadata()
 		if m == nil {
 			logger.Error(ctx, "first message must be metadata", "error", err)
-			return status.Error(codes.Internal, "first message must be metadata")
+			return status.Error(codes.InvalidArgument, "first message must be metadata")
 		}
 
 		notificationEmails = m.NotificationEmails
 		contentType, err = convertGrpcDocumentTypeToContentType(m.ContentType)
 		if err != nil {
 			logger.Error(ctx, "could not convert document type", "error", err)
-			return status.Error(codes.Internal, "unrecognised content type")
+			return status.Error(codes.InvalidArgument, "unrecognised content type")
 		}
 	}
 
@@ -131,29 +131,29 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	reader, writer := io.Pipe()
 	defer reader.Close()
 
-	document := &CountingReader{reader: reader}
+	document := &CountingReader{reader: reader, maximum: s.cfg.GetMaximumAllowedRequestSizeMb()}
 
 	go func() {
 		for {
 			rec, err := request.Recv()
 			if err == io.EOF {
-				writer.Close()
+				_ = writer.Close()
 				return
 			}
 
 			if err != nil {
-				writer.CloseWithError(err)
+				_ = writer.CloseWithError(err)
 				return
 			}
 
 			chunk := rec.GetChunk()
 			if chunk == nil {
-				writer.CloseWithError(errors.New("chunk was nil"))
+				_ = writer.CloseWithError(errors.New("chunk was nil"))
 				return
 			}
 
 			if _, err := writer.Write(chunk); err != nil {
-				writer.CloseWithError(err)
+				_ = writer.CloseWithError(err)
 				return
 			}
 		}
@@ -172,7 +172,15 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 
 	ticket, err := s.submitService.Submit(ctx, input)
 	if err != nil {
-		// TODO: Check specific errors and manipulate GRPC error returrned
+		var invalidEmails service.ErrInvalidNotificationEmails
+		if errors.As(err, &invalidEmails) {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		if errors.Is(err, service.ErrDocumentTooLarge) {
+			return status.Error(codes.ResourceExhausted, err.Error())
+		}
+
 		logger.Error(ctx, "error submitting ticket", "component", logging.ComponentGRPC, "error", err)
 		return status.Error(codes.Internal, "error submitting ticket")
 	}
@@ -202,7 +210,7 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 
 	if err != nil {
 		logger.Error(ctx, "error sending result", "component", logging.ComponentGRPC, "error", err)
-		return status.Error(codes.Internal, "error sending result")
+		return err
 	}
 	return nil
 }
@@ -277,13 +285,19 @@ func (s *OpenItineraryBatchProcessingGrpcService) ResultLink(ctx context.Context
 }
 
 type CountingReader struct {
-	reader io.Reader
-	read   int64
+	reader  io.Reader
+	read    int64
+	maximum int64
 }
 
 func (r *CountingReader) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
 	r.read += int64(n)
+
+	if r.read > r.maximum {
+		return n, fmt.Errorf("%w: maximum is %d bytes", service.ErrDocumentTooLarge, r.maximum)
+	}
+
 	return n, err
 }
 

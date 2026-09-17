@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -206,6 +207,46 @@ func TestSubmitStorageWriteError(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, storageError)
+	assert.Nil(t, ticket)
+
+	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	harness.queue.AssertNotCalled(t, "Enqueue", mock.Anything, mock.Anything)
+	harness.assertExpectations(t)
+}
+
+func TestSubmitDocumentTooLarge(t *testing.T) {
+	harness := newSubmitTestHarness(t)
+	expectedContentType := config.ContentTypePDF
+	documentTooLargeError := fmt.Errorf("%w: maximum is 10 bytes", ErrDocumentTooLarge)
+
+	harness.storage.
+		On("Write", submitContextHasTicketID(), mock.Anything, harness.config.documentPath).
+		Return(documentTooLargeError).
+		Once()
+	harness.metrics.
+		On("RecordStorageUpload", submitContextHasTicketID(), matchesDocumentStorageUpload(metrics.StorageUploadFailed)).
+		Once()
+	harness.metrics.
+		On(
+			"RecordSubmission",
+			submitContextHasTicketID(),
+			metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonRequestBodyTooLarge),
+				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeGRPC,
+			},
+		).
+		Once()
+
+	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
+		Document:        bytes.NewReader([]byte("document")),
+		ContentType:     expectedContentType,
+		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeGRPC,
+	})
+
+	require.ErrorIs(t, err, ErrDocumentTooLarge)
 	assert.Nil(t, ticket)
 
 	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
