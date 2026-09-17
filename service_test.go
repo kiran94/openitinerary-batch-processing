@@ -1152,6 +1152,18 @@ func (m *MockConfig) GetServerIdleTimeout() time.Duration {
 	return m.Called().Get(0).(time.Duration)
 }
 
+func (m *MockConfig) GetGrpcServerIdleTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetGrpcServerMaxConnectionAge() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetGRPCUploadTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
 func (m *MockConfig) GetMaximumAllowedRequestSizeMb() int64 {
 	return m.Called().Get(0).(int64)
 }

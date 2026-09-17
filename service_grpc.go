@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -55,6 +56,10 @@ func StartGRPCService() error {
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.UnaryInterceptor(logging.RequestIDUnaryInterceptor),
 		grpc.StreamInterceptor(logging.RequestIDStreamingInterceptor),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: cfg.GetGrpcServerIdleTimeout(),
+			MaxConnectionAge:  cfg.GetGrpcServerMaxConnectionAge(),
+		}),
 	)
 	defer shutdownGrpcServer(server, bootstrapLogger)
 
@@ -102,6 +107,9 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	startedAt := time.Now().UTC()
 
 	ctx := request.Context()
+	ctx, cancel := context.WithTimeout(ctx, s.cfg.GetGRPCUploadTimeout())
+	defer cancel()
+
 	logger := s.logger.WithContext(ctx)
 
 	var contentType config.ContentType
@@ -130,6 +138,11 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	// Process Data Chunks
 	reader, writer := io.Pipe()
 	defer reader.Close()
+
+	stopTimeout := context.AfterFunc(ctx, func() {
+		_ = writer.CloseWithError(ctx.Err())
+	})
+	defer stopTimeout()
 
 	document := &CountingReader{reader: reader, maximum: s.cfg.GetMaximumAllowedRequestSizeMb()}
 
@@ -179,6 +192,10 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 
 		if errors.Is(err, service.ErrDocumentTooLarge) {
 			return status.Error(codes.ResourceExhausted, err.Error())
+		}
+
+		if ctx.Err() != nil {
+			return status.FromContextError(ctx.Err()).Err()
 		}
 
 		logger.Error(ctx, "error submitting ticket", "component", logging.ComponentGRPC, "error", err)
