@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,9 +24,10 @@ const (
 )
 
 func main() {
+	grpcEnabled := flag.Bool("grpc", false, "enables the GRPC server")
+	flag.Parse()
 
-	args := os.Args[1:]
-	if len(args) > 0 && args[0] == "--grpc" {
+	if *grpcEnabled {
 		if err := StartGRPCService(); err != nil {
 			os.Exit(1)
 		}
@@ -34,7 +36,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
 }
 
 func StartHTTPService() error {
