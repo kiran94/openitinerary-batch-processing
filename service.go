@@ -95,7 +95,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 	input := service.SubmitInput{
 		Document:           request.file,
-		SizeBytes:          request.fileHeader.Size,
+		SizeBytes:          new(request.fileHeader.Size),
 		ContentType:        request.documentContentType,
 		NotificationEmails: request.notificationEmails,
 		SubmitStartedAt:    startedAt,

@@ -19,7 +19,7 @@ import (
 
 type SubmitInput struct {
 	Document           io.Reader
-	SizeBytes          int64
+	SizeBytes          *int64
 	ContentType        config.ContentType
 	NotificationEmails []string
 	SubmitStartedAt    time.Time
@@ -132,7 +132,7 @@ func (s *submitService) storeDocument(ctx context.Context, logger logging.Logger
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
 			ServiceType: input.ServiceType,
 		})
 		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", input.ContentType, "error", err)
@@ -160,7 +160,7 @@ func (s *submitService) createTicket(ctx context.Context, logger logging.Logger,
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
 			ServiceType: input.ServiceType,
 		})
 		span.RecordError(err)
@@ -199,7 +199,7 @@ func (s *submitService) enqueue(ctx context.Context, logger logging.Logger, inpu
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
 			ServiceType: input.ServiceType,
 		})
 		s.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{

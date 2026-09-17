@@ -1020,7 +1020,8 @@ func assertSubmitInput(t *testing.T, document []byte, contentType config.Content
 		require.NoError(t, err)
 
 		assert.Equal(t, document, actualDocument)
-		assert.Equal(t, int64(len(document)), input.SizeBytes)
+		require.NotNil(t, input.SizeBytes)
+		assert.Equal(t, int64(len(document)), *input.SizeBytes)
 		assert.Equal(t, contentType, input.ContentType)
 		assert.Equal(t, notificationEmails, input.NotificationEmails)
 		assert.False(t, input.SubmitStartedAt.IsZero())

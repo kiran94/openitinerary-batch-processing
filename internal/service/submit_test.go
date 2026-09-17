@@ -88,7 +88,7 @@ func TestSubmitSuccess(t *testing.T) {
 
 			input := SubmitInput{
 				Document:           documentReader,
-				SizeBytes:          int64(len(tt.document)),
+				SizeBytes:          new(int64(len(tt.document))),
 				ContentType:        tt.contentType,
 				NotificationEmails: notificationEmails,
 				SubmitStartedAt:    time.Now().UTC(),
@@ -116,7 +116,7 @@ func TestSubmitUnsupportedContentType(t *testing.T) {
 	harness := newSubmitTestHarness(t)
 	input := SubmitInput{
 		Document:        bytes.NewReader([]byte("image data")),
-		SizeBytes:       int64(len("image data")),
+		SizeBytes:       new(int64(len("image data"))),
 		ContentType:     config.ContentType("image/png"),
 		SubmitStartedAt: time.Now().UTC(),
 		ServiceType:     metrics.SubmissionServiceTypeHTTP,
@@ -150,7 +150,7 @@ func TestSubmitTooManyNotificationEmails(t *testing.T) {
 
 	input := SubmitInput{
 		Document:           bytes.NewReader([]byte("my pdf data")),
-		SizeBytes:          int64(len("my pdf data")),
+		SizeBytes:          new(int64(len("my pdf data"))),
 		ContentType:        expectedContentType,
 		NotificationEmails: []string{"one@example.com", "two@example.com"},
 		SubmitStartedAt:    time.Now().UTC(),
@@ -199,7 +199,7 @@ func TestSubmitStorageWriteError(t *testing.T) {
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
 		ServiceType:     metrics.SubmissionServiceTypeHTTP,
@@ -247,7 +247,7 @@ func TestSubmitTicketCreateError(t *testing.T) {
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
 		ServiceType:     metrics.SubmissionServiceTypeHTTP,
@@ -330,7 +330,7 @@ func TestSubmitEnqueueError(t *testing.T) {
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
 		ServiceType:     metrics.SubmissionServiceTypeHTTP,
