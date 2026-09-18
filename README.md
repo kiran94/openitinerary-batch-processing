@@ -22,7 +22,7 @@
 
 ### Technical overview
 
-- [Go](https://go.dev/) API and worker services.
+- [Go](https://go.dev/) API (HTTP & [GRPC](https://grpc.io/)) and Worker services.
 - [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for input and result document storage.
 - [Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) for asynchronous job processing and dead-letter handling.
 - [PostgreSQL](https://www.postgresql.org/docs/) for ticket and job state.
@@ -39,10 +39,56 @@
 
 ### HTTP
 
-TODO
+**Startup**
+
+```bash
+make api
+```
+
+**Submit**
+
+The Submit endpoint is used to submit new work to the service.
+
+The `file` and `notification_emails` multipart form fields are required. `notification_emails` must be a JSON array of email addresses.
+
+```bash
+curl \
+  --form 'file=@/path/to/document.pdf;type=application/pdf' \
+  --form 'notification_emails=["traveller@example.com"]' \
+  http://localhost:8080/api/v1/submit
+```
+
+The supported file content types are `application/pdf`, `text/html`, and `message/rfc822`.
+
+Copy the `id` from the Submit response into `TICKET_ID`:
+
+```bash
+TICKET_ID="53e334b7-7519-4e97-87ba-65ecb67aafd7"
+```
+
+**Status**
+
+The Status endpoint is used to track the current status of the job.
+
+```bash
+curl "http://localhost:8080/api/v1/status/${TICKET_ID}"
+```
+
+**Result**
+
+The Result endpoint returns `204 No Content` until the ticket has completed successfully. Once the work is completed, it will return back a [S3 Presigned URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html).
+
+```bash
+curl "http://localhost:8080/api/v1/result/${TICKET_ID}"
+```
 
 ### GRPC
 
+**Startup**
+
+```bash
+make api_grpc
+```
 
 *Since [GRPC Server Reflection](https://grpc.io/docs/guides/reflection/) is enabled, protos are not required in the following commands however they can be found within [proto](./proto/)*
 
