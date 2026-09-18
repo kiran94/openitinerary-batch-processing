@@ -72,6 +72,8 @@ grpcurl \
   openitinerary.batch.v1.OpenItineraryBatchProcessingService/ResultLink
 ```
 
+> [!NOTE]
+> Protobuf files have been deployed to [Buf](http://buf.build/openitinerary/openitinerary-batch-processing/docs/main)
 
 ## Observability
 

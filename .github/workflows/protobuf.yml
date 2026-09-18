@@ -49,13 +49,13 @@ jobs:
       - name: Lint
         run: make proto_lint
 
-      # - name: Check breaking changes against pull request base
-      #   if: github.event_name == 'pull_request'
-      #   run: buf breaking proto --against '.git#ref=${{ github.event.pull_request.base.sha }},subdir=proto'
+      - name: Check breaking changes against pull request base
+        if: github.event_name == 'pull_request'
+        run: buf breaking proto --against '.git#ref=${{ github.event.pull_request.base.sha }},subdir=proto'
 
-      # - name: Check breaking changes against previous revision
-      #   if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
-      #   run: buf breaking proto --against '.git#ref=${{ github.event.before }},subdir=proto'
+      - name: Check breaking changes against previous revision
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        run: buf breaking proto --against '.git#ref=${{ github.event.before }},subdir=proto'
 
       - name: Verify generated code
         run: bash .github/scripts/check-proto-generation.sh
