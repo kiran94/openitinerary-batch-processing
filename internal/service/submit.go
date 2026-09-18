@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -19,15 +20,21 @@ import (
 
 type SubmitInput struct {
 	Document           io.Reader
-	SizeBytes          int64
+	SizeBytes          *int64
 	ContentType        config.ContentType
 	NotificationEmails []string
 	SubmitStartedAt    time.Time
+	ServiceType        metrics.SubmissionServiceType
 }
 
 type SubmitService interface {
 	Submit(ctx context.Context, input SubmitInput) (*job.Ticket, error)
 }
+
+var (
+	ErrDocumentTooLarge     = errors.New("document exceeds maximum size")
+	ErrInvalidDocumentInput = errors.New("invalid document input")
+)
 
 func NewSubmitService(cfg config.Config, lg logging.Logger, t trace.Tracer, s storage.Storage, m telemetry.ServiceMetrics, j job.TicketRepository, q queue.BatchQueue) SubmitService {
 	return &submitService{
@@ -103,6 +110,7 @@ func (s *submitService) validateInput(ctx context.Context, input SubmitInput) er
 			Outcome:     metrics.SubmissionRejected,
 			Reason:      new(metrics.SubmissionReasonInvalidNotificationEmails),
 			ContentType: &input.ContentType,
+			ServiceType: input.ServiceType,
 		})
 
 		return ErrInvalidNotificationEmails{maximumEntries: notificationEmailLimit}
@@ -126,11 +134,34 @@ func (s *submitService) storeDocument(ctx context.Context, logger logging.Logger
 				Outcome:  metrics.StorageUploadFailed,
 			},
 		)
+
+		if errors.Is(err, ErrDocumentTooLarge) {
+			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonRequestBodyTooLarge),
+				ContentType: &input.ContentType,
+				InputBytes:  input.SizeBytes,
+				ServiceType: input.ServiceType,
+			})
+			return err
+		}
+
+		if errors.Is(err, ErrInvalidDocumentInput) {
+			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonInvalidDocumentInput),
+				ContentType: &input.ContentType,
+				ServiceType: input.ServiceType,
+			})
+			return err
+		}
+
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
+			ServiceType: input.ServiceType,
 		})
 		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", input.ContentType, "error", err)
 		return err
@@ -157,7 +188,8 @@ func (s *submitService) createTicket(ctx context.Context, logger logging.Logger,
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
+			ServiceType: input.ServiceType,
 		})
 		span.RecordError(err)
 		return err
@@ -195,7 +227,8 @@ func (s *submitService) enqueue(ctx context.Context, logger logging.Logger, inpu
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
 			ContentType: &input.ContentType,
-			InputBytes:  &input.SizeBytes,
+			InputBytes:  input.SizeBytes,
+			ServiceType: input.ServiceType,
 		})
 		s.metrics.RecordJobTerminal(ctx, metrics.TerminalObservation{
 			Outcome: metrics.TerminalFailed,

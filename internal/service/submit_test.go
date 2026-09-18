@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -88,10 +89,11 @@ func TestSubmitSuccess(t *testing.T) {
 
 			input := SubmitInput{
 				Document:           documentReader,
-				SizeBytes:          int64(len(tt.document)),
+				SizeBytes:          new(int64(len(tt.document))),
 				ContentType:        tt.contentType,
 				NotificationEmails: notificationEmails,
 				SubmitStartedAt:    time.Now().UTC(),
+				ServiceType:        metrics.SubmissionServiceTypeHTTP,
 			}
 			ticket, err := harness.submitter.Submit(t.Context(), input)
 
@@ -115,9 +117,10 @@ func TestSubmitUnsupportedContentType(t *testing.T) {
 	harness := newSubmitTestHarness(t)
 	input := SubmitInput{
 		Document:        bytes.NewReader([]byte("image data")),
-		SizeBytes:       int64(len("image data")),
+		SizeBytes:       new(int64(len("image data"))),
 		ContentType:     config.ContentType("image/png"),
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	}
 
 	ticket, err := harness.submitter.Submit(t.Context(), input)
@@ -141,16 +144,18 @@ func TestSubmitTooManyNotificationEmails(t *testing.T) {
 				Outcome:     metrics.SubmissionRejected,
 				Reason:      new(metrics.SubmissionReasonInvalidNotificationEmails),
 				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
 
 	input := SubmitInput{
 		Document:           bytes.NewReader([]byte("my pdf data")),
-		SizeBytes:          int64(len("my pdf data")),
+		SizeBytes:          new(int64(len("my pdf data"))),
 		ContentType:        expectedContentType,
 		NotificationEmails: []string{"one@example.com", "two@example.com"},
 		SubmitStartedAt:    time.Now().UTC(),
+		ServiceType:        metrics.SubmissionServiceTypeHTTP,
 	}
 	ticket, err := harness.submitter.Submit(t.Context(), input)
 
@@ -188,18 +193,100 @@ func TestSubmitStorageWriteError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonStorageWriteFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, storageError)
+	assert.Nil(t, ticket)
+
+	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	harness.queue.AssertNotCalled(t, "Enqueue", mock.Anything, mock.Anything)
+	harness.assertExpectations(t)
+}
+
+func TestSubmitDocumentTooLarge(t *testing.T) {
+	harness := newSubmitTestHarness(t)
+	expectedContentType := config.ContentTypePDF
+	documentTooLargeError := fmt.Errorf("%w: maximum is 10 bytes", ErrDocumentTooLarge)
+
+	harness.storage.
+		On("Write", submitContextHasTicketID(), mock.Anything, harness.config.documentPath).
+		Return(documentTooLargeError).
+		Once()
+	harness.metrics.
+		On("RecordStorageUpload", submitContextHasTicketID(), matchesDocumentStorageUpload(metrics.StorageUploadFailed)).
+		Once()
+	harness.metrics.
+		On(
+			"RecordSubmission",
+			submitContextHasTicketID(),
+			metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonRequestBodyTooLarge),
+				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeGRPC,
+			},
+		).
+		Once()
+
+	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
+		Document:        bytes.NewReader([]byte("document")),
+		ContentType:     expectedContentType,
+		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeGRPC,
+	})
+
+	require.ErrorIs(t, err, ErrDocumentTooLarge)
+	assert.Nil(t, ticket)
+
+	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	harness.queue.AssertNotCalled(t, "Enqueue", mock.Anything, mock.Anything)
+	harness.assertExpectations(t)
+}
+
+func TestSubmitInvalidDocumentInput(t *testing.T) {
+	harness := newSubmitTestHarness(t)
+	expectedContentType := config.ContentTypePDF
+	invalidDocumentError := fmt.Errorf("%w: expected a document chunk", ErrInvalidDocumentInput)
+
+	harness.storage.
+		On("Write", submitContextHasTicketID(), mock.Anything, harness.config.documentPath).
+		Return(invalidDocumentError).
+		Once()
+	harness.metrics.
+		On("RecordStorageUpload", submitContextHasTicketID(), matchesDocumentStorageUpload(metrics.StorageUploadFailed)).
+		Once()
+	harness.metrics.
+		On(
+			"RecordSubmission",
+			submitContextHasTicketID(),
+			metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonInvalidDocumentInput),
+				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeGRPC,
+			},
+		).
+		Once()
+
+	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
+		Document:        bytes.NewReader([]byte("document")),
+		ContentType:     expectedContentType,
+		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeGRPC,
+	})
+
+	require.ErrorIs(t, err, ErrInvalidDocumentInput)
 	assert.Nil(t, ticket)
 
 	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -234,15 +321,17 @@ func TestSubmitTicketCreateError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, createError)
@@ -302,6 +391,7 @@ func TestSubmitEnqueueError(t *testing.T) {
 				Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),
 				ContentType: &expectedContentType,
 				InputBytes:  &expectedInputBytes,
+				ServiceType: metrics.SubmissionServiceTypeHTTP,
 			},
 		).
 		Once()
@@ -321,9 +411,10 @@ func TestSubmitEnqueueError(t *testing.T) {
 
 	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
 		Document:        bytes.NewReader(document),
-		SizeBytes:       expectedInputBytes,
+		SizeBytes:       &expectedInputBytes,
 		ContentType:     expectedContentType,
 		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeHTTP,
 	})
 
 	require.ErrorIs(t, err, enqueueError)

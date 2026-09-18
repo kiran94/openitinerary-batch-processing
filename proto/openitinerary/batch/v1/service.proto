@@ -1,0 +1,44 @@
+syntax = "proto3";
+package openitinerary.batch.v1;
+
+import "google/protobuf/timestamp.proto";
+import "openitinerary/batch/v1/ticket.proto";
+
+service OpenItineraryBatchProcessingService {
+  rpc Submit(stream SubmitRequest) returns (SubmitResponse);
+  rpc Status(StatusRequest) returns (StatusResponse);
+  rpc ResultLink(ResultLinkRequest) returns (ResultLinkResponse);
+}
+
+message SubmitMetadata {
+  DocumentContentType content_type = 1;
+  repeated string notification_emails = 2;
+}
+
+message SubmitRequest {
+  oneof frame {
+    SubmitMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message SubmitResponse {
+  Ticket ticket = 1;
+}
+
+message StatusRequest {
+  string ticket_id = 1;
+}
+
+message StatusResponse {
+  Ticket ticket = 1;
+}
+
+message ResultLinkRequest {
+  string ticket_id = 1;
+}
+
+message ResultLinkResponse {
+  string link = 1;
+  google.protobuf.Timestamp expires = 2;
+}

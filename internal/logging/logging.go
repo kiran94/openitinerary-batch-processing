@@ -25,6 +25,7 @@ const (
 	ComponentDatabase  Component = "database"
 	ComponentAdapter   Component = "adapter"
 	ComponentHTTP      Component = "http"
+	ComponentGRPC      Component = "grpc"
 	ComponentQueue     Component = "queue"
 	ComponentStorage   Component = "storage"
 	ComponentWorker    Component = "worker"

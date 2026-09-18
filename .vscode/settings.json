@@ -34,6 +34,11 @@
     "editor.formatOnSaveMode": "file"
   },
   "[javascript]": {
-    "editor.formatOnSave": true,
+    "editor.formatOnSave": true
   },
+  "[proto]": {
+    "editor.defaultFormatter": "bufbuild.vscode-buf",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+  }
 }

@@ -1,13 +1,17 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 type ContentType string
 
 const (
-	ContentTypePDF   ContentType = "application/pdf"
-	ContentTypeHTML  ContentType = "text/html"
-	ContentTypeEmail ContentType = "message/rfc822"
+	ContentTypeUndefined ContentType = "undefined"
+	ContentTypePDF       ContentType = "application/pdf"
+	ContentTypeHTML      ContentType = "text/html"
+	ContentTypeEmail     ContentType = "message/rfc822"
 )
 
 func (c ContentType) FileType() (string, error) {
@@ -21,4 +25,8 @@ func (c ContentType) FileType() (string, error) {
 	default:
 		return "", fmt.Errorf("could not convert content type '%v' to a file type", string(c))
 	}
+}
+
+func (c ContentType) LogValue() slog.Value {
+	return slog.StringValue(string(c))
 }

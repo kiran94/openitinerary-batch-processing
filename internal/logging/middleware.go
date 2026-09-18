@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const HeaderRequestID = "X-Request-ID"
+const HeaderRequestID = "x-request-id"
 
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

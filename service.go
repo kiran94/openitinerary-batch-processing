@@ -86,18 +86,20 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, requestErr.statusCode, requestErr.detail, span)
 		reason := requestErr.reason
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
-			Outcome: metrics.SubmissionRejected,
-			Reason:  &reason,
+			Outcome:     metrics.SubmissionRejected,
+			Reason:      &reason,
+			ServiceType: metrics.SubmissionServiceTypeHTTP,
 		})
 		return
 	}
 
 	input := service.SubmitInput{
 		Document:           request.file,
-		SizeBytes:          request.fileHeader.Size,
+		SizeBytes:          new(request.fileHeader.Size),
 		ContentType:        request.documentContentType,
 		NotificationEmails: request.notificationEmails,
 		SubmitStartedAt:    startedAt,
+		ServiceType:        metrics.SubmissionServiceTypeHTTP,
 	}
 
 	ticket, err := s.submitService.Submit(ctx, input)
@@ -214,6 +216,7 @@ func (s *ServiceV1) writeSubmitResponse(
 			ContentType: &request.documentContentType,
 			InputBytes:  &inputBytes,
 			Enqueued:    true,
+			ServiceType: metrics.SubmissionServiceTypeHTTP,
 		})
 		span.RecordError(err)
 		return
@@ -224,6 +227,7 @@ func (s *ServiceV1) writeSubmitResponse(
 		Enqueued:    true,
 		InputBytes:  &inputBytes,
 		ContentType: &request.documentContentType,
+		ServiceType: metrics.SubmissionServiceTypeHTTP,
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)

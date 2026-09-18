@@ -34,6 +34,45 @@
 - [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
 - [k6 load testing](./infra/k6/README.md) for performance verification.
 
+
+## Service
+
+### HTTP
+
+TODO
+
+### GRPC
+
+
+*Since [GRPC Server Reflection](https://grpc.io/docs/guides/reflection/) is enabled, protos are not required in the following commands however they can be found within [proto](./proto/)*
+
+**Submit**
+
+```bash
+go run ./cmd/grpc_client/main.go --filepath /path/to/file.pdf
+```
+
+**Status**
+
+```bash
+grpcurl \
+  -plaintext \
+  -d '{"ticket_id":"53e334b7-7519-4e97-87ba-65ecb67aafd7"}' \
+  localhost:50051 \
+  openitinerary.batch.v1.OpenItineraryBatchProcessingService/Status
+```
+
+**Result**
+
+```bash
+grpcurl \
+  -plaintext \
+  -d '{"ticket_id":"53e334b7-7519-4e97-87ba-65ecb67aafd7"}' \
+  localhost:50051 \
+  openitinerary.batch.v1.OpenItineraryBatchProcessingService/ResultLink
+```
+
+
 ## Observability
 
 The Observability components can be viewed in the [Architecture diagram](#architecture)

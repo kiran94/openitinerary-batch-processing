@@ -2,12 +2,14 @@ GOLANGCI_LINT_VERSION := v2.13.1
 GOTESTSUM_VERSION := v1.13.0
 GOVULNCHECK_VERSION := v1.1.4
 GORM_CLI_VERSION := v0.2.4
+PROTOC_GEN_GO_VERSION := v1.36.12
+PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
 
 POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
 
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_tools lint login_db test vuln
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_tools lint login_db proto_generate proto_lint test vuln api_grpc
 
 
 build:
@@ -36,6 +38,9 @@ generate_oi_go_models:
 api:
 	 go run .
 
+api_grpc:
+	go run . --grpc
+
 # Live reload
 api_dev:
 	go tool air
@@ -49,6 +54,8 @@ install_tools:
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 	go get -tool github.com/air-verse/air@latest
 
 
@@ -65,3 +72,9 @@ DIAGRAM_OUTPUT := docs/io_batch_processing.svg
 
 diagram:
 	$(D2) --layout=elk $(DIAGRAM_SOURCE) $(DIAGRAM_OUTPUT)
+
+proto_lint:
+	buf lint proto
+
+proto_generate:
+	cd proto && buf generate

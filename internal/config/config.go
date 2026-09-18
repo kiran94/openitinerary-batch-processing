@@ -19,6 +19,10 @@ type Config interface {
 	GetServerWriteTimeout() time.Duration
 	GetServerIdleTimeout() time.Duration
 
+	GetGrpcServerIdleTimeout() time.Duration
+	GetGrpcServerMaxConnectionAge() time.Duration
+	GetGRPCUploadTimeout() time.Duration
+
 	GetMaximumAllowedRequestSizeMb() int64
 	GetMaximumBufferMultipartForm() int64
 	GetMaximumAdapterResponseSizeBytes() int64
@@ -43,6 +47,7 @@ type Config interface {
 	GetOtelServiceName() string
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
+	GetOtelGrpcName() string
 
 	GetServiceReadinessPollingInterval() time.Duration
 	GetServiceReadinessPollingTimeout() time.Duration
@@ -90,6 +95,19 @@ func (ac ApplicationConfig) GetServerWriteTimeout() time.Duration {
 
 func (ac ApplicationConfig) GetServerIdleTimeout() time.Duration {
 	return 15 * time.Second
+}
+
+func (ac ApplicationConfig) GetGrpcServerIdleTimeout() time.Duration {
+	return time.Second * 30
+
+}
+
+func (ac ApplicationConfig) GetGrpcServerMaxConnectionAge() time.Duration {
+	return time.Minute * 5
+}
+
+func (ac ApplicationConfig) GetGRPCUploadTimeout() time.Duration {
+	return time.Minute * 30
 }
 
 func (ac ApplicationConfig) GetMaximumAllowedRequestSizeMb() int64 {
@@ -165,6 +183,10 @@ func (ac ApplicationConfig) GetOtelServiceName() string {
 
 func (ac ApplicationConfig) GetOtelWorkerName() string {
 	return "openitinerary-batch-worker"
+}
+
+func (ac ApplicationConfig) GetOtelGrpcName() string {
+	return "openitinerary-batch-grpc"
 }
 
 func (ac ApplicationConfig) GetOtelServiceVersion() string {

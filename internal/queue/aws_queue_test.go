@@ -473,6 +473,18 @@ func (m *MockConfig) GetServerIdleTimeout() time.Duration {
 	return m.Called().Get(0).(time.Duration)
 }
 
+func (m *MockConfig) GetGrpcServerIdleTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetGrpcServerMaxConnectionAge() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
+func (m *MockConfig) GetGRPCUploadTimeout() time.Duration {
+	return m.Called().Get(0).(time.Duration)
+}
+
 func (m *MockConfig) GetMaximumAllowedRequestSizeMb() int64 {
 	return m.Called().Get(0).(int64)
 }
@@ -542,6 +554,10 @@ func (m *MockConfig) GetOtelServiceName() string {
 }
 
 func (m *MockConfig) GetOtelWorkerName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelGrpcName() string {
 	return m.Called().String(0)
 }
 
