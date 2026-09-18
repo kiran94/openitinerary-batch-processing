@@ -232,7 +232,6 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 }
 
 func (s *OpenItineraryBatchProcessingGrpcService) Status(ctx context.Context, request *batchv1.StatusRequest) (*batchv1.StatusResponse, error) {
-	// span := trace.SpanFromContext(ctx)
 	logger := s.logger.WithContext(ctx)
 
 	if request.TicketId == "" {
@@ -263,8 +262,6 @@ func (s *OpenItineraryBatchProcessingGrpcService) Status(ctx context.Context, re
 }
 
 func (s *OpenItineraryBatchProcessingGrpcService) ResultLink(ctx context.Context, request *batchv1.ResultLinkRequest) (*batchv1.ResultLinkResponse, error) {
-	// span := trace.SpanFromContext(ctx)
-
 	logger := s.logger.WithContext(ctx)
 
 	if request.TicketId == "" {
@@ -338,7 +335,6 @@ func shutdownGrpcServer(server *grpc.Server, logger logging.Logger) {
 		logger.Info(ctx, "force stopping all GRPC connections", "component", logging.ComponentGRPC)
 		server.Stop()
 	}
-
 }
 
 func convertTicketToGRPCTicket(ctx context.Context, t *job.Ticket, logger logging.Logger) *batchv1.Ticket {
