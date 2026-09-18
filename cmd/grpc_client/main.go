@@ -61,6 +61,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := con.Close(); err != nil {
+			logger.Error(ctx, "error closing grpc client", "error", err)
+		}
+	}()
 
 	logger.Debug(ctx, "creating connection")
 	client := batchv1.NewOpenItineraryBatchProcessingServiceClient(con)
@@ -83,6 +88,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	logger.Info(ctx, "Starting streaming")
 	const streamingBufferSize = 32 * 1024 // 32KB
