@@ -14,6 +14,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func TestLive(t *testing.T) {
@@ -82,7 +84,9 @@ func TestReady_DatabaseNotReady(t *testing.T) {
 }
 
 func TestReady_StickyShutdown(t *testing.T) {
-	srm := NewServiceReadyManager(new(MockConfig), new(MockLogger), nil)
+	srmI := NewServiceReadyManager(new(MockConfig), new(MockLogger), nil)
+	srm, ok := srmI.(*serviceReadyManager)
+	assert.True(t, ok)
 
 	srm.updateReady(true)
 	require.True(t, srm.isReady())
@@ -109,10 +113,13 @@ func TestReady_PollingCancel(t *testing.T) {
 	srm := NewServiceReadyManager(new(MockConfig), new(MockLogger), db)
 	srm.Start(ctx)
 
+	srmInner, ok := srm.(*serviceReadyManager)
+	assert.True(t, ok)
+
 	// Ensure the service is marked as ready before cancel
 	require.Eventually(
 		t,
-		func() bool { return srm.isReady() == true },
+		func() bool { return srmInner.isReady() == true },
 		time.Second*1,
 		time.Millisecond*25,
 	)
@@ -122,10 +129,42 @@ func TestReady_PollingCancel(t *testing.T) {
 	// Ensure the service is marked as not ready after cancel
 	assert.Eventually(
 		t,
-		func() bool { return srm.isReady() == false },
+		func() bool { return srmInner.isReady() == false },
 		time.Second*1,
 		time.Millisecond*25,
 	)
+}
+
+func TestNewGrpcServiceReadyManager(t *testing.T) {
+	grpcHealthServer := health.NewServer()
+
+	db, _ := createDatabase(t)
+	srm := NewServiceReadyManager(new(MockConfig), new(MockLogger), db)
+	gsrm, err := NewGrpcServiceReadyManager(srm, grpcHealthServer)
+	require.NoError(t, err)
+
+	interceptors := gsrm.(*grpcServiceReadyManager).interceptor
+	require.Len(t, interceptors, 1)
+	grpcInterceptorFunc := interceptors[0]
+
+	// initial value
+	assert.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, getGrpcHealthStatus(t, grpcHealthServer))
+
+	// Flip values and check
+	grpcInterceptorFunc(true)
+	assert.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, getGrpcHealthStatus(t, grpcHealthServer))
+
+	grpcInterceptorFunc(false)
+	assert.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, getGrpcHealthStatus(t, grpcHealthServer))
+}
+
+func getGrpcHealthStatus(t *testing.T, server *health.Server) grpc_health_v1.HealthCheckResponse_ServingStatus {
+	t.Helper()
+
+	r, err := server.Check(t.Context(), &grpc_health_v1.HealthCheckRequest{})
+	require.NoError(t, err)
+
+	return r.GetStatus()
 }
 
 var (

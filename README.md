@@ -121,6 +121,8 @@ grpcurl \
 > [!NOTE]
 > Protobuf files have been deployed to [Buf](http://buf.build/openitinerary/openitinerary-batch-processing/docs/main)
 
+See the [Service Health](#service-health) section for information on Health checks.
+
 ## Observability
 
 The Observability components can be viewed in the [Architecture diagram](#architecture)
@@ -153,3 +155,9 @@ This service provides the following endpoint for health check pruposes:
 * `/health/ready` returns `200` if the services underlying services are available
 
 The `/health/ready` result is based on a long-running background go routine which periodically checks if the underlying services (such as the db) is still available.
+
+The GRPC service implements the standard [GRPC Health Protos](https://grpc.io/docs/guides/health-checking/).
+
+```bash
+grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
+```

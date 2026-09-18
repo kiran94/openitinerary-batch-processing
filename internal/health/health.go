@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	grpchealth "google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type ServiceReadyManager interface {
@@ -18,6 +21,8 @@ type ServiceReadyManager interface {
 	Start(ctx context.Context)
 	Shutdown()
 }
+
+type Interceptor func(newValue bool)
 
 type serviceReadyManager struct {
 	sync.RWMutex
@@ -29,12 +34,13 @@ type serviceReadyManager struct {
 	pollingInterval time.Duration
 	pollingTimeout  time.Duration
 
-	services []readyService
+	services    []readyService
+	interceptor []Interceptor
 }
 
 var _ ServiceReadyManager = (*serviceReadyManager)(nil)
 
-func NewServiceReadyManager(cfg config.Config, logger logging.Logger, db *sql.DB) *serviceReadyManager {
+func NewServiceReadyManager(cfg config.Config, logger logging.Logger, db *sql.DB) ServiceReadyManager {
 	return &serviceReadyManager{
 		ready:           false,
 		logger:          logger,
@@ -42,6 +48,29 @@ func NewServiceReadyManager(cfg config.Config, logger logging.Logger, db *sql.DB
 		pollingInterval: cfg.GetServiceReadinessPollingInterval(),
 		pollingTimeout:  cfg.GetServiceReadinessPollingTimeout(),
 	}
+}
+
+func NewGrpcServiceReadyManager(srm ServiceReadyManager, grpcH *grpchealth.Server) (ServiceReadyManager, error) {
+	srmValue, ok := srm.(*serviceReadyManager)
+	if !ok {
+		return nil, errors.New("srm value was not valid, must use NewServiceReadyManager()")
+	}
+
+	srmValue.interceptor = []Interceptor{
+		func(newValue bool) {
+			if newValue {
+				grpcH.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+			} else {
+				grpcH.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+			}
+		},
+	}
+
+	grpcH.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+	return &grpcServiceReadyManager{
+		serviceReadyManager: srmValue,
+		grpcHealth:          grpcH,
+	}, nil
 }
 
 func (srm *serviceReadyManager) Live() http.HandlerFunc {
@@ -144,6 +173,16 @@ func (srm *serviceReadyManager) updateReady(newValue bool, opts ...updateOption)
 	}
 
 	srm.ready = newValue
+	for _, interceptor := range srm.interceptor {
+		interceptor(newValue)
+	}
+}
+
+// GRPC
+
+type grpcServiceReadyManager struct {
+	*serviceReadyManager
+	grpcHealth *grpchealth.Server
 }
 
 // SHUTDOWN logic
