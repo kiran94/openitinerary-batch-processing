@@ -30,6 +30,15 @@ application: Batch Processing API {
       bold: true
     }
   }
+  grpc: Go gRPC API {
+    icon: https://cdn.simpleicons.org/go
+    style: {
+      fill: "#dbeafe"
+      stroke: "#2563eb"
+      font-color: "#1e3a8a"
+      bold: true
+    }
+  }
   worker: Go worker {
     icon: https://cdn.simpleicons.org/go
     style: {
@@ -164,18 +173,26 @@ observability: Local Observability {
 }
 
 client -> application.api: submit / status / result
+client -> application.grpc: submit / status / result
 application.api -> aws.queue: enqueue job
+application.grpc -> aws.queue: enqueue job
 application.worker -> aws.queue: dequeue message
 aws.queue -> application.worker: job payload
 aws.queue -> aws.dlq: terminal failure
 application.api -> aws.storage: input + result links
+application.grpc -> aws.storage: input + result links
 application.worker -> aws.storage: read + write documents
 application.api -> database: ticket state
+application.grpc -> database: ticket state
 application.worker -> database: job status
 application.worker -> adapter: convert itinerary
 application.worker -> aws.email: notify user
 
 application.api -> observability.collector: OTLP {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+application.grpc -> observability.collector: OTLP {
   style.stroke-dash: 6
   style.opacity: 0.7
 }
@@ -188,6 +205,10 @@ adapter -> observability.collector: OTLP {
   style.opacity: 0.7
 }
 application.api -> aws.queue: W3C trace context {
+  style.stroke-dash: 6
+  style.opacity: 0.7
+}
+application.grpc -> aws.queue: W3C trace context {
   style.stroke-dash: 6
   style.opacity: 0.7
 }
