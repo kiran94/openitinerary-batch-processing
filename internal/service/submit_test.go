@@ -254,6 +254,46 @@ func TestSubmitDocumentTooLarge(t *testing.T) {
 	harness.assertExpectations(t)
 }
 
+func TestSubmitInvalidDocumentInput(t *testing.T) {
+	harness := newSubmitTestHarness(t)
+	expectedContentType := config.ContentTypePDF
+	invalidDocumentError := fmt.Errorf("%w: expected a document chunk", ErrInvalidDocumentInput)
+
+	harness.storage.
+		On("Write", submitContextHasTicketID(), mock.Anything, harness.config.documentPath).
+		Return(invalidDocumentError).
+		Once()
+	harness.metrics.
+		On("RecordStorageUpload", submitContextHasTicketID(), matchesDocumentStorageUpload(metrics.StorageUploadFailed)).
+		Once()
+	harness.metrics.
+		On(
+			"RecordSubmission",
+			submitContextHasTicketID(),
+			metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonInvalidDocumentInput),
+				ContentType: &expectedContentType,
+				ServiceType: metrics.SubmissionServiceTypeGRPC,
+			},
+		).
+		Once()
+
+	ticket, err := harness.submitter.Submit(t.Context(), SubmitInput{
+		Document:        bytes.NewReader([]byte("document")),
+		ContentType:     expectedContentType,
+		SubmitStartedAt: time.Now().UTC(),
+		ServiceType:     metrics.SubmissionServiceTypeGRPC,
+	})
+
+	require.ErrorIs(t, err, ErrInvalidDocumentInput)
+	assert.Nil(t, ticket)
+
+	harness.jobs.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	harness.queue.AssertNotCalled(t, "Enqueue", mock.Anything, mock.Anything)
+	harness.assertExpectations(t)
+}
+
 func TestSubmitTicketCreateError(t *testing.T) {
 	harness := newSubmitTestHarness(t)
 	document := []byte("my pdf data")

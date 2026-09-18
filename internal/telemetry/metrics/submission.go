@@ -43,6 +43,7 @@ const (
 	SubmissionReasonFileNotProvided             SubmissionReason = "file_not_provided"
 	SubmissionReasonContentTypeNotProvided      SubmissionReason = "content_type_not_provided"
 	SubmissionReasonInvalidContentType          SubmissionReason = "invalid_content_type"
+	SubmissionReasonInvalidDocumentInput        SubmissionReason = "invalid_document_input"
 	SubmissionReasonInvalidNotificationEmails   SubmissionReason = "invalid_notification_emails"
 	SubmissionReasonUnsupportedContentType      SubmissionReason = "unsupported_content_type"
 	SubmissionReasonStorageWriteFailed          SubmissionReason = "storage_write_failed"

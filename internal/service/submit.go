@@ -31,7 +31,10 @@ type SubmitService interface {
 	Submit(ctx context.Context, input SubmitInput) (*job.Ticket, error)
 }
 
-var ErrDocumentTooLarge = errors.New("document exceeds maximum size")
+var (
+	ErrDocumentTooLarge     = errors.New("document exceeds maximum size")
+	ErrInvalidDocumentInput = errors.New("invalid document input")
+)
 
 func NewSubmitService(cfg config.Config, lg logging.Logger, t trace.Tracer, s storage.Storage, m telemetry.ServiceMetrics, j job.TicketRepository, q queue.BatchQueue) SubmitService {
 	return &submitService{
@@ -138,6 +141,16 @@ func (s *submitService) storeDocument(ctx context.Context, logger logging.Logger
 				Reason:      new(metrics.SubmissionReasonRequestBodyTooLarge),
 				ContentType: &input.ContentType,
 				InputBytes:  input.SizeBytes,
+				ServiceType: input.ServiceType,
+			})
+			return err
+		}
+
+		if errors.Is(err, ErrInvalidDocumentInput) {
+			s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
+				Outcome:     metrics.SubmissionRejected,
+				Reason:      new(metrics.SubmissionReasonInvalidDocumentInput),
+				ContentType: &input.ContentType,
 				ServiceType: input.ServiceType,
 			})
 			return err
