@@ -1,0 +1,85 @@
+name: protobuf
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "proto/**"
+      - "Makefile"
+      - ".github/scripts/check-proto-generation.sh"
+      - ".github/workflows/protobuf.yml"
+  pull_request:
+    paths:
+      - "proto/**"
+      - "Makefile"
+      - ".github/scripts/check-proto-generation.sh"
+      - ".github/workflows/protobuf.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Buf
+        uses: bufbuild/buf-action@v1
+        with:
+          version: 1.73.0
+          setup_only: true
+
+      - name: Install Protobuf tools
+        run: make install_proto_tools
+
+      - name: Lint
+        run: make proto_lint
+
+      # - name: Check breaking changes against pull request base
+      #   if: github.event_name == 'pull_request'
+      #   run: buf breaking proto --against '.git#ref=${{ github.event.pull_request.base.sha }},subdir=proto'
+
+      # - name: Check breaking changes against previous revision
+      #   if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+      #   run: buf breaking proto --against '.git#ref=${{ github.event.before }},subdir=proto'
+
+      - name: Verify generated code
+        run: bash .github/scripts/check-proto-generation.sh
+
+  publish:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Publish to Buf Schema Registry
+        uses: bufbuild/buf-action@v1
+        with:
+          token: ${{ secrets.BUF_TOKEN }}
+          version: 1.73.0
+          input: proto
+          lint: false
+          format: false
+          breaking: false
+          push: true
+          pr_comment: false
