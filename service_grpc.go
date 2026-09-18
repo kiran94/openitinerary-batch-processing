@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/di"
+	"github.com/kiran94/openitinerary-batch-processing/internal/health"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/middleware/interceptors"
@@ -24,6 +25,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	grpchealth "google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
@@ -64,6 +67,16 @@ func StartGRPCService() error {
 		}),
 	)
 	defer shutdownGrpcServer(server, bootstrapLogger)
+
+	healthServer := grpchealth.NewServer()
+	healthpb.RegisterHealthServer(server, healthServer)
+
+	srm, err := health.NewGrpcServiceReadyManager(services.ServiceReadyManager, healthServer)
+	if err != nil {
+		return err
+	}
+	srm.Start(interruptCtx)
+	defer srm.Shutdown()
 
 	batchv1.RegisterOpenItineraryBatchProcessingServiceServer(server, &OpenItineraryBatchProcessingGrpcService{
 		cfg:           services.Config,
