@@ -156,6 +156,25 @@ func TestResultLink_ErrorGettingResultLink(t *testing.T) {
 	}
 }
 
+func TestResultLink_DeadlineExceeded(t *testing.T) {
+	const ticketID = "6512026f-1eb6-47c7-9e9b-cf4cf707e9fe"
+
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	harness := createHarness(t)
+	harness.resultService.
+		On("GetResultLink", mock.Anything, uuid.MustParse(ticketID)).
+		Return(nil, context.DeadlineExceeded).
+		Once()
+
+	response, err := harness.grpcService.ResultLink(ctx, &batchv1.ResultLinkRequest{TicketId: ticketID})
+
+	require.Error(t, err)
+	assert.Nil(t, response)
+	assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+}
+
 func TestResultLink_Success(t *testing.T) {
 	const (
 		ticketID = "6512026f-1eb6-47c7-9e9b-cf4cf707e9fe"
@@ -235,6 +254,25 @@ func TestStatus_GetStatusError(t *testing.T) {
 	}
 }
 
+func TestStatus_ContextCanceled(t *testing.T) {
+	const ticketID = "6512026f-1eb6-47c7-9e9b-cf4cf707e9fe"
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	harness := createHarness(t)
+	harness.statusService.
+		On("GetStatus", mock.Anything, uuid.MustParse(ticketID)).
+		Return(nil, context.Canceled).
+		Once()
+
+	response, err := harness.grpcService.Status(ctx, &batchv1.StatusRequest{TicketId: ticketID})
+
+	require.Error(t, err)
+	assert.Nil(t, response)
+	assert.Equal(t, codes.Canceled, status.Code(err))
+}
+
 func TestStatus_Success(t *testing.T) {
 	const (
 		ticketID = "6512026f-1eb6-47c7-9e9b-cf4cf707e9fe"
@@ -293,39 +331,77 @@ func TestSubmit_MetadataFetchFailed(t *testing.T) {
 	}
 }
 
-func TestSubmit_NilChunk(t *testing.T) {
-	documentErrChan := make(chan error, 1)
-	submitErr := errors.New("submission failed after invalid chunk")
-
+func TestSubmit_EmptyStream(t *testing.T) {
 	harness := createHarness(t)
-	harness.cfg.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
-	harness.submitService.On("Submit", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		submitInput := args.Get(1).(service.SubmitInput)
-
-		_, err := io.ReadAll(submitInput.Document)
-		documentErrChan <- err
-	}).Return(nil, submitErr).Once()
 
 	stream, err := harness.grpcClient.Submit(t.Context())
 	require.NoError(t, err)
 
-	require.NoError(t, stream.Send(&batchv1.SubmitRequest{
-		Frame: &batchv1.SubmitRequest_Metadata{
-			Metadata: &batchv1.SubmitMetadata{
-				ContentType:        batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_PDF,
-				NotificationEmails: []string{"hello@email.com"},
+	response, rpcErr := stream.CloseAndRecv()
+
+	require.Error(t, rpcErr)
+	assert.Nil(t, response)
+	assert.Equal(t, codes.InvalidArgument, status.Code(rpcErr))
+}
+
+func TestSubmit_InvalidDocumentFrame(t *testing.T) {
+	tests := []struct {
+		name  string
+		frame *batchv1.SubmitRequest
+	}{
+		{
+			name: "second_metadata",
+			frame: &batchv1.SubmitRequest{
+				Frame: &batchv1.SubmitRequest_Metadata{
+					Metadata: &batchv1.SubmitMetadata{
+						ContentType: batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_PDF,
+					},
+				},
 			},
 		},
-	}))
+		{
+			name:  "frame_not_set",
+			frame: &batchv1.SubmitRequest{},
+		},
+	}
 
-	require.NoError(t, stream.Send(&batchv1.SubmitRequest{}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			documentErrChan := make(chan error, 1)
+			harness := createHarness(t)
+			harness.cfg.On("GetMaximumAllowedRequestSizeMb").Return(int64(10 << 20)).Once()
+			harness.submitService.
+				On("Submit", mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					submitInput := args.Get(1).(service.SubmitInput)
+					_, err := io.ReadAll(submitInput.Document)
+					documentErrChan <- err
+				}).
+				Return(nil, service.ErrInvalidDocumentInput).
+				Once()
 
-	_, rpcErr := stream.CloseAndRecv()
-	require.Error(t, rpcErr)
-	assert.Equal(t, codes.Internal, status.Code(rpcErr))
+			stream, err := harness.grpcClient.Submit(t.Context())
+			require.NoError(t, err)
 
-	documentErr := <-documentErrChan
-	require.EqualError(t, documentErr, "chunk was nil")
+			require.NoError(t, stream.Send(&batchv1.SubmitRequest{
+				Frame: &batchv1.SubmitRequest_Metadata{
+					Metadata: &batchv1.SubmitMetadata{
+						ContentType: batchv1.DocumentContentType_DOCUMENT_CONTENT_TYPE_PDF,
+					},
+				},
+			}))
+			require.NoError(t, stream.Send(tt.frame))
+
+			response, rpcErr := stream.CloseAndRecv()
+
+			require.Error(t, rpcErr)
+			assert.Nil(t, response)
+			assert.Equal(t, codes.InvalidArgument, status.Code(rpcErr))
+
+			documentErr := <-documentErrChan
+			require.ErrorIs(t, documentErr, service.ErrInvalidDocumentInput)
+		})
+	}
 }
 
 func TestSubmit_ServiceError(t *testing.T) {

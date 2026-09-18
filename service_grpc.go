@@ -115,23 +115,27 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	var notificationEmails []string
 
 	// Process Metadata
+	r, err := request.Recv()
+	if errors.Is(err, io.EOF) {
+		return status.Error(codes.InvalidArgument, "metadata frame must be provided")
+	}
 
-	if r, err := request.Recv(); err != nil {
+	if err != nil {
 		logger.Error(ctx, "failed to read first message", "error", err)
 		return err
-	} else {
-		m := r.GetMetadata()
-		if m == nil {
-			logger.Error(ctx, "first message must be metadata", "error", err)
-			return status.Error(codes.InvalidArgument, "first message must be metadata")
-		}
+	}
 
-		notificationEmails = m.NotificationEmails
-		contentType, err = convertGrpcDocumentTypeToContentType(m.ContentType)
-		if err != nil {
-			logger.Error(ctx, "could not convert document type", "error", err)
-			return status.Error(codes.InvalidArgument, "unrecognised content type")
-		}
+	m := r.GetMetadata()
+	if m == nil {
+		logger.Error(ctx, "first message must be metadata")
+		return status.Error(codes.InvalidArgument, "first message must be metadata")
+	}
+
+	notificationEmails = m.NotificationEmails
+	contentType, err = convertGrpcDocumentTypeToContentType(m.ContentType)
+	if err != nil {
+		logger.Error(ctx, "could not convert document type", "error", err)
+		return status.Error(codes.InvalidArgument, "unrecognised content type")
 	}
 
 	// Process Data Chunks
@@ -158,18 +162,24 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 				return
 			}
 
-			chunk := rec.GetChunk()
-			if chunk == nil {
-				_ = writer.CloseWithError(errors.New("chunk was nil"))
-				return
-			}
+			switch frame := rec.Frame.(type) {
+			case *batchv1.SubmitRequest_Chunk:
+				if _, err := writer.Write(frame.Chunk); err != nil {
+					_ = writer.CloseWithError(err)
+					return
+				}
 
-			if _, err := writer.Write(chunk); err != nil {
+			case *batchv1.SubmitRequest_Metadata:
+				err := fmt.Errorf("%w: metadata may only be sent once", service.ErrInvalidDocumentInput)
+				_ = writer.CloseWithError(err)
+				return
+
+			default:
+				err := fmt.Errorf("%w: expected a document chunk", service.ErrInvalidDocumentInput)
 				_ = writer.CloseWithError(err)
 				return
 			}
 		}
-
 	}()
 
 	// Submit
@@ -184,6 +194,10 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 
 	ticket, err := s.submitService.Submit(ctx, input)
 	if err != nil {
+		if ctx.Err() != nil {
+			return status.FromContextError(ctx.Err()).Err()
+		}
+
 		var invalidEmails service.ErrInvalidNotificationEmails
 		if errors.As(err, &invalidEmails) {
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -193,8 +207,8 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 			return status.Error(codes.ResourceExhausted, err.Error())
 		}
 
-		if ctx.Err() != nil {
-			return status.FromContextError(ctx.Err()).Err()
+		if errors.Is(err, service.ErrInvalidDocumentInput) {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		logger.Error(ctx, "error submitting ticket", "component", logging.ComponentGRPC, "error", err)
@@ -248,6 +262,11 @@ func (s *OpenItineraryBatchProcessingGrpcService) Status(ctx context.Context, re
 
 	ticket, err := s.statusService.GetStatus(ctx, ticketID)
 	if err != nil {
+
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+
 		if errors.Is(err, job.ErrRecordNotFound) {
 			logger.Error(ctx, "ticket was not found", "ticket_id", request.TicketId)
 			return nil, status.Error(codes.NotFound, "ticket was not found")
@@ -278,6 +297,11 @@ func (s *OpenItineraryBatchProcessingGrpcService) ResultLink(ctx context.Context
 
 	result, err := s.resultService.GetResultLink(ctx, ticketID)
 	if err != nil {
+
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+
 		if errors.Is(err, service.ErrJobNotComplete) {
 			return nil, status.Error(codes.NotFound, "job has not completed yet. Result does not exist yet.")
 		}
