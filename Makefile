@@ -9,7 +9,7 @@ POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
 
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_tools lint login_db proto_generate proto_lint test vuln api_grpc
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc
 
 
 build:
@@ -49,14 +49,16 @@ worker:
 	# ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run ./cmd/worker/main.go
 	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/mock/segment-mock" go run ./cmd/worker/main.go
 
-install_tools:
+install_tools: install_proto_tools
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
+	go get -tool github.com/air-verse/air@latest
+
+install_proto_tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
-	go get -tool github.com/air-verse/air@latest
 
 
 
