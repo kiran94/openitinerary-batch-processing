@@ -482,9 +482,14 @@ resource "grafana_rule_group" "telemetry_critical" {
   folder_uid       = grafana_folder.alerting_folder.uid
   interval_seconds = 30
 
+
   rule {
     name = "OTEL Collector unavailable | scrape target down | >5m"
     uid  = "oibp-otel-collector-down"
+
+    # NOTE: at the time of writing, there collector is not wired up into
+    # Grafana cloud yet so this is firing.
+    is_paused = true
 
     condition      = "B"
     for            = "5m"
