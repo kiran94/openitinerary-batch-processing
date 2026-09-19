@@ -1,0 +1,41 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  otlphttp/grafana_cloud:
+    endpoint: "${env:OTEL_EXPORTER_OTLP_ENDPOINT}"
+    headers:
+      Authorization: "Basic ${env:OTEL_EXPORTER_OTLP_HEADERS}"
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/grafana_cloud]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/grafana_cloud]
+
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/grafana_cloud]

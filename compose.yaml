@@ -30,8 +30,12 @@ services:
     ports:
       - "4318:4318"
       - "8889:8889"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${GRAFANA_OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_HEADERS: ${GRAFANA_OTEL_EXPORTER_OTLP_HEADERS}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     volumes:
-      - ./infra/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - ./infra/${OTEL_COLLECTOR_CONFIG_FILE:-otel-collector-config.yaml}:/etc/otelcol/config.yaml:ro
 
   opentelemetry_prometheus:
     image: prom/prometheus:v3
