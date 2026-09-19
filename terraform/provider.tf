@@ -33,17 +33,23 @@ data "aws_caller_identity" "current" {}
 
 # GRAFANA
 
-# Manages Cloud API resources such as access policies and tokens.
+# Cloud Portal / Grafana Cloud API provider.
+# Manages resources such as stacks and service accounts
+# cloud access policy permissions: stacks:read
 provider "grafana" {
   alias                     = "cloud"
   cloud_access_policy_token = var.grafana_cloud_access_policy_token
 }
 
-# Manages Grafana instance configuration such as folders, dashboards, and alerting
+# Stack-level Grafana HTTP API provider.
+# Manages resources such as dashboards, alerting etc
+# NOTE: the token passed must be related to a svc account as dashboards cannot be created from a
+# cloud access policy
 provider "grafana" {
-  alias = "stack"
-  url   = data.grafana_cloud_stack.current.url
-  auth  = var.grafana_stack_service_account_token
+  alias    = "stack"
+  url      = data.grafana_cloud_stack.current.url
+  stack_id = data.grafana_cloud_stack.current.id
+  auth     = var.grafana_stack_service_account_token
 }
 
 variable "grafana_cloud_access_policy_token" {
