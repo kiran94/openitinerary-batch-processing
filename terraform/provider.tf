@@ -1,8 +1,9 @@
 terraform {
 
   backend "s3" {
-    bucket = "terraform-kiran"
-    key    = "openitinerary-batch-processing.tfstate"
+    bucket       = "terraform-kiran"
+    key          = "openitinerary-batch-processing.tfstate"
+    use_lockfile = true
   }
 
   required_providers {
