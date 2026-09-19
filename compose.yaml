@@ -40,6 +40,8 @@ services:
   opentelemetry_prometheus:
     image: prom/prometheus:v3
     container_name: oibp-prometheus
+    profiles:
+      - local_otel
     ports:
       - "9090:9090" # http://localhost:9090/targets
     volumes:
@@ -49,6 +51,8 @@ services:
   opentelemetry_grafana:
     image: grafana/grafana:13.0.8
     container_name: oibp-grafana
+    profiles:
+      - local_otel
     ports:
       - "3000:3000"
     volumes:
@@ -57,10 +61,11 @@ services:
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards/openitinerary:ro
       - grafana_data:/var/lib/grafana
 
-
   opentelemetry_loki:
     image: grafana/loki:3.7.0
     container_name: oibp-loki
+    profiles:
+      - local_otel
     command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "3100:3100" # http://localhost:3100/ready
@@ -71,6 +76,8 @@ services:
   opentelemetry_tempo:
     image: grafana/tempo:3.0.0
     container_name: oibp-tempo
+    profiles:
+      - local_otel
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
       - ./infra/tempo.yaml:/etc/tempo/tempo.yaml:ro
