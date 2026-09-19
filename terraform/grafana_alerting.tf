@@ -564,3 +564,40 @@ resource "grafana_rule_group" "telemetry_critical" {
     }
   }
 }
+
+variable "oibp_developers_emails" {
+  type = list(string)
+}
+
+resource "grafana_contact_point" "my_contact_point" {
+  provider = grafana.stack
+  name     = "oibp_developers"
+  email {
+    addresses               = var.oibp_developers_emails
+    message                 = "{{ len .Alerts.Firing }} firing."
+    subject                 = "{{ template \"default.title\" .}}"
+    single_email            = true
+    disable_resolve_message = false
+  }
+}
+
+resource "grafana_notification_policy" "oibp_critical" {
+  provider = grafana.stack
+
+  contact_point = grafana_contact_point.my_contact_point.name
+  group_by      = ["alertname", "service", "signal"]
+
+  group_wait      = "30s"
+  group_interval  = "5m"
+  repeat_interval = "4h"
+
+  policy {
+    matcher {
+      label = "severity"
+      match = "="
+      value = "critical"
+    }
+
+    contact_point = grafana_contact_point.my_contact_point.name
+  }
+}
