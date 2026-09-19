@@ -49,6 +49,8 @@ services:
       - "3000:3000"
     volumes:
       - ./infra/grafana_datasource.yml:/etc/grafana/provisioning/datasources/grafana_datasource.yml:ro
+      - ./infra/grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards/openitinerary.yml:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards/openitinerary:ro
       - grafana_data:/var/lib/grafana
 
 
