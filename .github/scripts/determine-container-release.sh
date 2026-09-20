@@ -16,5 +16,7 @@ elif [[ "${EVENT_NAME}" == "workflow_dispatch" && "${REF}" == "refs/heads/main" 
   PUBLISH=true
 fi
 
-echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-echo "publish=${PUBLISH}" >> "${GITHUB_OUTPUT}"
+{
+  echo "version=${VERSION}"
+  echo "publish=${PUBLISH}"
+} >> "${GITHUB_OUTPUT}"

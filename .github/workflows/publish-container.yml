@@ -57,19 +57,53 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build containers
-        shell: bash
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          PUBLISH: "false"
-        run: bash .github/scripts/build-containers.sh
+      - name: Generate service image metadata
+        id: service_meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-  publish:
-    name: publish containers ${{ needs.prepare.outputs.version }}
+      - name: Build service container
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
+        with:
+          context: .
+          push: false
+          tags: ${{ steps.service_meta.outputs.tags }}
+          labels: ${{ steps.service_meta.outputs.labels }}
+          cache-from: type=gha,scope=batch-service
+          cache-to: type=gha,mode=max,scope=batch-service
+
+      - name: Generate worker image metadata
+        id: worker_meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}-worker
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build worker container
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
+        with:
+          context: .
+          file: cmd/worker/Dockerfile
+          push: false
+          tags: ${{ steps.worker_meta.outputs.tags }}
+          labels: ${{ steps.worker_meta.outputs.labels }}
+          cache-from: type=gha,scope=batch-worker
+          cache-to: type=gha,mode=max,scope=batch-worker
+
+  publish_service:
+    name: publish service container ${{ needs.prepare.outputs.version }}
     if: needs.prepare.outputs.publish == 'true'
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -79,10 +113,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      # allows docker buildx to build in different architectures
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -94,9 +124,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build and publish containers
-        shell: bash
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          PUBLISH: "true"
-        run: bash .github/scripts/build-containers.sh
+      - name: Generate service image metadata
+        id: service_meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }},priority=900
+            type=raw,value=latest,priority=200
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and publish service container
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.service_meta.outputs.tags }}
+          labels: ${{ steps.service_meta.outputs.labels }}
+          cache-from: type=gha,scope=batch-service
+          cache-to: type=gha,mode=max,scope=batch-service
+
+  publish_worker:
+    name: publish worker container ${{ needs.prepare.outputs.version }}
+    if: needs.prepare.outputs.publish == 'true'
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v4.0.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Generate worker image metadata
+        id: worker_meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}-worker
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }},priority=900
+            type=raw,value=latest,priority=200
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and publish worker container
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
+        with:
+          context: .
+          file: cmd/worker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.worker_meta.outputs.tags }}
+          labels: ${{ steps.worker_meta.outputs.labels }}
+          cache-from: type=gha,scope=batch-worker
+          cache-to: type=gha,mode=max,scope=batch-worker
