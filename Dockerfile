@@ -8,6 +8,8 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
+RUN mkdir -p /tmp && chmod 1777 /tmp
+
 COPY . .
 
 # Build a statically linked binary optimized for light containers
@@ -19,6 +21,9 @@ FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/oibp /oibp
+# For HTTP submissions whose multipart file exceeds the configured N MiB memory threshold,
+# the uploaded file will spill onto the disk so this /tmp folder must exist.
+COPY --from=builder /tmp /tmp
 
 EXPOSE 8080
 
