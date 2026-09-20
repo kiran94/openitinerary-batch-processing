@@ -52,3 +52,10 @@ secrets/
 # Docker configurations (prevents the file from copying itself)
 Dockerfile
 .dockerignore
+
+.go-cache
+.go-mod-cache
+.golangci-lint-cache
+terraform/
+infra/
+docs/
