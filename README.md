@@ -194,6 +194,18 @@ Dashboards have been created within [Grafana Dashboards](./infra/grafana/dashboa
 
 The configuration for these alerts can be found in [Grafana Alerts](./terraform/grafana_alerting.tf), these are deployed to Grafana Cloud via Terraform.
 
+### Collector Internal Telemetry
+
+The collector lives on the application side. In the even that that downstream exporter services (e.g Grafana Cloud) become unavailable, then the collector will hold on to messages within a queue and retry. Eventually once the queue is full then new telemetry will be dropped.
+
+For that scenario, [internal metrics](https://opentelemetry.io/docs/collector/internal-telemetry/#activate-internal-telemetry-in-the-collector) have been enabled in the [otel-collector-config-cloud.yaml](./infra/otel-collector-config-cloud.yaml) so we can monitor what is happening.
+
+With enabled we can do this:
+
+```bash
+ curl -s http://localhost:9006/metrics | rg 'otelcol_exporter_(queue|send_failed|enqueue_failed)'
+```
+
 ### Service Health
 
 This service provides the following endpoint for health check pruposes:

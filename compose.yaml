@@ -30,6 +30,7 @@ services:
     ports:
       - "4318:4318"
       - "8889:8889"
+      - "9006:8888" # internal collector telemetry
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${GRAFANA_OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_HEADERS: ${GRAFANA_OTEL_EXPORTER_OTLP_AUTH}

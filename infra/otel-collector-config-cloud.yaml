@@ -39,3 +39,17 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/grafana_cloud]
+
+  # Internal telemetry for the collector
+  # to get information on telemetry passing through this collector
+  # once enabled then run
+  # curl http://localhost:8888/metrics | rg 'otelcol_exporter_(queue|send_failed|enqueue_failed)'
+  # note that port being called here is whatever port you published on the docker side
+  telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: 0.0.0.0
+                  port: 8888
