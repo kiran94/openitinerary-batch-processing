@@ -117,6 +117,14 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	logger = logger.WithContext(ctx)
 
 	s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt)
+
+	logger.Info(
+		ctx,
+		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"component", logging.ComponentHTTP,
+		"operation", logging.OperationSubmit,
+	)
 }
 
 func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (submitRequest, *submitRequestError) {
@@ -245,14 +253,6 @@ func (s *ServiceV1) writeSubmitResponse(
 		return
 	}
 
-	logger.Info(ctx,
-		"submit accepted",
-		"content_type", request.contentType,
-		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"component", logging.ComponentHTTP,
-		"operation", logging.OperationSubmit,
-	)
-
 	span.SetStatus(codes.Ok, "")
 }
 
@@ -293,6 +293,7 @@ func (s *ServiceV1) parseNotificationEmails(r *http.Request) ([]string, error) {
 // @Failure      500 {object}  apiError   "Failed to retrieve ticket status"
 // @Router       /api/v1/status/{id} [get]
 func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
+	startedAt := time.Now()
 	ctx := r.Context()
 	logger := s.logger.WithContext(ctx)
 	span := trace.SpanFromContext(r.Context())
@@ -341,6 +342,13 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetStatus(codes.Ok, "")
+	logger.Info(
+		ctx,
+		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"component", logging.ComponentHTTP,
+		"operation", logging.OperationStatus,
+	)
 }
 
 // result returns a temporary download link for a successfully completed ticket.
@@ -356,6 +364,8 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object}  apiError     "Failed to retrieve the processing result"
 // @Router       /api/v1/result/{id} [get]
 func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
+	startedAt := time.Now()
+
 	ctx := r.Context()
 	logger := s.logger.WithContext(ctx)
 	span := trace.SpanFromContext(r.Context())
@@ -408,6 +418,17 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetStatus(codes.Ok, "")
+	logger.Info(
+		ctx,
+		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"component", logging.ComponentHTTP,
+		"operation", logging.OperationResultLink,
+	)
+}
+
+func reportSuccessTerminal(method, path, proto string, status int) string {
+	return fmt.Sprintf("%v %v %v: %v", method, path, proto, status)
 }
 
 type apiError struct {

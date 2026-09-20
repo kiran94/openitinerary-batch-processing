@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: OpenItinerary
+    orgId: 1
+    folder: OpenItinerary
+    folderUid: openitinerary
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/openitinerary
+      foldersFromFilesStructure: false

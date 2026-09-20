@@ -125,7 +125,37 @@ See the [Service Health](#service-health) section for information on Health chec
 
 ## Observability
 
-The Observability components can be viewed in the [Architecture diagram](#architecture)
+The Observability components can be viewed in the [Architecture diagram](#architecture). This application has a local Grafana stack (for development purposes) and Grafana Cloud for deployed instances.
+
+Telemetry can be enabled via:
+
+```bash
+export OIBP_TELEMETRY_ENABLED=true
+```
+
+During development, you can either have your telemetry be pointed to the local Grafana instance (via docker compose) or to Grafana Cloud.
+
+```bash
+# Telemetry will be pushed to
+# local Grafana, Loki, Tempo, Prometheus
+make docker_compose_local_otel
+
+# Telemetry will be pushed to Grafana Cloud
+make docker_compose_cloud
+```
+
+In order to deploy telemetry to Grafana cloud you will need to export the following environment variables:
+
+```bash
+export GRAFANA_OTEL_EXPORTER_OTLP_ENDPOINT=""
+export GRAFANA_OTEL_EXPORTER_OTLP_AUTH=""
+```
+
+You can get these details from your Grafana stack. The `GRAFANA_OTEL_EXPORTER_OTLP_AUTH` must be generated from the details you get from Grafana:
+
+```bash
+printf '%s' "INSTANCE_ID:API_KEY" | base64
+```
 
 ### Metrics
 
@@ -146,6 +176,35 @@ We collect the following metrics from the API and Worker.
 | `oibp.worker.polling.duration` | Histogram | `s` | `outcome` |
 | `oibp.worker.processing.duration` | Histogram | `s` | `outcome` |
 | `oibp.job.end_to_end.duration` | Histogram | `s` | `outcome`, optional `status_reason` |
+
+### Dashboards
+
+Dashboards have been created within [Grafana Dashboards](./infra/grafana/dashboards/). These are deployed to both the local and cloud Grafana instances.
+
+### Alerts
+
+| Alert | Signal | Initial condition |
+|---|---|---|
+| Collector unavailable | `up{job="otel-collector"}` | `0` for `5m` |
+| Batch HTTP failures | HTTP 5xx ratio | `>5%` for `10m` with traffic |
+| Batch gRPC failures | Non-OK RPC ratio | `>5%` for `10m` with traffic |
+| Adapter failures | Adapter HTTP 5xx ratio | `>5%` for `10m` with traffic |
+| Terminal job failures | Failed terminal jobs | `>5%` for `10m` with completions |
+| Worker failures | Failed worker runs | `>20%` for `10m` with worker activity |
+
+The configuration for these alerts can be found in [Grafana Alerts](./terraform/grafana_alerting.tf), these are deployed to Grafana Cloud via Terraform.
+
+### Collector Internal Telemetry
+
+The collector lives on the application side. In the even that that downstream exporter services (e.g Grafana Cloud) become unavailable, then the collector will hold on to messages within a queue and retry. Eventually once the queue is full then new telemetry will be dropped.
+
+For that scenario, [internal metrics](https://opentelemetry.io/docs/collector/internal-telemetry/#activate-internal-telemetry-in-the-collector) have been enabled in the [otel-collector-config-cloud.yaml](./infra/otel-collector-config-cloud.yaml) so we can monitor what is happening.
+
+With enabled we can do this:
+
+```bash
+ curl -s http://localhost:9006/metrics | rg 'otelcol_exporter_(queue|send_failed|enqueue_failed)'
+```
 
 ### Service Health
 

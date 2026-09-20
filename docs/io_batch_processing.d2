@@ -48,6 +48,14 @@ application: Batch Processing API {
       bold: true
     }
   }
+  collector: OTel Collector {
+    icon: https://cdn.simpleicons.org/opentelemetry
+    style: {
+      fill: "#dcfce7"
+      stroke: "#16a34a"
+      font-color: "#14532d"
+    }
+  }
   style: {
     fill: "#eff6ff"
     stroke: "#93c5fd"
@@ -116,15 +124,7 @@ adapter: Adapter API {
   }
 }
 
-observability: Local Observability {
-  collector: OTel Collector {
-    icon: https://cdn.simpleicons.org/opentelemetry
-    style: {
-      fill: "#dcfce7"
-      stroke: "#16a34a"
-      font-color: "#14532d"
-    }
-  }
+grafana_cloud: Grafana Cloud {
   metrics: Prometheus {
     icon: https://cdn.simpleicons.org/prometheus
     style: {
@@ -158,9 +158,6 @@ observability: Local Observability {
       bold: true
     }
   }
-  collector -> metrics: metrics
-  collector -> logs: logs
-  collector -> traces: traces
   metrics -> grafana
   logs -> grafana
   traces -> grafana
@@ -171,6 +168,10 @@ observability: Local Observability {
     border-radius: 16
   }
 }
+
+application.collector -> grafana_cloud.metrics: metrics
+application.collector -> grafana_cloud.logs: logs
+application.collector -> grafana_cloud.traces: traces
 
 client -> application.api: submit / status / result
 client -> application.grpc: submit / status / result
@@ -188,19 +189,19 @@ application.worker -> database: job status
 application.worker -> adapter: convert itinerary
 application.worker -> aws.email: notify user
 
-application.api -> observability.collector: OTLP {
+application.api -> application.collector: OTLP {
   style.stroke-dash: 6
   style.opacity: 0.7
 }
-application.grpc -> observability.collector: OTLP {
+application.grpc -> application.collector: OTLP {
   style.stroke-dash: 6
   style.opacity: 0.7
 }
-application.worker -> observability.collector: OTLP {
+application.worker -> application.collector: OTLP {
   style.stroke-dash: 6
   style.opacity: 0.7
 }
-adapter -> observability.collector: OTLP {
+adapter -> application.collector: OTLP {
   style.stroke-dash: 6
   style.opacity: 0.7
 }

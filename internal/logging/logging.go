@@ -41,6 +41,8 @@ type Operation string
 
 const (
 	OperationSubmit                Operation = "submit"
+	OperationStatus                Operation = "status"
+	OperationResultLink            Operation = "result_link"
 	OperationEnqueue               Operation = "enqueue"
 	OperationDequeue               Operation = "dequeue"
 	OperationDeleteMessage         Operation = "delete_message"

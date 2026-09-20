@@ -9,8 +9,7 @@ POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
 
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc
-
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud
 
 build:
 	go build ./...
@@ -61,6 +60,11 @@ install_proto_tools:
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 
 
+docker_compose_local_otel:
+	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config.yaml docker compose --profile local_otel up
+
+docker_compose_cloud:
+	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config-cloud.yaml docker compose up
 
 login_db:
 	uvx pgcli "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"
