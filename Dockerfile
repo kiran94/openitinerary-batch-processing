@@ -1,4 +1,9 @@
-FROM golang:1.26-alpine AS builder
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 RUN apk --no-cache add ca-certificates
 
@@ -14,8 +19,8 @@ COPY . .
 
 # Build a statically linked binary optimized for light containers
 # - CGO_ENABLED=0 disables dynamic links to C libraries
-# - GOOS=linux ensures it targets the Linux container OS
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o oibp .
+# - TARGETOS and TARGETARCH let Buildx cross-compile without emulating Go.
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-w -s" -o oibp .
 
 FROM scratch
 
