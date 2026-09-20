@@ -18,22 +18,20 @@ if [[ "${MAKE_VERSION}" != "${VERSION}" ]]; then
   exit 1
 fi
 
-make docker_images_build_service docker_images_build_worker
-
 SERVICE_REPOSITORY="${REGISTRY}/${REPOSITORY}"
 WORKER_REPOSITORY="${REGISTRY}/${REPOSITORY}-worker"
 
-docker tag "oibp:${VERSION}" "${SERVICE_REPOSITORY}:${VERSION}"
-docker tag "oibp-worker:${VERSION}" "${WORKER_REPOSITORY}:${VERSION}"
-
 if [[ "${PUBLISH}" != "true" ]]; then
+  make docker_images_build_service docker_images_build_worker
+
+  docker tag "oibp:${VERSION}" "${SERVICE_REPOSITORY}:${VERSION}"
+  docker tag "oibp-worker:${VERSION}" "${WORKER_REPOSITORY}:${VERSION}"
+
   exit 0
 fi
 
-docker tag "oibp:${VERSION}" "${SERVICE_REPOSITORY}:latest"
-docker tag "oibp-worker:${VERSION}" "${WORKER_REPOSITORY}:latest"
-
-docker push "${SERVICE_REPOSITORY}:${VERSION}"
-docker push "${SERVICE_REPOSITORY}:latest"
-docker push "${WORKER_REPOSITORY}:${VERSION}"
-docker push "${WORKER_REPOSITORY}:latest"
+make \
+  SERVICE_IMAGE="${SERVICE_REPOSITORY}" \
+  WORKER_IMAGE="${WORKER_REPOSITORY}" \
+  docker_images_publish_service \
+  docker_images_publish_worker

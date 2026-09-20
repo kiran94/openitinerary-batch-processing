@@ -10,9 +10,10 @@ PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
 POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
+CONTAINER_PLATFORMS ?= linux/amd64,linux/arm64
 
 
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker version
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version
 
 build:
 	go build ./...
@@ -73,6 +74,12 @@ docker_images_build_service:
 
 docker_images_build_worker:
 	docker build -t oibp-worker:${VERSION} -f ./cmd/worker/Dockerfile .
+
+docker_images_publish_service:
+	docker buildx build --platform ${CONTAINER_PLATFORMS} --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest .
+
+docker_images_publish_worker:
+	docker buildx build --platform ${CONTAINER_PLATFORMS} --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest -f ./cmd/worker/Dockerfile .
 
 version:
 	@echo ${VERSION}
