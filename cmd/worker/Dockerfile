@@ -1,5 +1,7 @@
 FROM golang:1.26-alpine AS builder
 
+RUN apk --no-cache add ca-certificates
+
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -15,6 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o oibp-worker ./cmd/work
 
 FROM scratch
 
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/oibp-worker /oibp-worker
 
 EXPOSE 8080
