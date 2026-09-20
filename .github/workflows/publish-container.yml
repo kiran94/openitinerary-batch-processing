@@ -23,7 +23,9 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.release.outputs.version }}
+      image_tag: ${{ steps.release.outputs.image_tag }}
       publish: ${{ steps.release.outputs.publish }}
+      publish_latest: ${{ steps.release.outputs.publish_latest }}
 
     steps:
       - name: Checkout
@@ -37,6 +39,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          COMMIT_SHA: ${{ github.sha }}
         run: bash .github/scripts/determine-container-release.sh
 
   build:
@@ -63,7 +68,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=raw,value=${{ needs.prepare.outputs.image_tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
@@ -83,7 +88,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}-worker
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=raw,value=${{ needs.prepare.outputs.image_tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
@@ -133,8 +138,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }},priority=900
-            type=raw,value=latest,priority=200
+            type=raw,value=${{ needs.prepare.outputs.image_tag }},priority=900
+            type=raw,value=latest,priority=200,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
@@ -155,8 +160,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}-worker
           tags: |
-            type=raw,value=${{ needs.prepare.outputs.version }},priority=900
-            type=raw,value=latest,priority=200
+            type=raw,value=${{ needs.prepare.outputs.image_tag }},priority=900
+            type=raw,value=latest,priority=200,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
