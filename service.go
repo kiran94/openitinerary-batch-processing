@@ -116,15 +116,15 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ctx = logging.WithTicketID(ctx, ticket.ID.String())
 	logger = logger.WithContext(ctx)
 
-	s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt)
-
-	logger.Info(
-		ctx,
-		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
-		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"component", logging.ComponentHTTP,
-		"operation", logging.OperationSubmit,
-	)
+	if err := s.writeSubmitResponse(ctx, logger, w, request, ticket, startedAt); err == nil {
+		logger.Info(
+			ctx,
+			reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusAccepted),
+			"duration_ms", time.Since(startedAt).Milliseconds(),
+			"component", logging.ComponentHTTP,
+			"operation", logging.OperationSubmit,
+		)
+	}
 }
 
 func (s *ServiceV1) parseSubmitRequest(w http.ResponseWriter, r *http.Request) (submitRequest, *submitRequestError) {
@@ -209,7 +209,7 @@ func (s *ServiceV1) writeSubmitResponse(
 	request submitRequest,
 	ticket *job.Ticket,
 	startedAt time.Time,
-) {
+) error {
 	ctx, span := s.tracer.Start(ctx, string(telemetry.TracingSpanWriteResponse))
 	defer span.End()
 
@@ -227,7 +227,7 @@ func (s *ServiceV1) writeSubmitResponse(
 			ServiceType: metrics.SubmissionServiceTypeHTTP,
 		})
 		span.RecordError(err)
-		return
+		return err
 	}
 
 	s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
@@ -250,10 +250,11 @@ func (s *ServiceV1) writeSubmitResponse(
 		)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointSubmit})
 		span.RecordError(err)
-		return
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
+	return nil
 }
 
 func contentTypeConversion(contentType string) (string, config.ContentType, error) {
