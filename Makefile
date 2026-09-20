@@ -1,3 +1,5 @@
+VERSION := $(shell git describe --always --long --dirty)
+
 GOLANGCI_LINT_VERSION := v2.13.1
 GOTESTSUM_VERSION := v1.13.0
 GOVULNCHECK_VERSION := v1.1.4
@@ -8,8 +10,10 @@ PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
 POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
+CONTAINER_PLATFORMS ?= linux/amd64,linux/arm64
 
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud
+
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version
 
 build:
 	go build ./...
@@ -59,12 +63,26 @@ install_proto_tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 
-
 docker_compose_local_otel:
 	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config.yaml docker compose --profile local_otel up
 
 docker_compose_cloud:
 	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config-cloud.yaml docker compose up
+
+docker_images_build_service:
+	docker image build -t oibp:${VERSION} .
+
+docker_images_build_worker:
+	docker build -t oibp-worker:${VERSION} -f ./cmd/worker/Dockerfile .
+
+docker_images_publish_service:
+	docker buildx build --platform ${CONTAINER_PLATFORMS} --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest .
+
+docker_images_publish_worker:
+	docker buildx build --platform ${CONTAINER_PLATFORMS} --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest -f ./cmd/worker/Dockerfile .
+
+version:
+	@echo ${VERSION}
 
 login_db:
 	uvx pgcli "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)"

@@ -1,0 +1,61 @@
+# Git history and configuration
+.git
+.gitignore
+
+# Local Go build artifacts and binaries
+bin/
+out/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+__debug_bin
+_output/
+
+# Testing and coverage reports
+*.test
+*.out
+coverage.txt
+.cover/
+
+# Local development dependencies (unless explicitly vendoring)
+# Remove the next line if you use `go mod vendor` and want to copy local vendors
+vendor/
+
+# IDEs and editors configurations
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+
+# CI/CD and build logs
+.github/
+.gitlab-ci.yml
+*.log
+
+# Sensitive environment variables and credentials
+*.env
+*.env.*
+secrets/
+.aws/
+.kube/
+
+# Docker configurations (prevents the file from copying itself)
+Dockerfile
+.dockerignore
+
+.go-cache
+.go-mod-cache
+.golangci-lint-cache
+terraform/
+infra/
+docs/
