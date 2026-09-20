@@ -132,27 +132,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Generate service image metadata
-        id: service_meta
-        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
-          tags: |
-            type=raw,value=${{ needs.prepare.outputs.image_tag }},priority=900
-            type=raw,value=latest,priority=200,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      # - name: Generate service image metadata
+      #   id: service_meta
+      #   uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7 # v6.0.0
+      #   with:
+      #     images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+      #     tags: |
+      #       type=raw,value=${{ needs.prepare.outputs.image_tag }},priority=900
+      #       type=raw,value=latest,priority=200,enable=${{ needs.prepare.outputs.publish_latest == 'true' }}
+      #     labels: |
+      #       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-      - name: Build and publish service container
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.service_meta.outputs.tags }}
-          labels: ${{ steps.service_meta.outputs.labels }}
-          cache-from: type=gha,scope=batch-service
-          cache-to: type=gha,mode=max,scope=batch-service
+      # - name: Build and publish service container
+      #   uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
+      #   with:
+      #     context: .
+      #     platforms: linux/amd64,linux/arm64
+      #     push: true
+      #     tags: ${{ steps.service_meta.outputs.tags }}
+      #     labels: ${{ steps.service_meta.outputs.labels }}
+      #     cache-from: type=gha,scope=batch-service
+      #     cache-to: type=gha,mode=max,scope=batch-service
 
       - name: Generate worker image metadata
         id: worker_meta
