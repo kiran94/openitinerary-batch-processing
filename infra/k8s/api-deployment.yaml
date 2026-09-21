@@ -39,13 +39,13 @@ spec:
               path: /health/live
               port: 8080
             initialDelaySeconds: 5
-            periodSeconds: 3
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health/ready
               port: 8080
             initialDelaySeconds: 5
-            periodSeconds: 3
+            periodSeconds: 5
       volumes:
         - name: ephemeral
           emptyDir:
