@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: adapter-api
+  name: oi-adapter-api
   namespace: oibp
   labels:
     app.kubernetes.io/name: adapter-api
