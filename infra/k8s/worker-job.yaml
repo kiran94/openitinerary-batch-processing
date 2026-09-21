@@ -17,6 +17,7 @@ spec:
       activeDeadlineSeconds: 360
       template:
         spec:
+          ttlSecondsAfterFinished: 1800
           restartPolicy: Never # on failure create a replacement pod
           containers:
           - name: oibp-worker
