@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oibp-api
+  namespace: oibp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oibp-api
+  template:
+    metadata:
+      labels:
+        app: oibp-api
+    spec:
+      containers:
+        - name: oibp-api
+          image: ghcr.io/kiran94/openitinerary-batch-processing:8ffa376
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: oibp-config
+            - secretRef:
+                name: oibp-secret
+
