@@ -29,3 +29,18 @@ spec:
                 configMapKeyRef:
                   name: oibp-config
                   key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: oibp-config
+                  key: AWS_REGION
+            - name: SES_NOTIFICATION_CONFIGURATION_SET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: oibp-config
+                  key: SES_NOTIFICATION_CONFIGURATION_SET_NAME
+            - name: SES_NOTIFICATION_ADDRESS_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: oibp-secret
+                  key: SES_NOTIFICATION_ADDRESS_FROM

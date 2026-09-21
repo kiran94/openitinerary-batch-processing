@@ -14,5 +14,5 @@ data:
   SQS_QUEUE_URL: "https://sqs.eu-west-2.amazonaws.com/851549885446/openitinerary-batch-processing-job-queue.fifo"
   POSTGRES_USER: "openitinerary"
   POSTGRES_DB: "openitinerary"
-
-
+  AWS_REGION: "eu-west-2"
+  SES_NOTIFICATION_CONFIGURATION_SET_NAME: openitinerary-batch-processing-notifications
