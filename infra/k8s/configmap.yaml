@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: openitinerary
 data:
   OIBP_LOG_LEVEL: "INFO"
-  OIBP_TELEMETRY_ENABLED: "true"
+  OIBP_TELEMETRY_ENABLED: "false"
   ADAPTER_API_URL: "http://adapter-api:8000/api/v1/mock/segment-mock"
   # ADAPTER_API_URL: "http://adapter-api:8000/api/v1/adapt/segment"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://opentelemetry-collector:4318"
