@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: adapter-api-http
-          image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.7
+          image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.8
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -29,3 +29,15 @@ spec:
                 configMapKeyRef:
                   name: oibp-config
                   key: OTEL_EXPORTER_OTLP_ENDPOINT
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 3
