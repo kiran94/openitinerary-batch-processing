@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: adapter-api
+  namespace: oibp
+spec:
+  type: ClusterIP
+  selector:
+    app: adapter-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: http
