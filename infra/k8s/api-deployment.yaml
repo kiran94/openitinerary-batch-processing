@@ -25,4 +25,16 @@ spec:
                 name: oibp-config
             - secretRef:
                 name: oibp-secret
-
+          resources:
+            requests:
+              ephemeral-storage: "20Mi"
+            limits:
+              ephemeral-storage: "75Mi"
+          volumeMounts:
+              # this directory will be used for multipart uploads in the HTTP service as a potential temp buffer
+            - name: ephemeral
+              mountPath: "/tmp"
+      volumes:
+        - name: ephemeral
+          emptyDir:
+            sizeLimit: "50Mi"
