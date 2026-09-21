@@ -32,12 +32,12 @@ spec:
           livenessProbe:
             httpGet:
               path: /health/live
-              port: 8000
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: 8000
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 5
