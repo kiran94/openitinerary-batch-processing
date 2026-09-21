@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oibp-worker
+  namespace: oibp
+  labels:
+    app: oibp-worker
+spec:
+  schedule: "*/10 * * * *" # every 10 mins
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  failedJobsHistoryLimit: 2
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 360
+      template:
+        spec:
+          restartPolicy: Never # on failure create a replacement pod
+          containers:
+          - name: oibp-worker
+            image: ghcr.io/kiran94/openitinerary-batch-processing-worker:8ffa376
+            imagePullPolicy: IfNotPresent
+            envFrom:
+              - configMapRef:
+                  name: oibp-config
+              - secretRef:
+                  name: oibp-secret
