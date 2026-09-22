@@ -5,13 +5,9 @@ on:
       - main
     paths:
       - "infra/k8s/**"
-      - "Makefile"
-      - ".yamllint"
   pull_request:
     paths:
       - "infra/k8s/**"
-      - "Makefile"
-      - ".yamllint"
 jobs:
   validate:
     runs-on: ubuntu-latest
