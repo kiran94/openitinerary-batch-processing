@@ -10,14 +10,15 @@ spec:
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 60
   failedJobsHistoryLimit: 2
+  suspend: false
 
   jobTemplate:
     spec:
       backoffLimit: 2
       activeDeadlineSeconds: 360
+      ttlSecondsAfterFinished: 1800
       template:
         spec:
-          ttlSecondsAfterFinished: 1800
           restartPolicy: Never # on failure create a replacement pod
           containers:
           - name: oibp-worker
