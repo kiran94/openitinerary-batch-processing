@@ -22,6 +22,8 @@ spec:
               containerPort: 4318
             - name: metrics
               containerPort: 8888
+            - name: health
+              containerPort: 13133
           env:
             - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
               valueFrom:
@@ -45,6 +47,21 @@ spec:
               mountPath: /etc/otelcol/config.yaml
               subPath: config.yaml # requires a restart if configmap changes: kubectl rollout restart deployment/otel-collector -n oibp
               readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
       volumes:
         - name: config-otel
           configMap:

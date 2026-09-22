@@ -46,6 +46,8 @@ data:
           processors: [batch]
           exporters: [otlp_http/grafana_cloud]
 
+      extensions: [health_check]
+
       # Internal telemetry for the collector
       # to get information on telemetry passing through this collector
       # once enabled then run
@@ -59,6 +61,11 @@ data:
                     prometheus:
                       host: 0.0.0.0
                       port: 8888
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+        path: /health
 kind: ConfigMap
 metadata:
   name: configmap-otel
