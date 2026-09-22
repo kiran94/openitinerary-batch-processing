@@ -328,3 +328,6 @@ kubectl create job --from=cronjob/oibp-worker "$OIBP_ADHOC_JOB"
 
 kubectl logs "job/$OIBP_ADHOC_JOB" -f
 ```
+
+
+TEST
