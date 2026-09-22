@@ -1,0 +1,24 @@
+name: k8 validate
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/k8s/**"
+  pull_request:
+    paths:
+      - "infra/k8s/**"
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: yamllint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: "infra/k8s/**"
+      - name: Set up Kubeconform
+        uses: bmuschko/setup-kubeconform@v1
+      - name: Validate manifests
+        run: make k8_lint
