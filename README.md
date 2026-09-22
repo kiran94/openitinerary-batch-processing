@@ -220,3 +220,73 @@ The GRPC service implements the standard [GRPC Health Protos](https://grpc.io/do
 ```bash
 grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
 ```
+
+## Kubernetes
+
+Configuration for the k8 service can be found in [/infra/k8s/](./infra/k8s/).
+
+### Local Setup
+
+```bash
+# Create a new profile for minikube to isolate this project
+minikube start --profile oibp --driver=docker
+
+# Verify
+kubectl config current-context
+kubectl cluster-info --context oibp
+kubectl get nodes --context oibp -o wide
+minikube profile list
+
+# Enable the metrics server (to enable `kubectl top pods`)
+minikube -p oibp addons enable metrics-server
+
+# Note that all the resources within this project are under the 'oibp' namespace
+# so you can update your context to look at that by default with this:
+kubectl config set-context oibp --namespace=oibp
+```
+
+**Load the Images into Minikube**
+
+If you are developing any of the images locally, then you may want to load a local build of an image into minikube
+
+```bash
+# build the service into a local image
+make docker_images_build_service
+# or build the worker into a local image
+make docker_images_build_worker
+
+# Load the image into minikube and then reference in your deployment
+minikube --profile oibp image load "oibp:3ef2510-dirty"
+
+# Verify they are loaded
+minikube -p oibp image ls
+```
+
+### Applying Configuration
+
+```bash
+kubectl apply -f ./infra/k8s/namespace.yaml -f ./infra/k8s
+
+## Verify
+kubectl get pods,svc,deployments,pvc,endpointslices
+```
+
+### Service
+
+You can access the internal `ClusterIP` services by forwarding teh port to your machine like this:
+
+```bash
+kubectl port-forward services/oibp-service 8080:8080
+```
+
+### Worker Process
+
+The deployed services will handle running worker processes automatically but you can fire one manually like this:
+
+```bash
+OIBP_ADHOC_JOB="oibp-worker-adhoc-check-$(date +%H%M%S)"
+
+kubectl create job --from=cronjob/oibp-worker "$OIBP_ADHOC_JOB"
+
+kubectl logs "job/$OIBP_ADHOC_JOB" -f
+```
