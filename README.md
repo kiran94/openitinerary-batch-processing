@@ -271,6 +271,44 @@ kubectl apply -f ./infra/k8s/namespace.yaml -f ./infra/k8s
 kubectl get pods,svc,deployments,pvc,endpointslices
 ```
 
+#### Secrets
+
+You need to create a file `./infra/k8s/secret.yaml` and apply it to the cluster. It should look like following, with your values populated:
+
+<details>
+
+<summary>secret.yaml</summary>
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret
+  namespace: oibp
+  labels:
+    app.kubernetes.io/part-of: openitinerary
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+  SES_NOTIFICATION_ADDRESS_FROM:
+  POSTGRES_PASSWORD: "openitinerary" # example
+  DATABASE_DSN: "host=postgres user=openitinerary password=openitinerary dbname=openitinerary port=5432 sslmode=disable" # example
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret-otel
+  namespace: oibp
+type: Opaque
+stringData:
+  OTEL_EXPORTER_OTLP_ENDPOINT:
+  OTEL_EXPORTER_OTLP_HEADERS:
+  GRAFANA_CLOUD_INSTANCE_ID:
+```
+
+</details>
+
 ### Service
 
 You can access the internal `ClusterIP` services by forwarding teh port to your machine like this:
