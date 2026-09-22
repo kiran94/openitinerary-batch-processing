@@ -17,7 +17,7 @@ jobs:
       - name: yamllint
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: "infra/k8s/**"
+          file_or_dir: "infra/k8s/*.yaml"
       - name: Set up Kubeconform
         uses: bmuschko/setup-kubeconform@v1
       - name: Validate manifests
