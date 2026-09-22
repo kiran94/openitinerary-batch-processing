@@ -71,9 +71,10 @@ terraform.rc
 
 # End of https://www.toptal.com/developers/gitignore/api/terraform
 
+.DS_Store
 .go-cache/
 .go-mod-cache/
 .golangci-lint-cache/
 .env
 infra/k6/data/
-.DS_Store
+infra/k8s/secret.yaml

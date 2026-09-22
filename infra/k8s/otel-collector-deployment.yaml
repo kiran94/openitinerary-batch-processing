@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: oibp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector:0.160.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          env:
+            - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
+              valueFrom:
+                secretKeyRef:
+                  name: oibp-secret-otel
+                  key: "OTEL_EXPORTER_OTLP_ENDPOINT"
+            - name: "OTEL_EXPORTER_OTLP_HEADERS"
+              valueFrom:
+                secretKeyRef:
+                  name: oibp-secret-otel
+                  key: "OTEL_EXPORTER_OTLP_HEADERS"
+          resources:
+            requests:
+              cpu: 32m
+              memory: 64Mi
+            limits:
+              cpu: 256m
+              memory: 256Mi
+          volumeMounts:
+            - name: config-otel
+              mountPath: /etc/otelcol/config.yaml
+              subPath: config.yaml # requires a restart if configmap changes: kubectl rollout restart deployment/otel-collector -n oibp
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+      volumes:
+        - name: config-otel
+          configMap:
+            name: configmap-otel

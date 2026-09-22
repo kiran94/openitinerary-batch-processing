@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oi-adapter-api
+  namespace: oibp
+  labels:
+    app.kubernetes.io/name: adapter-api
+    app.kubernetes.io/part-of: openitinerary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adapter-api
+  template:
+    metadata:
+      labels:
+        app: adapter-api
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: adapter-api-http
+          image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: oibp-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: OTEL_PYTHON_EXCLUDED_URLS
+              value: "health,ping,metrics"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "192Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
