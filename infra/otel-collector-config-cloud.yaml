@@ -8,7 +8,7 @@ processors:
   batch:
 
 exporters:
-  otlphttp/grafana_cloud:
+  otlp_http/grafana_cloud:
     endpoint: "${env:OTEL_EXPORTER_OTLP_ENDPOINT}"
     headers:
       Authorization: "Basic ${env:OTEL_EXPORTER_OTLP_HEADERS}"
@@ -28,17 +28,17 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/grafana_cloud]
+      exporters: [otlp_http/grafana_cloud]
 
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/grafana_cloud]
+      exporters: [otlp_http/grafana_cloud]
 
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/grafana_cloud]
+      exporters: [otlp_http/grafana_cloud]
 
   # Internal telemetry for the collector
   # to get information on telemetry passing through this collector
