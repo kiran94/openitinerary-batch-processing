@@ -35,15 +35,15 @@ spec:
                   key: "OTEL_EXPORTER_OTLP_HEADERS"
           resources:
             requests:
-              cpu: "25m"
-              memory: "25Mi"
+              cpu: 32m
+              memory: 64Mi
             limits:
-              cpu: "50m"
-              memory: "50Mi"
+              cpu: 256m
+              memory: 256Mi
           volumeMounts:
             - name: config-otel
               mountPath: /etc/otelcol/config.yaml
-              subPath: config.yaml
+              subPath: config.yaml # requires a restart if configmap changes: kubectl rollout restart deployment/otel-collector -n oibp
               readOnly: true
       volumes:
         - name: config-otel
