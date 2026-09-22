@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: oibp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector:0.160.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+            - name: metrics
+              containerPort: 8888
+          env:
+            - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
+              valueFrom:
+                secretKeyRef:
+                  name: oibp-secret-otel
+                  key: "OTEL_EXPORTER_OTLP_ENDPOINT"
+            - name: "OTEL_EXPORTER_OTLP_HEADERS"
+              valueFrom:
+                secretKeyRef:
+                  name: oibp-secret-otel
+                  key: "OTEL_EXPORTER_OTLP_HEADERS"
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "25Mi"
+            limits:
+              cpu: "50m"
+              memory: "50Mi"
+          volumeMounts:
+            - name: config-otel
+              mountPath: /etc/otelcol/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: config-otel
+          configMap:
+            name: configmap-otel
