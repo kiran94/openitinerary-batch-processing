@@ -13,6 +13,7 @@ spec:
       labels:
         app: oibp-api
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: oibp-api
           image: ghcr.io/kiran94/openitinerary-batch-processing:8ffa376

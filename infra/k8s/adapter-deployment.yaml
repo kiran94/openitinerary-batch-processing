@@ -16,6 +16,7 @@ spec:
       labels:
         app: adapter-api
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: adapter-api-http
           image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.8
