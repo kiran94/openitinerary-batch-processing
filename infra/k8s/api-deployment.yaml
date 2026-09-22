@@ -27,7 +27,7 @@ spec:
             - secretRef:
                 name: oibp-secret
           volumeMounts:
-              # this directory will be used for multipart uploads in the HTTP service as a potential temp buffer
+            # this directory will be used for multipart uploads in the HTTP service as a potential temp buffer
             - name: ephemeral
               mountPath: "/tmp"
           livenessProbe:

@@ -11,7 +11,6 @@ spec:
   startingDeadlineSeconds: 60
   failedJobsHistoryLimit: 2
   suspend: false
-
   jobTemplate:
     spec:
       backoffLimit: 2
@@ -21,11 +20,11 @@ spec:
         spec:
           restartPolicy: Never # on failure create a replacement pod
           containers:
-          - name: oibp-worker
-            image: ghcr.io/kiran94/openitinerary-batch-processing-worker:8ffa376
-            imagePullPolicy: IfNotPresent
-            envFrom:
-              - configMapRef:
-                  name: oibp-config
-              - secretRef:
-                  name: oibp-secret
+            - name: oibp-worker
+              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:8ffa376
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: oibp-config
+                - secretRef:
+                    name: oibp-secret

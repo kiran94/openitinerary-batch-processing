@@ -99,3 +99,6 @@ proto_lint:
 
 proto_generate:
 	cd proto && buf generate
+
+k8_lint:
+	kubeconform -summary -verbose ./infra/k8s/
