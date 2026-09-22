@@ -2,9 +2,25 @@ name: publish containers
 
 on:
   pull_request:
+    paths-ignore:
+      - "infra/**"
+      - "terraform/**"
+      - "docs/**"
+      - "README.md"
+      - "compose.yaml"
+      - ".github/workflows/terraform.yml"
+      - ".github/pull_request_template.md"
   push:
     branches:
       - main
+    paths-ignore:
+      - "infra/**"
+      - "terraform/**"
+      - "docs/**"
+      - "README.md"
+      - "compose.yaml"
+      - ".github/workflows/terraform.yml"
+      - ".github/pull_request_template.md"
   workflow_dispatch:
 
 permissions:
