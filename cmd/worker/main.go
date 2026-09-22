@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/signal"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
@@ -24,6 +26,8 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
+	ctx, interruptCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer interruptCancel()
 
 	config := config.NewConfig()
 	bootstrapLogger := logging.New(config)
