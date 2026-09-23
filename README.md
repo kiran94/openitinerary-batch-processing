@@ -1,6 +1,6 @@
 # OpenItinerary Batch Processing
 
-[![build](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml) [![terraform](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml)
+[![build](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml) [![terraform](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml) [![protobuf](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml) [![publish containers](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml) [![k8 validate](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml)
 
 > The OpenItinerary Batch Processing (OIBP) service provides an asynchronous solution to converting traditional travel documents into the [OpenItinerary Standard](http://github.com/kiran94/openitinerary).
 
@@ -31,6 +31,7 @@
 - [OpenTelemetry](https://opentelemetry.io/docs/) for metrics, logs, and traces.
 - [Prometheus](https://prometheus.io/docs/introduction/overview/), [Loki](https://grafana.com/docs/loki/latest/), [Tempo](https://grafana.com/docs/tempo/latest/), and [Grafana](https://grafana.com/docs/grafana/latest/) for local observability; see [Observability](#observability).
 - [Docker Compose](https://docs.docker.com/compose/) for the local dependency stack.
+- [Kubernetes](https://kubernetes.io/docs/home/) for local & production deployment
 - [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
 - [k6 load testing](./infra/k6/README.md) for performance verification.
 
