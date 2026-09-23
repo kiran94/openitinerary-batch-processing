@@ -215,6 +215,11 @@ func TestApplicationConfigOtelDefaults(t *testing.T) {
 }
 
 func TestApplicationVersionOverride(t *testing.T) {
+	storedVersion := Version
+	t.Cleanup(func() {
+		Version = storedVersion
+	})
+
 	const version = "1.2.0"
 	Version = version
 
