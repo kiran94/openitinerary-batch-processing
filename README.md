@@ -31,6 +31,7 @@
 - [OpenTelemetry](https://opentelemetry.io/docs/) for metrics, logs, and traces.
 - [Prometheus](https://prometheus.io/docs/introduction/overview/), [Loki](https://grafana.com/docs/loki/latest/), [Tempo](https://grafana.com/docs/tempo/latest/), and [Grafana](https://grafana.com/docs/grafana/latest/) for local observability; see [Observability](#observability).
 - [Docker Compose](https://docs.docker.com/compose/) for the local dependency stack.
+- [Kubernetes](https://kubernetes.io/docs/home/) for local & production deployment
 - [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
 - [k6 load testing](./infra/k6/README.md) for performance verification.
 
