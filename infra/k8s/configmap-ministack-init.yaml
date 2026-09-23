@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ministack-cm
+  namespace: oibp
+data:
+  01-create-resources.sh: |
+    #!/bin/sh
+    set -eu
+
+    ENDPOINT_URL="http://localhost:4566"
+    REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-2}}"
+
+    # Required if the script is executed manually. MiniStack supplies these
+    # automatically when running it as a ready.d startup script.
+    export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-000000000000}"
+    export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-test}"
+    export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$REGION}"
+
+    BUCKET_NAME="openitinerary-batch-processing"
+
+    DLQ_NAME="openitinerary-batch-processing-job-queue-dlq.fifo"
+    QUEUE_NAME="openitinerary-batch-processing-job-queue.fifo"
+
+    SES_CONFIGURATION_SET="openitinerary-batch-processing-notifications"
+    SES_FROM_ADDRESS="notifications@example.com"
+
+    aws_local() {
+        aws \
+            --endpoint-url "$ENDPOINT_URL" \
+            --region "$REGION" \
+            "$@"
+    }
+
+    echo "Provisioning MiniStack resources in ${REGION}..."
+
+    if aws_local s3api head-bucket \
+        --bucket "$BUCKET_NAME" >/dev/null 2>&1
+    then
+        echo "S3 bucket already exists: ${BUCKET_NAME}"
+    else
+        echo "Creating S3 bucket: ${BUCKET_NAME}"
+
+        aws_local s3api create-bucket \
+            --bucket "$BUCKET_NAME" \
+            --create-bucket-configuration "LocationConstraint=${REGION}" \
+            >/dev/null
+    fi
+
+    echo "Creating or confirming FIFO dead-letter queue: ${DLQ_NAME}"
+
+    DLQ_URL="$(
+        aws_local sqs create-queue \
+            --queue-name "$DLQ_NAME" \
+            --attributes '{"FifoQueue":"true"}' \
+            --query 'QueueUrl' \
+            --output text
+    )"
+
+    DLQ_ARN="$(
+        aws_local sqs get-queue-attributes \
+            --queue-url "$DLQ_URL" \
+            --attribute-names QueueArn \
+            --query 'Attributes.QueueArn' \
+            --output text
+    )"
+
+    echo "DLQ URL: ${DLQ_URL}"
+    echo "DLQ ARN: ${DLQ_ARN}"
+
+    QUEUE_ATTRIBUTES="$(
+        printf \
+            '{"FifoQueue":"true","VisibilityTimeout":"360","MessageRetentionPeriod":"259200","RedrivePolicy":"{\\"deadLetterTargetArn\\":\\"%s\\",\\"maxReceiveCount\\":\\"3\\"}"}' \
+            "$DLQ_ARN"
+    )"
+
+    echo "Creating or confirming FIFO job queue: ${QUEUE_NAME}"
+
+    QUEUE_URL="$(
+        aws_local sqs create-queue \
+            --queue-name "$QUEUE_NAME" \
+            --attributes "$QUEUE_ATTRIBUTES" \
+            --query 'QueueUrl' \
+            --output text
+    )"
+
+    if aws_local sesv2 get-configuration-set \
+        --configuration-set-name "$SES_CONFIGURATION_SET" \
+        >/dev/null 2>&1
+    then
+        echo "SES configuration set already exists: ${SES_CONFIGURATION_SET}"
+    else
+        echo "Creating SES configuration set: ${SES_CONFIGURATION_SET}"
+
+        aws_local sesv2 create-configuration-set \
+            --configuration-set-name "$SES_CONFIGURATION_SET"
+    fi
+
+    if aws_local sesv2 get-email-identity \
+        --email-identity "$SES_FROM_ADDRESS" \
+        >/dev/null 2>&1
+    then
+        echo "SES email identity already exists: ${SES_FROM_ADDRESS}"
+    else
+        echo "Creating SES email identity: ${SES_FROM_ADDRESS}"
+
+        aws_local sesv2 create-email-identity \
+            --email-identity "$SES_FROM_ADDRESS" \
+            --configuration-set-name "$SES_CONFIGURATION_SET"
+    fi
+
+    echo
+    echo "MiniStack provisioning completed."
+    echo "Bucket:               ${BUCKET_NAME}"
+    echo "Queue URL:            ${QUEUE_URL}"
+    echo "DLQ URL:              ${DLQ_URL}"
+    echo "SES configuration:    ${SES_CONFIGURATION_SET}"
+    echo "SES sender identity:  ${SES_FROM_ADDRESS}"

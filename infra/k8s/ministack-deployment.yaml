@@ -54,4 +54,15 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-
+          volumeMounts:
+            - name: startup-script
+              mountPath: /docker-entrypoint-initaws.d/ready.d
+              readOnly: true
+      volumes:
+        - name: startup-script
+          configMap:
+            name: ministack-cm
+            defaultMode: 0555 # readonly but executable by everyone
+            items:
+              - key: 01-create-resources.sh
+                path: 01-create-resources.sh
