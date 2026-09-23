@@ -68,10 +68,10 @@ docker_compose_cloud:
 	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config-cloud.yaml docker compose up
 
 docker_images_build_service:
-	docker image build -t oibp:${VERSION} .
+	docker image build -t oibp:${VERSION} --build-arg VERSION=${VERSION} .
 
 docker_images_build_worker:
-	docker build -t oibp-worker:${VERSION} -f ./cmd/worker/Dockerfile .
+	docker build -t oibp-worker:${VERSION} --build-arg VERSION=${VERSION} -f ./cmd/worker/Dockerfile .
 
 docker_images_publish_service:
 	docker buildx build --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest .
