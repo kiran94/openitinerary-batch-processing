@@ -87,6 +87,8 @@ jobs:
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
         with:
           context: .
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
           push: false
           tags: ${{ steps.service_meta.outputs.tags }}
           labels: ${{ steps.service_meta.outputs.labels }}
@@ -108,6 +110,8 @@ jobs:
         with:
           context: .
           file: cmd/worker/Dockerfile
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
           push: false
           tags: ${{ steps.worker_meta.outputs.tags }}
           labels: ${{ steps.worker_meta.outputs.labels }}
@@ -155,6 +159,8 @@ jobs:
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v7.0.0
         with:
           context: .
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.service_meta.outputs.tags }}
@@ -204,6 +210,8 @@ jobs:
         with:
           context: .
           file: cmd/worker/Dockerfile
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.worker_meta.outputs.tags }}
