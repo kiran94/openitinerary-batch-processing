@@ -904,6 +904,7 @@ func TestWriteAPIErrorRecordsResponseWriteError(t *testing.T) {
 				tt.endpoint,
 				http.StatusBadRequest,
 				"bad request",
+				errors.New("bad request"),
 				span,
 			)
 

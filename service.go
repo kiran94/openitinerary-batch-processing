@@ -47,6 +47,10 @@ type submitRequestError struct {
 	reason     metrics.SubmissionReason
 }
 
+func (e *submitRequestError) Error() string {
+	return e.detail
+}
+
 // @Summary      Submit a document for processing
 // @Description  Upload a PDF, HTML, or RFC 822 email document, create and enqueue a processing ticket, and return the accepted ticket.
 // @Tags         batch
@@ -83,7 +87,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 		defer request.file.Close()
 	}
 	if requestErr != nil {
-		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, requestErr.statusCode, requestErr.detail, span)
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, requestErr.statusCode, requestErr.detail, requestErr, span)
 		reason := requestErr.reason
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionRejected,
@@ -105,11 +109,11 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 	ticket, err := s.submitService.Submit(ctx, input)
 	if err != nil {
 		if e, ok := errors.AsType[service.ErrInvalidNotificationEmails](err); ok {
-			s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusBadRequest, e.Error(), span)
+			s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusBadRequest, e.Error(), err, span)
 			return
 		}
 
-		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", err, span)
 		return
 	}
 
@@ -217,7 +221,7 @@ func (s *ServiceV1) writeSubmitResponse(
 	inputBytes := request.fileHeader.Size
 	if err != nil {
 		logger.Error(ctx, "submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", err, span)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonResponseSerializationFailed),
@@ -226,7 +230,6 @@ func (s *ServiceV1) writeSubmitResponse(
 			Enqueued:    true,
 			ServiceType: metrics.SubmissionServiceTypeHTTP,
 		})
-		span.RecordError(err)
 		return err
 	}
 
@@ -301,13 +304,13 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id parameter must be provided", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id parameter must be provided", errors.New("id parameter must be provided"), span)
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id must be a valid UUID", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusBadRequest, "id must be a valid UUID", err, span)
 		return
 	}
 
@@ -317,19 +320,19 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 	ticket, err := s.statusService.GetStatus(ctx, ticketIDParsed)
 	if err != nil {
 		if errors.Is(err, job.ErrRecordNotFound) {
-			s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusNotFound, "ticket was not found", span)
+			s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusNotFound, "ticket was not found", err, span)
 			return
 		}
 
 		logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
-		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", err, span)
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
 		logger.Error(ctx, "ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", err, span)
 		return
 	}
 
@@ -373,13 +376,13 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	ticketID := r.PathValue("id")
 	if ticketID == "" {
-		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id parameter must be provided", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id parameter must be provided", errors.New("id parameter must be provided"), span)
 		return
 	}
 
 	ticketIDParsed, err := uuid.Parse(ticketID)
 	if err != nil {
-		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id must be a valid UUID", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusBadRequest, "id must be a valid UUID", err, span)
 		return
 	}
 
@@ -394,18 +397,18 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if errors.Is(err, job.ErrRecordNotFound) {
-			s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusNotFound, "ticket was not found", span)
+			s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusNotFound, "ticket was not found", err, span)
 			return
 		}
 
-		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", err, span)
 		return
 	}
 
 	b, err := json.Marshal(result)
 	if err != nil {
 		logger.Error(ctx, "failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
-		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", span)
+		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", err, span)
 		return
 	}
 
@@ -443,8 +446,10 @@ func (s *ServiceV1) writeAPIError(
 	endpoint config.EndpointV1,
 	statusCode int,
 	detail string,
+	err error,
 	span trace.Span,
 ) {
+	span.RecordError(err)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -453,6 +458,8 @@ func (s *ServiceV1) writeAPIError(
 	if statusCode >= http.StatusInternalServerError {
 		span.SetStatus(codes.Error, detail)
 	}
+
+	logger.Debug(ctx, fmt.Sprintf("%v: %v", string(endpoint), statusCode), "error", err)
 
 	if err := json.NewEncoder(w).Encode(apiError{Detail: detail}); err != nil {
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: endpoint})
