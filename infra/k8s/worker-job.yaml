@@ -21,7 +21,7 @@ spec:
           restartPolicy: Never # on failure create a replacement pod
           containers:
             - name: oibp-worker
-              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:8ffa376
+              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:277fe99
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
