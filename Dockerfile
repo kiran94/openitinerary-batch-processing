@@ -4,6 +4,7 @@ FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION
 
 RUN apk --no-cache add ca-certificates
 
@@ -20,7 +21,7 @@ COPY . .
 # Build a statically linked binary optimized for light containers
 # - CGO_ENABLED=0 disables dynamic links to C libraries
 # - TARGETOS and TARGETARCH let Buildx cross-compile without emulating Go.
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-w -s" -o oibp .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-w -s -X github.com/kiran94/openitinerary-batch-processing/internal/config.Version=${VERSION}" -o oibp .
 
 FROM scratch
 

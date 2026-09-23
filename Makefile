@@ -1,4 +1,5 @@
 VERSION := $(shell git describe --always --long --dirty)
+GO_LD_FLAGS=-ldflags "-X github.com/kiran94/openitinerary-batch-processing/internal/config.Version=$(VERSION)"
 
 GOLANGCI_LINT_VERSION := v2.13.1
 GOTESTSUM_VERSION := v1.13.0
@@ -13,7 +14,7 @@ POSTGRES_DB ?= openitinerary_batch_processing
 .PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version
 
 build:
-	go build ./...
+	go build $(GO_LD_FLAGS) ./...
 
 test:
 	gotestsum ./... -- -race
@@ -36,18 +37,18 @@ generate_oi_go_models:
 	go-jsonschema -p openitinerary internal/openitinerary/0.1/itinerary.schema.json -o internal/openitinerary/0.1/itinerary.gen.go
 
 api:
-	 go run .
+	 go run $(GO_LD_FLAGS) .
 
 api_grpc:
-	go run . --grpc
+	go run $(GO_LD_FLAGS) . --grpc
 
 # Live reload
 api_dev:
 	go tool air
 
 worker:
-	# ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run ./cmd/worker/main.go
-	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/mock/segment-mock" go run ./cmd/worker/main.go
+	# ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
+	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/mock/segment-mock" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
 
 install_tools: install_proto_tools
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
@@ -67,16 +68,16 @@ docker_compose_cloud:
 	OTEL_COLLECTOR_CONFIG_FILE=otel-collector-config-cloud.yaml docker compose up
 
 docker_images_build_service:
-	docker image build -t oibp:${VERSION} .
+	docker image build -t oibp:${VERSION} --build-arg VERSION=${VERSION} .
 
 docker_images_build_worker:
-	docker build -t oibp-worker:${VERSION} -f ./cmd/worker/Dockerfile .
+	docker build -t oibp-worker:${VERSION} --build-arg VERSION=${VERSION} -f ./cmd/worker/Dockerfile .
 
 docker_images_publish_service:
-	docker buildx build --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest .
+	docker buildx build --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest --build-arg VERSION=${VERSION} .
 
 docker_images_publish_worker:
-	docker buildx build --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest -f ./cmd/worker/Dockerfile .
+	docker buildx build --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest --build-arg VERSION=${VERSION} -f ./cmd/worker/Dockerfile .
 
 version:
 	@echo ${VERSION}

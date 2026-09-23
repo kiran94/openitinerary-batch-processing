@@ -189,8 +189,12 @@ func (ac ApplicationConfig) GetOtelGrpcName() string {
 	return "openitinerary-batch-grpc"
 }
 
+// This value is injected via the build process
+// See the Makefile for more details
+var Version = "dev"
+
 func (ac ApplicationConfig) GetOtelServiceVersion() string {
-	return "0.0.1"
+	return Version
 }
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
