@@ -1,4 +1,5 @@
 VERSION := $(shell git describe --always --long --dirty)
+GO_LD_FLAGS=-ldflags "-X github.com/kiran94/openitinerary-batch-processing/internal/config.Version=$(VERSION)"
 
 GOLANGCI_LINT_VERSION := v2.13.1
 GOTESTSUM_VERSION := v1.13.0
@@ -13,7 +14,7 @@ POSTGRES_DB ?= openitinerary_batch_processing
 .PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version
 
 build:
-	go build ./...
+	go build $(GO_LD_FLAGS) ./...
 
 test:
 	gotestsum ./... -- -race
@@ -36,10 +37,10 @@ generate_oi_go_models:
 	go-jsonschema -p openitinerary internal/openitinerary/0.1/itinerary.schema.json -o internal/openitinerary/0.1/itinerary.gen.go
 
 api:
-	 go run .
+	 go run $(GO_LD_FLAGS) .
 
 api_grpc:
-	go run . --grpc
+	go run $(GO_LD_FLAGS) . --grpc
 
 # Live reload
 api_dev:
