@@ -19,6 +19,9 @@ import (
 
 // Together these values will control how long it takes the server to shutdown
 // in a worse case scenario so be careful when adjusting them.
+// Within a k8 environment, the default grace period for a pod to shutdown is 30s
+// so ensure this value is within that
+// https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination-flow
 const (
 	shutdownServerTimeout = 15 * time.Second
 )
