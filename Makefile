@@ -74,10 +74,10 @@ docker_images_build_worker:
 	docker build -t oibp-worker:${VERSION} --build-arg VERSION=${VERSION} -f ./cmd/worker/Dockerfile .
 
 docker_images_publish_service:
-	docker buildx build --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest .
+	docker buildx build --push -t ${SERVICE_IMAGE}:${VERSION} -t ${SERVICE_IMAGE}:latest --build-arg VERSION=${VERSION} .
 
 docker_images_publish_worker:
-	docker buildx build --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest -f ./cmd/worker/Dockerfile .
+	docker buildx build --push -t ${WORKER_IMAGE}:${VERSION} -t ${WORKER_IMAGE}:latest --build-arg VERSION=${VERSION} -f ./cmd/worker/Dockerfile .
 
 version:
 	@echo ${VERSION}
