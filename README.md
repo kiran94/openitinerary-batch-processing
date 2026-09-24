@@ -347,3 +347,32 @@ kubectl create job --from=cronjob/oibp-worker "$OIBP_ADHOC_JOB"
 
 kubectl logs "job/$OIBP_ADHOC_JOB" -f
 ```
+
+### Ministack
+
+During development, you may use [ministack](https://ministack.org/) to emulate your AWS services.
+
+In the `configmap` and `secrets` files, you will find we have `-ministack` variant of certain configmaps (e.g `oibp-secret-aws-ministack`). If these are used within the API and Worker deployments then those applications will call out to ministack instead of real AWS.
+
+You can verify things are being populated in Ministack via this:
+
+```bash
+# port forward the ministack gateway
+kubectl port-forward service/ministack 4566:4566
+
+# perform your normal AWS commands with the AWS_ENDPOINT_URL env overridden
+AWS_ENDPOINT_URL="http://localhost:4566" aws s3 ls
+
+# check queue status
+AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-url --queue-name openitinerary-batch-processing-job-queue.fifo | jq .
+
+AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-attributes \
+    --no-cli-pager \
+    --queue-url "http://ministack:4566/000000000000/openitinerary-batch-processing-job-queue.fifo" \
+    --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
+    --query 'Attributes' \
+    --output table
+
+# Check the SES messages
+curl --silent http://localhost:4566/_ministack/ses/messages | jq
+```
