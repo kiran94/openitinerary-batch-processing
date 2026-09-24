@@ -5,6 +5,10 @@ metadata:
   namespace: oibp
 spec:
   replicas: 1
+  # Recreate will kill all available pods before new ones are created
+  # this stops multiple pods writing to the pvc at the same time
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ministack
@@ -31,8 +35,14 @@ spec:
               value: INFO
             - name: IOT_MTLS_ENABLED
               value: "0"
-            # - name: PERSIST_STATE
-            #   value: "1"
+            - name: PERSIST_STATE
+              value: "1"
+            - name: S3_PERSIST
+              value: "1"
+            - name: STATE_DIR
+              value: /var/lib/ministack/state
+            - name: S3_DATA_DIR
+              value: /var/lib/ministack/s3
           livenessProbe:
             httpGet:
               path: /_ministack/health
@@ -58,6 +68,9 @@ spec:
             - name: startup-script
               mountPath: /docker-entrypoint-initaws.d/ready.d
               readOnly: true
+            - name: ministack-pvc
+              mountPath: /var/lib/ministack
+              readOnly: false
       volumes:
         - name: startup-script
           configMap:
@@ -66,3 +79,6 @@ spec:
             items:
               - key: 01-create-resources.sh
                 path: 01-create-resources.sh
+        - name: ministack-pvc
+          persistentVolumeClaim:
+            claimName: ministack-pvc
