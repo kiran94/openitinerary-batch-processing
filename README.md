@@ -221,7 +221,6 @@ The GRPC service implements the standard [GRPC Health Protos](https://grpc.io/do
 ```bash
 grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
 ```
-
 ## Kubernetes
 
 Configuration for the k8 service can be found in [/infra/k8s/](./infra/k8s/).
@@ -290,9 +289,6 @@ metadata:
     app.kubernetes.io/part-of: openitinerary
 type: Opaque
 stringData:
-  AWS_ACCESS_KEY_ID:
-  AWS_SECRET_ACCESS_KEY:
-  SES_NOTIFICATION_ADDRESS_FROM:
   POSTGRES_PASSWORD: "openitinerary" # example
   DATABASE_DSN: "host=postgres user=openitinerary password=openitinerary dbname=openitinerary port=5432 sslmode=disable" # example
 ---
@@ -306,6 +302,28 @@ stringData:
   OTEL_EXPORTER_OTLP_ENDPOINT:
   OTEL_EXPORTER_OTLP_HEADERS:
   GRAFANA_CLOUD_INSTANCE_ID:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret-aws
+  namespace: oibp
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+  SES_NOTIFICATION_ADDRESS_FROM:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret-aws-ministack
+  namespace: oibp
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  SES_NOTIFICATION_ADDRESS_FROM: notifications@example.com
 ```
 
 </details>
