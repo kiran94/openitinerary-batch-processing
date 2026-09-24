@@ -24,8 +24,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: oibp-config
+            - configMapRef:
+                name: oibp-config-aws-ministack
             - secretRef:
                 name: oibp-secret
+            - secretRef:
+                name: oibp-secret-aws-ministack
           env:
             - name: K8S_POD_NAME
               valueFrom:
