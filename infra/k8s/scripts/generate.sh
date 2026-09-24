@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 # Assumed to be running in the ./infra/k8s/ directory
 

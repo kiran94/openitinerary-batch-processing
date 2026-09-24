@@ -16,7 +16,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: oibp-api
-          image: ghcr.io/kiran94/openitinerary-batch-processing:8ffa376
+          image: ghcr.io/kiran94/openitinerary-batch-processing:277fe99
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -24,8 +24,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: oibp-config
+            - configMapRef:
+                name: oibp-config-aws-ministack
             - secretRef:
                 name: oibp-secret
+            - secretRef:
+                name: oibp-secret-aws-ministack
           env:
             - name: K8S_POD_NAME
               valueFrom:

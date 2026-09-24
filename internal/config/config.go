@@ -31,6 +31,7 @@ type Config interface {
 	GetBucketPath() string
 	GetS3UploadConcurrency() int
 	GetS3PresignedExpirationSeconds() int
+	GetS3UsePathStyle() bool
 	GetDocumentPath(bucket, bucketPath, jobId, fileType string) string
 	GetOutputPath(bucket, bucketPath, jobId string) string
 
@@ -143,6 +144,10 @@ func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
 	}
 
 	return v
+}
+
+func (ac ApplicationConfig) GetS3UsePathStyle() bool {
+	return getBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false)
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {

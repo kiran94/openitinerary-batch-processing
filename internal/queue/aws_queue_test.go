@@ -513,6 +513,10 @@ func (m *MockConfig) GetS3PresignedExpirationSeconds() int {
 	return m.Called().Int(0)
 }
 
+func (m *MockConfig) GetS3UsePathStyle() bool {
+	return m.Called().Bool(0)
+}
+
 func (m *MockConfig) GetDocumentPath(bucket, bucketPath, jobID, fileType string) string {
 	return m.Called(bucket, bucketPath, jobID, fileType).String(0)
 }

@@ -51,7 +51,10 @@ func NewAWSS3Storage(ctx context.Context, config config.Config, tracer trace.Tra
 
 	otelaws.AppendMiddlewares(&sdkConfig.APIOptions)
 
-	s3Client := s3.NewFromConfig(sdkConfig)
+	s3Client := s3.NewFromConfig(sdkConfig, func(o *s3.Options) {
+		o.UsePathStyle = config.GetS3UsePathStyle()
+	})
+
 	psc := s3.NewPresignClient(s3Client)
 	transferClient := transfermanager.New(s3Client, configureTransferManager(uploadConcurrency))
 	return &AWSS3Storage{transferClient: transferClient, s3Client: s3Client, presign: psc, config: config, tracer: tracer}, nil

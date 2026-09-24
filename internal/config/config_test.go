@@ -87,6 +87,27 @@ func TestApplicationConfigStorageEnvironmentOverrides(t *testing.T) {
 	assert.Equal(t, 3, config.GetS3UploadConcurrency())
 }
 
+func TestApplicationConfigGetS3UsePathStyle(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected bool
+	}{
+		{name: "default", value: "", expected: false},
+		{name: "environment override", value: "true", expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OIBP_S3_USE_PATH_STYLE", tt.value)
+
+			config := ApplicationConfig{}
+
+			assert.Equal(t, tt.expected, config.GetS3UsePathStyle())
+		})
+	}
+}
+
 func TestApplicationConfigAdapterResponseSizeEnvironmentOverride(t *testing.T) {
 	t.Setenv("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", "1048576")
 	config := ApplicationConfig{}

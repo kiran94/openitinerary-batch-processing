@@ -21,13 +21,17 @@ spec:
           restartPolicy: Never # on failure create a replacement pod
           containers:
             - name: oibp-worker
-              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:8ffa376
+              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:277fe99
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
                     name: oibp-config
+                - configMapRef:
+                    name: oibp-config-aws-ministack
                 - secretRef:
                     name: oibp-secret
+                - secretRef:
+                    name: oibp-secret-aws-ministack
               env:
                 - name: K8S_POD_NAME
                   valueFrom:

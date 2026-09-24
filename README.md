@@ -221,7 +221,6 @@ The GRPC service implements the standard [GRPC Health Protos](https://grpc.io/do
 ```bash
 grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
 ```
-
 ## Kubernetes
 
 Configuration for the k8 service can be found in [/infra/k8s/](./infra/k8s/).
@@ -290,9 +289,6 @@ metadata:
     app.kubernetes.io/part-of: openitinerary
 type: Opaque
 stringData:
-  AWS_ACCESS_KEY_ID:
-  AWS_SECRET_ACCESS_KEY:
-  SES_NOTIFICATION_ADDRESS_FROM:
   POSTGRES_PASSWORD: "openitinerary" # example
   DATABASE_DSN: "host=postgres user=openitinerary password=openitinerary dbname=openitinerary port=5432 sslmode=disable" # example
 ---
@@ -306,6 +302,28 @@ stringData:
   OTEL_EXPORTER_OTLP_ENDPOINT:
   OTEL_EXPORTER_OTLP_HEADERS:
   GRAFANA_CLOUD_INSTANCE_ID:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret-aws
+  namespace: oibp
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+  SES_NOTIFICATION_ADDRESS_FROM:
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oibp-secret-aws-ministack
+  namespace: oibp
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  SES_NOTIFICATION_ADDRESS_FROM: notifications@example.com
 ```
 
 </details>
@@ -328,4 +346,36 @@ OIBP_ADHOC_JOB="oibp-worker-adhoc-check-$(date +%H%M%S)"
 kubectl create job --from=cronjob/oibp-worker "$OIBP_ADHOC_JOB"
 
 kubectl logs "job/$OIBP_ADHOC_JOB" -f
+```
+
+### Ministack
+
+During development, you may use [ministack](https://ministack.org/) to emulate your AWS services.
+
+In the `configmap` and `secrets` files, you will find we have `-ministack` variant of certain configmaps (e.g `oibp-secret-aws-ministack`). If these are used within the API and Worker deployments then those applications will call out to ministack instead of real AWS.
+
+> [!NOTE]
+> In the future we will introduce a `Values.yml` to toggle the ministack instructure on/off more elegantly.
+
+You can verify things are being populated in Ministack via this:
+
+```bash
+# port forward the ministack gateway
+kubectl port-forward service/ministack 4566:4566
+
+# perform your normal AWS commands with the AWS_ENDPOINT_URL env overridden
+AWS_ENDPOINT_URL="http://localhost:4566" aws s3 ls
+
+# check queue status
+AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-url --queue-name openitinerary-batch-processing-job-queue.fifo | jq .
+
+AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-attributes \
+    --no-cli-pager \
+    --queue-url "http://ministack:4566/000000000000/openitinerary-batch-processing-job-queue.fifo" \
+    --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
+    --query 'Attributes' \
+    --output table
+
+# Check the SES messages
+curl --silent http://localhost:4566/_ministack/ses/messages | jq
 ```
