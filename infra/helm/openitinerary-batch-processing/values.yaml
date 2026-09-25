@@ -37,3 +37,7 @@ secrets:
     name: oibp-secret
   aws:
     name: oibp-secret-aws
+database:
+  enabled: true
+ministack:
+  enabled: false
