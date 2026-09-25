@@ -69,4 +69,4 @@ data:
 kind: ConfigMap
 metadata:
   name: configmap-otel
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}

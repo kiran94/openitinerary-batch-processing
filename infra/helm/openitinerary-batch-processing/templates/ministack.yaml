@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ministack
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 spec:
   selector:
     app: ministack
@@ -18,7 +18,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ministack
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 spec:
   replicas: 1
   # Recreate will kill all available pods before new ones are created
@@ -103,7 +103,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: ministack-pvc
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 spec:
   storageClassName: "standard"
   accessModes:
@@ -116,7 +116,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ministack-cm
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 data:
   01-create-resources.sh: |
     #!/bin/sh
