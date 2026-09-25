@@ -5,3 +5,10 @@ api:
   replicas: 1
   image: ghcr.io/kiran94/openitinerary-batch-processing
   image_tag: 10a9fa4
+adapter_api:
+  service:
+    type: ClusterIP
+    port: 8000
+  replicas: 1
+  image: ghcr.io/kiran94/openitinerary-adapter-api
+  image_tag: 0.1.8
