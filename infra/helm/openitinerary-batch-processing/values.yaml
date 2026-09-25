@@ -12,3 +12,8 @@ adapter_api:
   replicas: 1
   image: ghcr.io/kiran94/openitinerary-adapter-api
   image_tag: 0.1.8
+worker:
+  schedule: "*/10 * * * *" # every 10 mins
+  image: ghcr.io/kiran94/openitinerary-batch-processing-worker
+  image_tag: 10a9fa4
+  suspend: false

@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oibp-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: oibp-worker
+spec:
+  schedule: "{{ .Values.worker.schedule }}"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  failedJobsHistoryLimit: 2
+  suspend: {{ .Values.worker.suspend }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 360
+      ttlSecondsAfterFinished: 1800
+      template:
+        spec:
+          restartPolicy: Never # on failure create a replacement pod
+          containers:
+            - name: oibp-worker
+              image: "{{ .Values.worker.image }}:{{ .Values.worker.image_tag }}"
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: oibp-config
+                - configMapRef:
+                    name: oibp-config-aws-ministack
+                - secretRef:
+                    name: oibp-secret
+                - secretRef:
+                    name: oibp-secret-aws-ministack
+              env:
+                - name: K8S_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: K8S_NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: OTEL_RESOURCE_ATTRIBUTES
+                  value: "k8s.pod.name=$(K8S_POD_NAME),k8s.node.name=$(K8S_NODE_NAME)"
