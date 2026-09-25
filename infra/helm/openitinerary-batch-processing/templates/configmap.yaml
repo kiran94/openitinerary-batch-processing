@@ -24,6 +24,6 @@ data:
   SQS_QUEUE_URL: {{ .Values.services.aws.sqs.queueURL | quote }}
   OIBP_S3_USE_PATH_STYLE: {{ .Values.services.aws.s3.pathStyle | quote }}
 
-  {{ with .Values.services.aws.endpointUrl }}
-    AWS_ENDPOINT_URL: {{ . | quote }}
-  {{ end }}
+{{ with .Values.services.aws.endpointsUrl }}
+  AWS_ENDPOINT_URL: {{ . | quote }}
+{{ end }}

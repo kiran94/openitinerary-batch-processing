@@ -29,9 +29,9 @@ spec:
                 - configMapRef:
                     name: oibp-config-aws
                 - secretRef:
-                    name: oibp-secret
+                    name: {{ .Values.secrets.application.name }}
                 - secretRef:
-                    name: oibp-secret-aws-ministack
+                    name: {{ .Values.secrets.aws.name }}
               env:
                 - name: K8S_POD_NAME
                   valueFrom:

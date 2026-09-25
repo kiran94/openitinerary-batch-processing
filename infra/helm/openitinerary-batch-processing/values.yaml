@@ -32,3 +32,8 @@ services:
 telemetry:
   logLevel: "INFO"
   enabled: true
+secrets:
+  application:
+    name: oibp-secret
+  aws:
+    name: oibp-secret-aws
