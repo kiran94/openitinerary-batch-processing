@@ -1,3 +1,5 @@
+{{- if .Values.telemetry.enabled  -}}
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -85,3 +87,5 @@ spec:
         - name: config-otel
           configMap:
             name: configmap-otel
+
+{{ end }}

@@ -1,3 +1,4 @@
+{{- if .Values.ministack.enabled -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -229,3 +230,4 @@ data:
     echo "DLQ URL:              ${DLQ_URL}"
     echo "SES configuration:    ${SES_CONFIGURATION_SET}"
     echo "SES sender identity:  ${SES_FROM_ADDRESS}"
+{{- end -}}
