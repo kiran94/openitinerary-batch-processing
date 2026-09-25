@@ -25,7 +25,7 @@ spec:
             - configMapRef:
                 name: oibp-config
             - configMapRef:
-                name: oibp-config-aws-ministack
+                name: oibp-config-aws
             - secretRef:
                 name: oibp-secret
             - secretRef:

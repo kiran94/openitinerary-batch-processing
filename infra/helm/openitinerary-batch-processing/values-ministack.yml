@@ -1,0 +1,7 @@
+services:
+  aws:
+    endpointsUrl: "http://ministack:4566"
+    sqs:
+      queueURL: "http://ministack:4566/000000000000/openitinerary-batch-processing-job-queue.fifo"
+    s3:
+      pathStyle: true # avoid us applying a bunch of DNS rules in k8
