@@ -1,0 +1,7 @@
+api:
+  service:
+    type: ClusterIP
+    port: 8080
+  replicas: 1
+  image: ghcr.io/kiran94/openitinerary-batch-processing
+  image_tag: 10a9fa4
