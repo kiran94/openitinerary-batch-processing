@@ -36,7 +36,7 @@ spec:
     spec:
       containers:
         - name: collector
-          image: otel/opentelemetry-collector:0.160.0
+          image: "{{ .Values.telemetry.image }}:{{ .Values.telemetry.image_tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - name: otlp-http

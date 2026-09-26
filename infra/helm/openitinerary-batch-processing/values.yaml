@@ -32,6 +32,8 @@ services:
 telemetry:
   logLevel: "INFO"
   enabled: true
+  image: "otel/opentelemetry-collector"
+  image_tag: "0.160.0"
 secrets:
   application:
     name: oibp-secret
