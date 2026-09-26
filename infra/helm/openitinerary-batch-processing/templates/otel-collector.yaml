@@ -45,17 +45,9 @@ spec:
               containerPort: 8888
             - name: health
               containerPort: 13133
-          env:
-            - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
-              valueFrom:
-                secretKeyRef:
-                  name: oibp-secret-otel
-                  key: "OTEL_EXPORTER_OTLP_ENDPOINT"
-            - name: "OTEL_EXPORTER_OTLP_HEADERS"
-              valueFrom:
-                secretKeyRef:
-                  name: oibp-secret-otel
-                  key: "OTEL_EXPORTER_OTLP_HEADERS"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.otel.name | quote }}
           resources:
             requests:
               cpu: 32m

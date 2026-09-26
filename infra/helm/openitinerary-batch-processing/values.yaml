@@ -39,6 +39,8 @@ secrets:
     name: oibp-secret
   aws:
     name: oibp-secret-aws
+  otel:
+    name: oibp-secret-otel
 database:
   enabled: true
 ministack:
