@@ -32,6 +32,8 @@ spec:
                   key: OTEL_EXPORTER_OTLP_ENDPOINT
             - name: OTEL_PYTHON_EXCLUDED_URLS
               value: "health,ping,metrics"
+            - name: OTEL_SDK_DISABLED
+              value: {{ (not .Values.telemetry.enabled) | quote  }}
             - name: K8S_POD_NAME
               valueFrom:
                 fieldRef:
