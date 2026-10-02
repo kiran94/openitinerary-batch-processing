@@ -11,4 +11,4 @@ services:
       pathStyle: true # avoid us applying a bunch of DNS rules in k8
 secrets:
   aws:
-    name: oibp-secret-aws
+    name: oibp-secret-aws-ministack
