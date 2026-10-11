@@ -11,7 +11,10 @@ PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
 POSTGRES_USER ?= openitinerary
 POSTGRES_PASSWORD ?= openitinerary
 POSTGRES_DB ?= openitinerary_batch_processing
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version helm_lint helm_generate helm_generate_local
+HELM_CHART := infra/helm/openitinerary-batch-processing
+HELM_VALUES := $(HELM_CHART)/values.yaml
+HELM_MINISTACK_VALUES := $(HELM_CHART)/values-ministack.yaml
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version k8_lint helm_lint helm_generate helm_generate_local
 
 build:
 	go build $(GO_LD_FLAGS) ./...
@@ -102,23 +105,23 @@ proto_generate:
 	cd proto && buf generate
 
 k8_lint:
-	kubeconform -summary -verbose ./infra/k8s/
+	helm template oibp $(HELM_CHART) --namespace oibp --values $(HELM_VALUES) | kubeconform -strict -summary
+	helm template oibp $(HELM_CHART) --namespace oibp --values $(HELM_VALUES) --values $(HELM_MINISTACK_VALUES) | kubeconform -strict -summary
 
 helm_lint:
-	helm lint infra/helm/openitinerary-batch-processing
+	helm lint $(HELM_CHART) --values $(HELM_VALUES)
+	helm lint $(HELM_CHART) --values $(HELM_VALUES) --values $(HELM_MINISTACK_VALUES)
 
 helm_generate:
-	@helm template oibp infra/helm/openitinerary-batch-processing \
+	@helm template oibp $(HELM_CHART) \
 		--namespace oibp \
-		--create-namespace \
-		-f infra/helm/openitinerary-batch-processing/values.yaml
+		--values $(HELM_VALUES)
 
 helm_generate_local:
-	@helm template oibp infra/helm/openitinerary-batch-processing \
+	@helm template oibp $(HELM_CHART) \
 		--namespace oibp \
-		--create-namespace \
-		-f infra/helm/openitinerary-batch-processing/values.yaml \
-		-f infra/helm/openitinerary-batch-processing/values-ministack.yaml
+		--values $(HELM_VALUES) \
+		--values $(HELM_MINISTACK_VALUES)
 
 doc:
 	pkgsite -open .
