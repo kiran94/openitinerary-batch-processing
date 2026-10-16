@@ -15,7 +15,8 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
-	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	telemetry_metrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
@@ -26,8 +27,8 @@ type Services struct {
 	Config              config.Config
 	Logger              logging.Logger
 	Telemetry           *telemetry.TelemetryManager
-	ServiceMetrics      telemetry.ServiceMetrics
-	WorkerMetrics       telemetry.WorkerMetrics
+	ServiceMetrics      telemetry_metrics.ServiceMetrics
+	WorkerMetrics       telemetry_metrics.WorkerMetrics
 	ServiceReadyManager health.ServiceReadyManager
 
 	Database         *gorm.DB
@@ -61,7 +62,7 @@ func NewServices(ctx context.Context, serviceName string, logger logging.Logger,
 		return nil, err
 	}
 
-	metrics, err := telemetry.NewApplicationOtelMetrics(tele.GetMeterProvider())
+	metrics, err := telemetry_metrics.NewApplicationOtelMetrics(tele.GetMeterProvider())
 	if err != nil {
 		logger.Error(ctx, "metrics initialization failed", "error", err)
 		s.Shutdown()

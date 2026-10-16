@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/lmittmann/tint"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 )
@@ -102,7 +101,13 @@ func (h *minimumLevelHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
-func New(config config.Config) Logger {
+type loggingConfig interface {
+	GetEnvironment() string
+	GetLoggingLevel() slog.Level
+	GetOtelEnabled() bool
+}
+
+func New(config loggingConfig) Logger {
 	return newLogger(os.Stdout, config.GetEnvironment(), config.GetLoggingLevel(), config.GetOtelEnabled())
 }
 

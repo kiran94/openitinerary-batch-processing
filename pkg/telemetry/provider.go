@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
@@ -28,12 +27,17 @@ type TelemetryManager struct {
 	mp  metric.MeterProvider    // Metrics
 	lg  *log.LoggerProvider     // Logging
 	tp  sdktrace.TracerProvider // Tracing
-	cfg config.Config
+	cfg telemetryConfig
 
 	ready bool
 }
 
-func NewTelemetryManager(ctx context.Context, serviceName string, cfg config.Config) (*TelemetryManager, error) {
+type telemetryConfig interface {
+	GetOtelEnabled() bool
+	GetOtelServiceVersion() string
+}
+
+func NewTelemetryManager(ctx context.Context, serviceName string, cfg telemetryConfig) (*TelemetryManager, error) {
 
 	if !cfg.GetOtelEnabled() {
 		p := noop.NewMeterProvider()
@@ -46,12 +50,12 @@ func NewTelemetryManager(ctx context.Context, serviceName string, cfg config.Con
 		return nil, err
 	}
 
-	metricProvider, err := newMetricsProvider(ctx, resource, cfg)
+	metricProvider, err := newMetricsProvider(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
 
-	loggerProvider, err := newLoggerProvider(ctx, resource, cfg)
+	loggerProvider, err := newLoggerProvider(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +68,7 @@ func NewTelemetryManager(ctx context.Context, serviceName string, cfg config.Con
 	return &TelemetryManager{metricProvider, loggerProvider, traceProvider, cfg, false}, nil
 }
 
-func newLoggerProvider(ctx context.Context, resource *resource.Resource, cfg config.Config) (*log.LoggerProvider, error) {
+func newLoggerProvider(ctx context.Context, resource *resource.Resource) (*log.LoggerProvider, error) {
 	exporter, err := otlploghttp.New(ctx)
 	if err != nil {
 		return nil, err
@@ -78,7 +82,7 @@ func newLoggerProvider(ctx context.Context, resource *resource.Resource, cfg con
 	), nil
 }
 
-func newMetricsProvider(ctx context.Context, resource *resource.Resource, cfg config.Config) (metric.MeterProvider, error) {
+func newMetricsProvider(ctx context.Context, resource *resource.Resource) (metric.MeterProvider, error) {
 	// Uses the standard env var: OTEL_EXPORTER_OTLP_ENDPOINT
 	metricExporter, err := otlpmetrichttp.New(ctx)
 	if err != nil {
@@ -139,7 +143,7 @@ func (m *TelemetryManager) Close(ctx context.Context) error {
 	return errors.Join(shutdownErrors...)
 }
 
-func createResource(serviceName string, cfg config.Config) (*resource.Resource, error) {
+func createResource(serviceName string, cfg telemetryConfig) (*resource.Resource, error) {
 	resource, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName), semconv.ServiceVersion(cfg.GetOtelServiceVersion())),
