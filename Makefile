@@ -1,5 +1,11 @@
 VERSION := $(shell git describe --always --long --dirty)
 GO_LD_FLAGS=-ldflags "-X github.com/kiran94/openitinerary-batch-processing/internal/config.Version=$(VERSION)"
+GO_VERSION := $(shell awk '/^go / { print $$2; exit }' go.mod)
+TOOLS_BIN := $(CURDIR)/.tools/bin
+
+export GOTOOLCHAIN := go$(GO_VERSION)
+export GOBIN := $(TOOLS_BIN)
+export PATH := $(TOOLS_BIN):$(PATH)
 
 GOLANGCI_LINT_VERSION := v2.13.1
 GOTESTSUM_VERSION := v1.13.0
@@ -53,14 +59,17 @@ worker:
 	# ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
 	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/mock/segment-mock" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
 
-install_tools: install_proto_tools
+$(TOOLS_BIN):
+	mkdir -p $@
+
+install_tools: install_proto_tools | $(TOOLS_BIN)
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
 	go get -tool github.com/air-verse/air@latest
 
-install_proto_tools:
+install_proto_tools: | $(TOOLS_BIN)
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
 
