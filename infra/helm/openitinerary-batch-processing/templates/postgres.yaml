@@ -1,8 +1,42 @@
+{{- if .Values.database.enabled }}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: openitinerary
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: openitinerary
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: postgres
     app.kubernetes.io/part-of: openitinerary
@@ -40,7 +74,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: oibp-secret
+                  name: {{ .Values.secrets.application.name }}
                   key: POSTGRES_PASSWORD
           resources:
             requests:
@@ -63,3 +97,5 @@ spec:
         resources:
           requests:
             storage: 1Gi
+
+{{- end }}

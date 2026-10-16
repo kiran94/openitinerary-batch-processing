@@ -2,15 +2,15 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: oibp-worker
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
   labels:
     app: oibp-worker
 spec:
-  schedule: "*/10 * * * *" # every 10 mins
+  schedule: "{{ .Values.worker.schedule }}"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 60
   failedJobsHistoryLimit: 2
-  suspend: false
+  suspend: {{ .Values.worker.suspend }}
   jobTemplate:
     spec:
       backoffLimit: 2
@@ -21,17 +21,17 @@ spec:
           restartPolicy: Never # on failure create a replacement pod
           containers:
             - name: oibp-worker
-              image: ghcr.io/kiran94/openitinerary-batch-processing-worker:10a9fa4
+              image: "{{ .Values.worker.image }}:{{ .Values.worker.image_tag }}"
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
                     name: oibp-config
                 - configMapRef:
-                    name: oibp-config-aws-ministack
+                    name: oibp-config-aws
                 - secretRef:
-                    name: oibp-secret
+                    name: {{ .Values.secrets.application.name }}
                 - secretRef:
-                    name: oibp-secret-aws-ministack
+                    name: {{ .Values.secrets.aws.name }}
               env:
                 - name: K8S_POD_NAME
                   valueFrom:

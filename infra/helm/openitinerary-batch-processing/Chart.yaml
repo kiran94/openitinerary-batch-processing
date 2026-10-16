@@ -1,0 +1,6 @@
+apiVersion: v2
+name: openitinerary-batch-processing
+description: Kubernetes deployment for OpenItinerary Batch Processing
+type: application
+version: 0.1.0
+

@@ -1,0 +1,47 @@
+api:
+  service:
+    type: ClusterIP
+    port: 8080
+  replicas: 1
+  image: ghcr.io/kiran94/openitinerary-batch-processing
+  image_tag: 10a9fa4
+adapter_api:
+  service:
+    type: ClusterIP
+    port: 8000
+  replicas: 1
+  image: ghcr.io/kiran94/openitinerary-adapter-api
+  image_tag: 0.1.8
+worker:
+  schedule: "*/10 * * * *" # every 10 mins
+  image: ghcr.io/kiran94/openitinerary-batch-processing-worker
+  image_tag: 10a9fa4
+  suspend: false
+  # adapterApi: "http://adapter-api:8000/api/v1/adapt/segment"
+  adapterApi: "http://adapter-api:8000/api/v1/mock/segment-mock"
+services:
+  aws:
+    region: "eu-west-2"
+    endpointsUrl: ""
+    ses:
+      configurationSetName: openitinerary-batch-processing-notifications
+    sqs:
+      queueURL: "https://sqs.eu-west-2.amazonaws.com/851549885446/openitinerary-batch-processing-job-queue.fifo"
+    s3:
+      pathStyle: false
+telemetry:
+  logLevel: "INFO"
+  enabled: true
+  image: "otel/opentelemetry-collector"
+  image_tag: "0.160.0"
+secrets:
+  application:
+    name: oibp-secret
+  aws:
+    name: oibp-secret-aws
+  otel:
+    name: oibp-secret-otel
+database:
+  enabled: true
+ministack:
+  enabled: false

@@ -4,25 +4,25 @@ on:
     branches:
       - main
     paths:
-      - "infra/k8s/**"
+      - "infra/helm/**"
+      - "infra/otel-collector-config-cloud.yaml"
       - "Makefile"
-      - ".yamllint"
+      - ".github/workflows/k8_validate.yml"
   pull_request:
     paths:
-      - "infra/k8s/**"
+      - "infra/helm/**"
+      - "infra/otel-collector-config-cloud.yaml"
       - "Makefile"
-      - ".yamllint"
+      - ".github/workflows/k8_validate.yml"
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - name: yamllint
-        uses: ibiqlik/action-yamllint@v3
-        with:
-          file_or_dir: "infra/k8s/*.yaml"
       - name: Set up Kubeconform
         uses: bmuschko/setup-kubeconform@v1
-      - name: Validate manifests
+      - name: Lint Helm chart
+        run: make helm_lint
+      - name: Validate rendered manifests
         run: make k8_lint

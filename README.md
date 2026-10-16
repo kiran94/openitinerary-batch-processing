@@ -223,26 +223,28 @@ grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
 ```
 ## Kubernetes
 
-Configuration for the k8 service can be found in [/infra/k8s/](./infra/k8s/).
+The Kubernetes deployment is defined by the Helm chart in [infra/helm/openitinerary-batch-processing](./infra/helm/openitinerary-batch-processing/).
 
 ### Local Setup
 
 ```bash
 # Create a new profile for minikube to isolate this project
-minikube start --profile oibp --driver=docker
+export OIBP_KUBE_CONTEXT=oibp
+minikube start --profile "$OIBP_KUBE_CONTEXT" --driver=docker
+kubectl config use-context "$OIBP_KUBE_CONTEXT"
 
 # Verify
 kubectl config current-context
-kubectl cluster-info --context oibp
-kubectl get nodes --context oibp -o wide
+kubectl cluster-info
+kubectl get nodes -o wide
 minikube profile list
 
 # Enable the metrics server (to enable `kubectl top pods`)
-minikube -p oibp addons enable metrics-server
+minikube -p "$OIBP_KUBE_CONTEXT" addons enable metrics-server
 
 # Note that all the resources within this project are under the 'oibp' namespace
 # so you can update your context to look at that by default with this:
-kubectl config set-context oibp --namespace=oibp
+kubectl config set-context --current --namespace=oibp
 ```
 
 **Load the Images into Minikube**
@@ -256,22 +258,14 @@ make docker_images_build_service
 make docker_images_build_worker
 
 # Load the image into minikube and then reference in your deployment
-minikube --profile oibp image load "oibp:3ef2510-dirty"
+minikube --profile "$OIBP_KUBE_CONTEXT" image load "oibp:3ef2510-dirty"
 
 # Verify they are loaded
-minikube -p oibp image ls
+minikube --profile "$OIBP_KUBE_CONTEXT" image ls
 ```
 
-### Applying Configuration
 
-```bash
-kubectl apply -f ./infra/k8s/namespace.yaml -f ./infra/k8s
-
-## Verify
-kubectl get pods,svc,deployments,pvc,endpointslices
-```
-
-#### Secrets
+### Secrets
 
 You need to create a file `./infra/k8s/secret.yaml` and apply it to the cluster. It should look like following, with your values populated:
 
@@ -328,6 +322,34 @@ stringData:
 
 </details>
 
+### Applying Configuration
+
+```bash
+# Create the namespace before applying external Secrets or installing the release.
+kubectl create namespace oibp
+
+# Secrets remain external to the Helm release and must exist before workloads start.
+kubectl apply \
+  --filename ./infra/k8s/secret.yaml
+
+helm upgrade --install oibp \
+  ./infra/helm/openitinerary-batch-processing \
+  --namespace oibp \
+  --values ./infra/helm/openitinerary-batch-processing/values.yaml \
+  --values ./infra/helm/openitinerary-batch-processing/values-ministack.yaml \
+  --wait \
+  --timeout 5m
+
+# Verify
+helm status oibp \
+  --namespace oibp
+
+kubectl get pods,svc,deployments,pvc,endpointslices
+```
+
+> [!NOTE]
+> Remove the `values-ministack.yaml` argument to use the real AWS configuration from `values.yaml`.
+
 ### Service
 
 You can access the internal `ClusterIP` services by forwarding teh port to your machine like this:
@@ -352,10 +374,10 @@ kubectl logs "job/$OIBP_ADHOC_JOB" -f
 
 During development, you may use [ministack](https://ministack.org/) to emulate your AWS services.
 
-In the `configmap` and `secrets` files, you will find we have `-ministack` variant of certain configmaps (e.g `oibp-secret-aws-ministack`). If these are used within the API and Worker deployments then those applications will call out to ministack instead of real AWS.
+The base `values.yaml` disables MiniStack and configures real AWS endpoints. Applying `values-ministack.yaml` after the base values enables the in-cluster MiniStack Deployment and overrides the AWS endpoint, SQS queue URL, S3 path-style setting, and Secret name. The API and Worker then use `oibp-secret-aws-ministack` rather than the real AWS credentials.
 
 > [!NOTE]
-> In the future we will introduce a `Values.yml` to toggle the ministack instructure on/off more elegantly.
+> MiniStack state is disposable in this development environment. Disabling or uninstalling the Helm release can delete its chart-managed PVC and the locally emulated AWS data.
 
 You can verify things are being populated in Ministack via this:
 

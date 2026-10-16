@@ -2,12 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: oi-adapter-api
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: adapter-api
     app.kubernetes.io/part-of: openitinerary
 spec:
-  replicas: 1
+  replicas: {{ .Values.adapter_api.replicas }}
   selector:
     matchLabels:
       app: adapter-api
@@ -19,11 +19,11 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: adapter-api-http
-          image: ghcr.io/kiran94/openitinerary-adapter-api:0.1.8
+          image: "{{ .Values.adapter_api.image }}:{{ .Values.adapter_api.image_tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8000
+              containerPort: {{ .Values.adapter_api.service.port }}
           env:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               valueFrom:
@@ -32,6 +32,8 @@ spec:
                   key: OTEL_EXPORTER_OTLP_ENDPOINT
             - name: OTEL_PYTHON_EXCLUDED_URLS
               value: "health,ping,metrics"
+            - name: OTEL_SDK_DISABLED
+              value: {{ (not .Values.telemetry.enabled) | quote  }}
             - name: K8S_POD_NAME
               valueFrom:
                 fieldRef:

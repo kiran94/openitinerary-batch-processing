@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: oibp-api
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.api.replicas }}
   selector:
     matchLabels:
       app: oibp-api
@@ -16,20 +16,20 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: oibp-api
-          image: ghcr.io/kiran94/openitinerary-batch-processing:10a9fa4
+          image: "{{ .Values.api.image }}:{{ .Values.api.image_tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.api.service.port }}
           envFrom:
             - configMapRef:
                 name: oibp-config
             - configMapRef:
-                name: oibp-config-aws-ministack
+                name: oibp-config-aws
             - secretRef:
-                name: oibp-secret
+                name: {{ .Values.secrets.application.name }}
             - secretRef:
-                name: oibp-secret-aws-ministack
+                name: {{ .Values.secrets.aws.name }}
           env:
             - name: K8S_POD_NAME
               valueFrom:

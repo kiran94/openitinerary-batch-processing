@@ -1,8 +1,29 @@
+{{- if .Values.telemetry.enabled  -}}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: opentelemetry-collector
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-http
+      protocol: TCP
+      port: 4318
+      targetPort: otlp-http
+    - name: metrics
+      protocol: TCP
+      port: 8888
+      targetPort: metrics
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: otel-collector
-  namespace: oibp
+  namespace: {{ .Release.Namespace }}
 spec:
   replicas: 1
   selector:
@@ -15,7 +36,7 @@ spec:
     spec:
       containers:
         - name: collector
-          image: otel/opentelemetry-collector:0.160.0
+          image: "{{ .Values.telemetry.image }}:{{ .Values.telemetry.image_tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - name: otlp-http
@@ -24,17 +45,9 @@ spec:
               containerPort: 8888
             - name: health
               containerPort: 13133
-          env:
-            - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
-              valueFrom:
-                secretKeyRef:
-                  name: oibp-secret-otel
-                  key: "OTEL_EXPORTER_OTLP_ENDPOINT"
-            - name: "OTEL_EXPORTER_OTLP_HEADERS"
-              valueFrom:
-                secretKeyRef:
-                  name: oibp-secret-otel
-                  key: "OTEL_EXPORTER_OTLP_HEADERS"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.otel.name | quote }}
           resources:
             requests:
               cpu: 32m
@@ -66,3 +79,4 @@ spec:
         - name: config-otel
           configMap:
             name: configmap-otel
+{{- end }}
