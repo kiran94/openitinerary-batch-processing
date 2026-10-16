@@ -13,12 +13,13 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/clients"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -409,8 +410,8 @@ func TestUpdateTicketAndErrorUsesDetachedBoundedContext(t *testing.T) {
 		harness.ticket,
 		errRead,
 		job.StorageReadFailed,
-		logging.ComponentStorage,
-		logging.OperationStorageRead,
+		oibplogging.ComponentStorage,
+		oibplogging.OperationStorageRead,
 		&MockLogger{},
 		span,
 	)

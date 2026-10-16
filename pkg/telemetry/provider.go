@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
@@ -160,8 +161,8 @@ func SetLogger(l logging.Logger) {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(cause error) {
 		l.Error(context.Background(),
 			"otel error",
-			"component", logging.ComponentTelemetry,
-			"operation", logging.OperationTelemetryError,
+			"component", oibplogging.ComponentTelemetry,
+			"operation", oibplogging.OperationTelemetryError,
 			"error", cause,
 		)
 	}))

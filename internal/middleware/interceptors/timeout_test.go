@@ -287,6 +287,10 @@ func (m *mockConfig) GetOtelGrpcName() string {
 	return m.Called().String(0)
 }
 
+func (m *mockConfig) GetOtelHandlerName() string {
+	return m.Called().String(0)
+}
+
 func (m *mockConfig) GetOtelServiceVersion() string {
 	return m.Called().String(0)
 }

@@ -8,8 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -51,7 +52,7 @@ func (r *resultService) GetResultLink(ctx context.Context, ticketID uuid.UUID) (
 		if errors.Is(err, job.ErrRecordNotFound) {
 			return nil, job.ErrRecordNotFound
 		} else {
-			logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+			logger.Error(ctx, "ticket status lookup failed", "component", oibplogging.ComponentDatabase, "operation", oibplogging.OperationTicketLookup, "error", err)
 			return nil, err
 		}
 	}
@@ -63,7 +64,7 @@ func (r *resultService) GetResultLink(ctx context.Context, ticketID uuid.UUID) (
 	outputPath := r.config.GetOutputPath(r.config.GetBucket(), r.config.GetBucketPath(), ticket.ID.String())
 	link, expiration, err := r.storage.GetLink(ctx, outputPath)
 	if err != nil {
-		logger.Error(ctx, "failed to generate link", "component", logging.ComponentStorage, "operation", logging.OperationStoragePresign, "error", err)
+		logger.Error(ctx, "failed to generate link", "component", oibplogging.ComponentStorage, "operation", oibplogging.OperationStoragePresign, "error", err)
 		return nil, err
 	}
 

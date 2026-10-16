@@ -12,8 +12,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -88,8 +89,8 @@ func (a *AdapterClient) Convert(ctx context.Context, document io.Reader, filenam
 
 	logger.Debug(ctx,
 		"calling adapter api",
-		"component", logging.ComponentAdapter,
-		"operation", logging.OperationAdapterConvert,
+		"component", oibplogging.ComponentAdapter,
+		"operation", oibplogging.OperationAdapterConvert,
 		"endpoint", a.adapterAPIURL,
 	)
 	response, requestErr := a.http.Do(request)

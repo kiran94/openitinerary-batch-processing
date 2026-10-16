@@ -12,7 +12,8 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/di"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"github.com/kiran94/openitinerary-batch-processing/pkg/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -88,7 +89,7 @@ func StartHTTPService() error {
 
 	services.Logger.Info(ctx,
 		"server listening",
-		"component", logging.ComponentHTTP,
+		"component", oibplogging.ComponentHTTP,
 		"listen_addr", server.Addr,
 		"environment", services.Config.GetEnvironment(),
 		"read_timeout", server.ReadTimeout.String(),
@@ -104,11 +105,11 @@ func StartHTTPService() error {
 	select {
 	case err := <-errorCh:
 		if !errors.Is(err, http.ErrServerClosed) {
-			services.Logger.Error(ctx, "server stopped unexpectedly", "component", logging.ComponentHTTP, "error", err)
+			services.Logger.Error(ctx, "server stopped unexpectedly", "component", oibplogging.ComponentHTTP, "error", err)
 			return err
 		}
 	case <-interruptCtx.Done():
-		services.Logger.Info(ctx, "server cancellation was signaled", "component", logging.ComponentHTTP, "timeout_seconds", shutdownServerTimeout.Seconds())
+		services.Logger.Info(ctx, "server cancellation was signaled", "component", oibplogging.ComponentHTTP, "timeout_seconds", shutdownServerTimeout.Seconds())
 
 		shutdownCtx := context.Background()
 		shutdownCtx, shutdownCancel := context.WithTimeout(shutdownCtx, shutdownServerTimeout)
@@ -116,7 +117,7 @@ func StartHTTPService() error {
 
 		services.ServiceReadyManager.Shutdown()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			services.Logger.Error(shutdownCtx, "error shutting down server", "component", logging.ComponentHTTP, "error", err)
+			services.Logger.Error(shutdownCtx, "error shutting down server", "component", oibplogging.ComponentHTTP, "error", err)
 			return err
 		}
 	}

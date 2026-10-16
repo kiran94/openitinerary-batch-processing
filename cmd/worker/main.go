@@ -12,8 +12,9 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/di"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/worker"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -45,7 +46,7 @@ func run() error {
 	workerErrors := make([]error, numberWorkers)
 	services.Logger.Info(ctx,
 		"worker pool starting",
-		"component", logging.ComponentWorker,
+		"component", oibplogging.ComponentWorker,
 		"worker_count", numberWorkers,
 		"worker_timeout_seconds", config.GetWorkerTimeoutSeconds(),
 	)
@@ -82,14 +83,14 @@ func run() error {
 	if err != nil {
 		services.Logger.Error(ctx,
 			"worker pool failed",
-			"component", logging.ComponentWorker,
+			"component", oibplogging.ComponentWorker,
 			"worker_count", numberWorkers,
 			"error", err,
 		)
 		return err
 	}
 
-	services.Logger.Info(ctx, "worker pool completed", "component", logging.ComponentWorker, "worker_count", numberWorkers)
+	services.Logger.Info(ctx, "worker pool completed", "component", oibplogging.ComponentWorker, "worker_count", numberWorkers)
 	return nil
 }
 
@@ -104,7 +105,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	defer func() {
 		logger.Info(ctx,
 			"worker completed",
-			"component", logging.ComponentWorker,
+			"component", oibplogging.ComponentWorker,
 			"polling_duration_ms", wr.GetPollingDurationMs(),
 			"processing_duration_ms", wr.GetProcessingTimeMs(),
 			"overall_duration_ms", wr.GetOverallTimeMs(),
@@ -118,7 +119,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	if err != nil {
 		logger.Debug(ctx,
 			"worker returned error during polling",
-			"component", logging.ComponentWorker,
+			"component", oibplogging.ComponentWorker,
 			"error", err,
 		)
 		wr.SetError(err)
@@ -148,7 +149,7 @@ func startWork(ctx context.Context, w worker.Worker, c config.Config, l logging.
 	if err != nil {
 		logger.Debug(ctx,
 			"worker returned error during processing",
-			"component", logging.ComponentWorker,
+			"component", oibplogging.ComponentWorker,
 			"error", err,
 		)
 		wr.SetError(err)

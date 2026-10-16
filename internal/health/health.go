@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	grpchealth "google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )

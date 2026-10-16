@@ -13,7 +13,7 @@ import (
 
 func TestContextLoggerAddsAvailableCorrelationValues(t *testing.T) {
 	var output bytes.Buffer
-	parent := newLogger(&output, "production", slog.LevelDebug, false)
+	parent := newLogger(&output, "production", slog.LevelDebug, false, "test")
 
 	ctx := WithRequestID(t.Context(), "request-123")
 	ctx = WithTicketID(ctx, "ticket-123")
@@ -30,7 +30,7 @@ func TestContextLoggerAddsAvailableCorrelationValues(t *testing.T) {
 
 func TestContextLoggerOmitsMissingCorrelationValues(t *testing.T) {
 	var output bytes.Buffer
-	parent := newLogger(&output, "production", slog.LevelDebug, false)
+	parent := newLogger(&output, "production", slog.LevelDebug, false, "test")
 
 	ctx := WithTicketID(t.Context(), "ticket-123")
 	parent.WithContext(ctx).Info(ctx, "ticket processed")
@@ -44,7 +44,7 @@ func TestContextLoggerOmitsMissingCorrelationValues(t *testing.T) {
 
 func TestContextLoggerDoesNotModifyParentLogger(t *testing.T) {
 	var output bytes.Buffer
-	parent := newLogger(&output, "production", slog.LevelDebug, false)
+	parent := newLogger(&output, "production", slog.LevelDebug, false, "test")
 
 	ctx := WithRequestID(t.Context(), "request-123")
 	parent.WithContext(ctx).Info(ctx, "child log")
@@ -64,7 +64,7 @@ func TestContextLoggerDoesNotModifyParentLogger(t *testing.T) {
 
 func TestContextLoggerRetainsValuesAcrossLogs(t *testing.T) {
 	var output bytes.Buffer
-	parent := newLogger(&output, "production", slog.LevelDebug, false)
+	parent := newLogger(&output, "production", slog.LevelDebug, false, "test")
 
 	ctx := WithWorkerID(t.Context(), "worker-123")
 	child := parent.WithContext(ctx)
@@ -82,7 +82,7 @@ func TestContextLoggerRetainsValuesAcrossLogs(t *testing.T) {
 
 func TestContextLoggerNestedContextDoesNotDuplicateValues(t *testing.T) {
 	var output bytes.Buffer
-	parent := newLogger(&output, "production", slog.LevelDebug, false)
+	parent := newLogger(&output, "production", slog.LevelDebug, false, "test")
 
 	ctx := WithRequestID(t.Context(), "request-123")
 	ctx = WithTicketID(ctx, "ticket-123")

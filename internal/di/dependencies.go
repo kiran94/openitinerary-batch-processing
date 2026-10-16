@@ -10,12 +10,13 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/health"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/notification"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	telemetry_metrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"github.com/kiran94/openitinerary-batch-processing/pkg/telemetry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -81,41 +82,41 @@ func NewServices(ctx context.Context, serviceName string, logger logging.Logger,
 
 	db, err := internal.ConnectDatabase(ctx, logger, cfg)
 	if err != nil {
-		logger.Error(ctx, "database initialization failed", "component", logging.ComponentDatabase, "error", err)
+		logger.Error(ctx, "database initialization failed", "component", oibplogging.ComponentDatabase, "error", err)
 		s.Shutdown()
 		return nil, err
 	}
 
 	s3, err := storage.NewAWSS3Storage(ctx, cfg, storageTracer)
 	if err != nil {
-		logger.Error(ctx, "storage initialization failed", "component", logging.ComponentStorage, "backend", "s3", "error", err)
+		logger.Error(ctx, "storage initialization failed", "component", oibplogging.ComponentStorage, "backend", "s3", "error", err)
 		s.Shutdown()
 		return nil, err
 	}
 
 	batchQueue, err := queue.NewQueue(ctx, cfg, logger, queueTracer)
 	if err != nil {
-		logger.Error(ctx, "queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error(ctx, "queue initialization failed", "component", oibplogging.ComponentQueue, "backend", "sqs", "error", err)
 		s.Shutdown()
 		return nil, err
 	}
 
 	if err := batchQueue.Ready(ctx); err != nil {
-		logger.Error(ctx, "queue initialization failed", "component", logging.ComponentQueue, "backend", "sqs", "error", err)
+		logger.Error(ctx, "queue initialization failed", "component", oibplogging.ComponentQueue, "backend", "sqs", "error", err)
 		s.Shutdown()
 		return nil, err
 	}
 
 	internalDB, err := db.DB()
 	if err != nil {
-		logger.Error(ctx, "could not get internal db", "component", logging.ComponentDatabase, "error", err)
+		logger.Error(ctx, "could not get internal db", "component", oibplogging.ComponentDatabase, "error", err)
 		s.Shutdown()
 		return nil, err
 	}
 
 	notifier, err := notification.NewNotifier(ctx, cfg, logger, notificationTracer)
 	if err != nil {
-		logger.Error(ctx, "could not create notifier", "component", logging.ComponentNotifier, "error", err)
+		logger.Error(ctx, "could not create notifier", "component", oibplogging.ComponentNotifier, "error", err)
 		s.Shutdown()
 		return nil, err
 	}
