@@ -73,6 +73,7 @@ terraform.rc
 .go-cache/
 .go-mod-cache/
 .golangci-lint-cache/
+.tools/
 .env
 infra/k6/data/
 infra/k8s/secret.yaml
