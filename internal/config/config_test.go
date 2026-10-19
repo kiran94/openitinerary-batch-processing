@@ -235,6 +235,12 @@ func TestApplicationConfigOtelDefaults(t *testing.T) {
 	assert.Equal(t, "dev", config.GetOtelServiceVersion())
 }
 
+func TestApplicationConfigGetOtelHandlerName(t *testing.T) {
+	config := ApplicationConfig{}
+
+	assert.Equal(t, "github.com/kiran94/openitinerary-batch-processing/internal/logging", config.GetOtelHandlerName())
+}
+
 func TestApplicationVersionOverride(t *testing.T) {
 	storedVersion := Version
 	t.Cleanup(func() {

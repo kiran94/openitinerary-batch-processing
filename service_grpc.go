@@ -16,11 +16,12 @@ import (
 	"github.com/kiran94/openitinerary-batch-processing/internal/di"
 	"github.com/kiran94/openitinerary-batch-processing/internal/health"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/middleware/interceptors"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	batchv1 "github.com/kiran94/openitinerary-batch-processing/proto/gen/go/openitinerary/batch/v1"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -46,7 +47,7 @@ func StartGRPCService() error {
 	bootstrapLogger := logging.New(cfg)
 	services, err := di.NewServices(ctx, cfg.GetOtelGrpcName(), bootstrapLogger, cfg)
 	if err != nil {
-		bootstrapLogger.Error(ctx, "failed to create services", "component", logging.ComponentGRPC, "error", err)
+		bootstrapLogger.Error(ctx, "failed to create services", "component", oibplogging.ComponentGRPC, "error", err)
 		return err
 	}
 	defer services.Shutdown()
@@ -90,7 +91,7 @@ func StartGRPCService() error {
 
 	errorCh := make(chan error, 1)
 	go func() {
-		bootstrapLogger.Info(ctx, "server listening", "component", logging.ComponentGRPC, "listen_addr", PORT)
+		bootstrapLogger.Info(ctx, "server listening", "component", oibplogging.ComponentGRPC, "listen_addr", PORT)
 		if err := server.Serve(lis); err != nil {
 			errorCh <- err
 		}
@@ -98,7 +99,7 @@ func StartGRPCService() error {
 
 	select {
 	case <-interruptCtx.Done():
-		services.Logger.Info(ctx, "server cancellation was signaled", "component", logging.ComponentGRPC)
+		services.Logger.Info(ctx, "server cancellation was signaled", "component", oibplogging.ComponentGRPC)
 	case err := <-errorCh:
 		return err
 	}
@@ -224,7 +225,7 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		logger.Error(ctx, "error submitting ticket", "component", logging.ComponentGRPC, "error", err)
+		logger.Error(ctx, "error submitting ticket", "component", oibplogging.ComponentGRPC, "error", err)
 		return status.Error(codes.Internal, "error submitting ticket")
 	}
 
@@ -243,8 +244,8 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 		"submit accepted",
 		"content_type", contentType,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"component", logging.ComponentGRPC,
-		"operation", logging.OperationSubmit,
+		"component", oibplogging.ComponentGRPC,
+		"operation", oibplogging.OperationSubmit,
 	)
 
 	err = request.SendAndClose(&batchv1.SubmitResponse{
@@ -252,7 +253,7 @@ func (s *OpenItineraryBatchProcessingGrpcService) Submit(request grpc.ClientStre
 	})
 
 	if err != nil {
-		logger.Error(ctx, "error sending result", "component", logging.ComponentGRPC, "error", err)
+		logger.Error(ctx, "error sending result", "component", oibplogging.ComponentGRPC, "error", err)
 		return err
 	}
 	return nil
@@ -360,16 +361,16 @@ func shutdownGrpcServer(server *grpc.Server, logger logging.Logger) {
 
 	doneCh := make(chan struct{}, 1)
 	go func() {
-		logger.Info(ctx, "gracefully stopping all GRPC connections", "component", logging.ComponentGRPC)
+		logger.Info(ctx, "gracefully stopping all GRPC connections", "component", oibplogging.ComponentGRPC)
 		server.GracefulStop()
 		close(doneCh)
 	}()
 
 	select {
 	case <-doneCh:
-		logger.Debug(ctx, "graceful stop complete", "component", logging.ComponentGRPC)
+		logger.Debug(ctx, "graceful stop complete", "component", oibplogging.ComponentGRPC)
 	case <-time.After(shutdownServerTimeout):
-		logger.Info(ctx, "force stopping all GRPC connections", "component", logging.ComponentGRPC)
+		logger.Info(ctx, "force stopping all GRPC connections", "component", oibplogging.ComponentGRPC)
 		server.Stop()
 	}
 }

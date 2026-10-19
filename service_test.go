@@ -18,12 +18,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	telemetrymetrics "github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
 	"github.com/kiran94/openitinerary-batch-processing/internal/testutils"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1243,6 +1243,10 @@ func (m *MockConfig) GetOtelWorkerName() string {
 }
 
 func (m *MockConfig) GetOtelGrpcName() string {
+	return m.Called().String(0)
+}
+
+func (m *MockConfig) GetOtelHandlerName() string {
 	return m.Called().String(0)
 }
 

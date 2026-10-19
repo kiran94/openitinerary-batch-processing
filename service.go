@@ -13,10 +13,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/service"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -78,7 +79,7 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 
 		err := r.MultipartForm.RemoveAll()
 		if err != nil {
-			logger.Warn(ctx, "multipart form cleanup failed", "component", logging.ComponentHTTP, "operation", logging.OperationMultipartCleanup, "error", err)
+			logger.Warn(ctx, "multipart form cleanup failed", "component", oibplogging.ComponentHTTP, "operation", oibplogging.OperationMultipartCleanup, "error", err)
 		}
 	}()
 
@@ -125,8 +126,8 @@ func (s *ServiceV1) submit(w http.ResponseWriter, r *http.Request) {
 			ctx,
 			reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusAccepted),
 			"duration_ms", time.Since(startedAt).Milliseconds(),
-			"component", logging.ComponentHTTP,
-			"operation", logging.OperationSubmit,
+			"component", oibplogging.ComponentHTTP,
+			"operation", oibplogging.OperationSubmit,
 		)
 	}
 }
@@ -220,7 +221,7 @@ func (s *ServiceV1) writeSubmitResponse(
 	responseBody, err := json.Marshal(ticket)
 	inputBytes := request.fileHeader.Size
 	if err != nil {
-		logger.Error(ctx, "submit response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "submit response serialization failed", "component", oibplogging.ComponentHTTP, "operation", oibplogging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, config.EndpointSubmit, http.StatusInternalServerError, "failed to submit document", err, span)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
@@ -246,10 +247,10 @@ func (s *ServiceV1) writeSubmitResponse(
 	if _, err := w.Write(responseBody); err != nil {
 		logger.Warn(ctx,
 			"response write failed",
-			"component", logging.ComponentHTTP,
+			"component", oibplogging.ComponentHTTP,
 			"status_code", http.StatusAccepted,
 			"error", err,
-			"operation", logging.OperationErrorResponseWrite,
+			"operation", oibplogging.OperationErrorResponseWrite,
 		)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointSubmit})
 		span.RecordError(err)
@@ -324,21 +325,21 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.Error(ctx, "ticket status lookup failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketLookup, "error", err)
+		logger.Error(ctx, "ticket status lookup failed", "component", oibplogging.ComponentDatabase, "operation", oibplogging.OperationTicketLookup, "error", err)
 		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", err, span)
 		return
 	}
 
 	responseBody, err := json.Marshal(ticket)
 	if err != nil {
-		logger.Error(ctx, "ticket status response serialization failed", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "ticket status response serialization failed", "component", oibplogging.ComponentHTTP, "operation", oibplogging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, config.EndpointStatus, http.StatusInternalServerError, "failed to retrieve ticket status", err, span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(responseBody); err != nil {
-		logger.Warn(ctx, "response write failed", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
+		logger.Warn(ctx, "response write failed", "component", oibplogging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", oibplogging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointStatus})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
@@ -350,8 +351,8 @@ func (s *ServiceV1) status(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
 		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"component", logging.ComponentHTTP,
-		"operation", logging.OperationStatus,
+		"component", oibplogging.ComponentHTTP,
+		"operation", oibplogging.OperationStatus,
 	)
 }
 
@@ -407,14 +408,14 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 
 	b, err := json.Marshal(result)
 	if err != nil {
-		logger.Error(ctx, "failed to marshal presigned result obj", "component", logging.ComponentHTTP, "operation", logging.OperationResponseSerialization, "error", err)
+		logger.Error(ctx, "failed to marshal presigned result obj", "component", oibplogging.ComponentHTTP, "operation", oibplogging.OperationResponseSerialization, "error", err)
 		s.writeAPIError(ctx, logger, w, config.EndpointResults, http.StatusInternalServerError, "failed to retrieve processing result", err, span)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(b); err != nil {
-		logger.Error(ctx, "failed to write response", "component", logging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", logging.OperationErrorResponseWrite)
+		logger.Error(ctx, "failed to write response", "component", oibplogging.ComponentHTTP, "status_code", http.StatusOK, "error", err, "operation", oibplogging.OperationErrorResponseWrite)
 		s.metrics.RecordResponseWriteError(ctx, metrics.ResponseObservation{Endpoint: config.EndpointResults})
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to write response")
@@ -426,8 +427,8 @@ func (s *ServiceV1) result(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		reportSuccessTerminal(r.Method, r.URL.Path, r.Proto, http.StatusOK),
 		"duration_ms", time.Since(startedAt).Milliseconds(),
-		"component", logging.ComponentHTTP,
-		"operation", logging.OperationResultLink,
+		"component", oibplogging.ComponentHTTP,
+		"operation", oibplogging.OperationResultLink,
 	)
 }
 
@@ -467,10 +468,10 @@ func (s *ServiceV1) writeAPIError(
 		span.RecordError(err)
 		logger.Warn(ctx,
 			"error response write failed",
-			"component", logging.ComponentHTTP,
+			"component", oibplogging.ComponentHTTP,
 			"status_code", statusCode,
 			"error", err,
-			"operation", logging.OperationErrorWriteFailed,
+			"operation", oibplogging.OperationErrorWriteFailed,
 		)
 	}
 }

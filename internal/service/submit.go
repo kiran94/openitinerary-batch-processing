@@ -9,11 +9,12 @@ import (
 
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/queue"
 	"github.com/kiran94/openitinerary-batch-processing/internal/storage"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry/metrics"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -163,7 +164,7 @@ func (s *submitService) storeDocument(ctx context.Context, logger logging.Logger
 			InputBytes:  input.SizeBytes,
 			ServiceType: input.ServiceType,
 		})
-		logger.Error(ctx, "document storage failed", "component", logging.ComponentStorage, "operation", logging.OperationStorageWrite, "content_type", input.ContentType, "error", err)
+		logger.Error(ctx, "document storage failed", "component", oibplogging.ComponentStorage, "operation", oibplogging.OperationStorageWrite, "content_type", input.ContentType, "error", err)
 		return err
 	}
 
@@ -183,7 +184,7 @@ func (s *submitService) createTicket(ctx context.Context, logger logging.Logger,
 	defer span.End()
 
 	if err := s.job.Create(ctx, ticket); err != nil {
-		logger.Error(ctx, "ticket creation failed", "component", logging.ComponentDatabase, "operation", logging.OperationTicketCreate, "error", err)
+		logger.Error(ctx, "ticket creation failed", "component", oibplogging.ComponentDatabase, "operation", oibplogging.OperationTicketCreate, "error", err)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonTicketCreationFailed),
@@ -206,10 +207,10 @@ func (s *submitService) enqueue(ctx context.Context, logger logging.Logger, inpu
 
 		detail := fmt.Sprintf("enqueue failed. err: %v", err)
 		commonUpdateErrLoggingFields := []any{
-			"component", logging.ComponentDatabase,
+			"component", oibplogging.ComponentDatabase,
 			"reason", string(job.EnqueueFailed),
 			"original_error", err,
-			"operation", logging.OperationMarkFailed,
+			"operation", oibplogging.OperationMarkFailed,
 		}
 
 		updated, updateErr := s.job.MarkFailed(ctx, ticket.ID, job.EnqueueFailed, detail)
@@ -222,7 +223,7 @@ func (s *submitService) enqueue(ctx context.Context, logger logging.Logger, inpu
 			logger.Info(ctx, "ticket marked failed", commonUpdateErrLoggingFields...)
 		}
 
-		logger.Error(ctx, "queue enqueue failed", "component", logging.ComponentQueue, "error", err, "operation", logging.OperationEnqueue)
+		logger.Error(ctx, "queue enqueue failed", "component", oibplogging.ComponentQueue, "error", err, "operation", oibplogging.OperationEnqueue)
 		s.metrics.RecordSubmission(ctx, metrics.SubmissionObservation{
 			Outcome:     metrics.SubmissionFailed,
 			Reason:      new(metrics.SubmissionReasonQueueEnqueueFailed),

@@ -11,8 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
 	"github.com/kiran94/openitinerary-batch-processing/internal/job"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -107,8 +108,8 @@ func (q *Queue) Enqueue(ctx context.Context, ticket *job.Ticket) error {
 
 	logger.Debug(ctx,
 		"queue enqueue succeeded",
-		"component", logging.ComponentQueue,
-		"operation", logging.OperationEnqueue,
+		"component", oibplogging.ComponentQueue,
+		"operation", oibplogging.OperationEnqueue,
 		"queue_message_id", aws.ToString(result.MessageId),
 	)
 	return nil
@@ -193,8 +194,8 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 		err := errors.New("receipt handle was nil")
 		logger.Error(ctx,
 			"queue message invalid",
-			"component", logging.ComponentQueue,
-			"operation", logging.OperationDequeue,
+			"component", oibplogging.ComponentQueue,
+			"operation", oibplogging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "nil_receipt_handle",
 			"error", err,
@@ -215,8 +216,8 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 		err := errors.New("message body was nil")
 		logger.Error(ctx,
 			"queue message invalid",
-			"component", logging.ComponentQueue,
-			"operation", logging.OperationDequeue,
+			"component", oibplogging.ComponentQueue,
+			"operation", oibplogging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "nil_body",
 			"error", err,
@@ -240,8 +241,8 @@ func (q *Queue) Dequeue(ctx context.Context) (*DequeueResult, error) {
 	if err := json.Unmarshal([]byte(*message.Body), &dequeueResult.Result); err != nil {
 		logger.Error(ctx,
 			"queue message invalid",
-			"component", logging.ComponentQueue,
-			"operation", logging.OperationDequeue,
+			"component", oibplogging.ComponentQueue,
+			"operation", oibplogging.OperationDequeue,
 			"message_id", aws.ToString(message.MessageId),
 			"reason", "invalid_json",
 			"error", err,

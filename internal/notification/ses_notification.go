@@ -10,8 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/kiran94/openitinerary-batch-processing/internal/config"
-	"github.com/kiran94/openitinerary-batch-processing/internal/logging"
+	oibplogging "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 	"github.com/kiran94/openitinerary-batch-processing/internal/telemetry"
+	"github.com/kiran94/openitinerary-batch-processing/pkg/logging"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -95,8 +96,8 @@ func (n *StatusNotifier) Notify(ctx context.Context, subject string, destination
 
 		logger.Debug(ctx,
 			"successfully sent email",
-			"component", logging.ComponentNotifier,
-			"operation", logging.OperationNotificationSend,
+			"component", oibplogging.ComponentNotifier,
+			"operation", oibplogging.OperationNotificationSend,
 			"destination", maskedDest,
 			"ses_message_id", output.MessageId,
 		)

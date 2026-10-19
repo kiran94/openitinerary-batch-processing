@@ -1,12 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"path"
-	"strconv"
 	"time"
+
+	env "github.com/kiran94/openitinerary-batch-processing/pkg/config"
 )
 
 type Config interface {
@@ -49,6 +49,7 @@ type Config interface {
 	GetOtelWorkerName() string
 	GetOtelServiceVersion() string
 	GetOtelGrpcName() string
+	GetOtelHandlerName() string
 
 	GetServiceReadinessPollingInterval() time.Duration
 	GetServiceReadinessPollingTimeout() time.Duration
@@ -69,14 +70,14 @@ func (ac ApplicationConfig) GetPort() string {
 }
 
 func (ac ApplicationConfig) GetDatabaseConnection() string {
-	return GetEnvOrDefault(
+	return env.GetEnvOrDefault(
 		"DATABASE_DSN",
 		"host=localhost user=openitinerary password=openitinerary dbname=openitinerary_batch_processing port=5432 sslmode=disable",
 	)
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
-	rawLevel := GetEnvOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo.String())
+	rawLevel := env.GetEnvOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo.String())
 
 	levelParsed := slog.LevelInfo
 	if err := levelParsed.UnmarshalText([]byte(rawLevel)); err != nil {
@@ -120,23 +121,23 @@ func (ac ApplicationConfig) GetMaximumBufferMultipartForm() int64 {
 }
 
 func (ac ApplicationConfig) GetMaximumAdapterResponseSizeBytes() int64 {
-	return getPositiveInt64EnvOrDefault("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", 25<<20)
+	return env.GetPositiveInt64EnvOrDefault("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", 25<<20)
 }
 
 func (ac ApplicationConfig) GetBucket() string {
-	return GetEnvOrDefault("OIBP_BUCKET", "openitinerary-batch-processing")
+	return env.GetEnvOrDefault("OIBP_BUCKET", "openitinerary-batch-processing")
 }
 
 func (ac ApplicationConfig) GetBucketPath() string {
-	return GetEnvOrDefault("OIBP_BUCKET_PREFIX", "")
+	return env.GetEnvOrDefault("OIBP_BUCKET_PREFIX", "")
 }
 
 func (ac ApplicationConfig) GetS3UploadConcurrency() int {
-	return getPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1)
+	return env.GetPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1)
 }
 
 func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
-	v := getPositiveIntEnvOrDefault("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", 3600)
+	v := env.GetPositiveIntEnvOrDefault("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", 3600)
 
 	// https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-query-string-auth.html
 	if v > 604800 {
@@ -147,7 +148,7 @@ func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
 }
 
 func (ac ApplicationConfig) GetS3UsePathStyle() bool {
-	return getBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false)
+	return env.GetBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false)
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {
@@ -159,7 +160,7 @@ func (ac ApplicationConfig) GetOutputPath(bucket, bucketPath, jobId string) stri
 }
 
 func (ac ApplicationConfig) GetQueueURL() string {
-	return GetEnvOrPanic("SQS_QUEUE_URL")
+	return env.GetEnvOrPanic("SQS_QUEUE_URL")
 }
 
 func (ac ApplicationConfig) GetQueuePollingTime() int32 {
@@ -167,19 +168,19 @@ func (ac ApplicationConfig) GetQueuePollingTime() int32 {
 }
 
 func (ac ApplicationConfig) GetWorkerTimeoutSeconds() int {
-	return getPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
+	return env.GetPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
 }
 
 func (ac ApplicationConfig) GetSESConfigurationSetName() string {
-	return GetEnvOrPanic("SES_NOTIFICATION_CONFIGURATION_SET_NAME")
+	return env.GetEnvOrPanic("SES_NOTIFICATION_CONFIGURATION_SET_NAME")
 }
 
 func (ac ApplicationConfig) GetSESAddressFrom() string {
-	return GetEnvOrPanic("SES_NOTIFICATION_ADDRESS_FROM")
+	return env.GetEnvOrPanic("SES_NOTIFICATION_ADDRESS_FROM")
 }
 
 func (ac ApplicationConfig) GetNotificationEmailLimit() int {
-	return getPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
+	return env.GetPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
 }
 
 func (ac ApplicationConfig) GetOtelServiceName() string {
@@ -194,6 +195,10 @@ func (ac ApplicationConfig) GetOtelGrpcName() string {
 	return "openitinerary-batch-grpc"
 }
 
+func (ac ApplicationConfig) GetOtelHandlerName() string {
+	return "github.com/kiran94/openitinerary-batch-processing/internal/logging"
+}
+
 // This value is injected via the build process
 // See the Makefile for more details
 var Version = "dev"
@@ -203,7 +208,7 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 }
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
-	return getBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+	return env.GetBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
 }
 
 func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
@@ -212,64 +217,4 @@ func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
 
 func (ac ApplicationConfig) GetServiceReadinessPollingTimeout() time.Duration {
 	return 2 * time.Second
-
-}
-
-func GetEnvOrDefault(name, defaultValue string) string {
-	value := os.Getenv(name)
-	if value == "" {
-		value = defaultValue
-	}
-
-	return value
-}
-
-func GetEnvOrPanic(name string) string {
-	if v := os.Getenv(name); v == "" {
-		panic(fmt.Sprintf("env var %v must be defined", name))
-	} else {
-		return v
-	}
-}
-
-func getBoolOrDefault(name string, defaultValue bool) bool {
-	v := os.Getenv(name)
-	if v == "" {
-		return defaultValue
-	}
-
-	parsed, err := strconv.ParseBool(v)
-	if err != nil {
-		return defaultValue
-	}
-
-	return parsed
-}
-
-func getPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {
-	value := os.Getenv(envVarName)
-	if value == "" {
-		return defaultValue
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 1 {
-		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
-	}
-
-	return parsed
-}
-
-func getPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) int64 {
-	value := os.Getenv(envVarName)
-	if value == "" {
-		return defaultValue
-	}
-
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil || parsed < 1 {
-		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
-	}
-
-	return parsed
 }
