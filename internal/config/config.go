@@ -77,14 +77,7 @@ func (ac ApplicationConfig) GetDatabaseConnection() string {
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
-	rawLevel := env.GetEnvOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo.String())
-
-	levelParsed := slog.LevelInfo
-	if err := levelParsed.UnmarshalText([]byte(rawLevel)); err != nil {
-		panic(err)
-	}
-
-	return levelParsed
+	return env.GetEnvLoggingLevelOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo)
 }
 
 func (ac ApplicationConfig) GetServerReadTimeout() time.Duration {
