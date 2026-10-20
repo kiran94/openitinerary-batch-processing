@@ -192,8 +192,7 @@ func (ac ApplicationConfig) GetOtelHandlerName() string {
 	return "github.com/kiran94/openitinerary-batch-processing/internal/logging"
 }
 
-// This value is injected via the build process
-// See the Makefile for more details
+// Version is injected via the build process. See the Makefile for more details.
 var Version = "dev"
 
 func (ac ApplicationConfig) GetOtelServiceVersion() string {
