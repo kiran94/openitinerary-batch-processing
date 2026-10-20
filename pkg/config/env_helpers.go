@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 )
@@ -63,4 +64,17 @@ func GetPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) int64 {
 	}
 
 	return parsed
+}
+
+// GetEnvLoggingLevelOrDefault gets a slog level from the environment or defaults to the passed value if the env var is not set
+// It will only panic if the env variable is actually set but is marlformed. This is so we notify the developer that there is a misconfiguration in the environment early.
+func GetEnvLoggingLevelOrDefault(envName string, defaultValue slog.Level) slog.Level {
+	raw := GetEnvOrDefault(envName, defaultValue.String())
+
+	var levelParsed slog.Level
+	if err := levelParsed.UnmarshalText([]byte(raw)); err != nil {
+		panic(err)
+	}
+
+	return levelParsed
 }
