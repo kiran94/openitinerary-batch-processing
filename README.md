@@ -104,7 +104,7 @@ make api
 make api_grpc
 ```
 
-After submitting a document, run a worker using the live Adapter API:
+[Submit a document](#submit), then run a worker using the live Adapter API:
 
 ```bash
 make worker
