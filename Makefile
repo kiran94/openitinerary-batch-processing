@@ -70,7 +70,6 @@ install_tools: install_proto_tools | $(TOOLS_BIN)
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
-	go get -tool github.com/air-verse/air@latest
 
 install_proto_tools: | $(TOOLS_BIN)
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
