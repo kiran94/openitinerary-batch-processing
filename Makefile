@@ -52,10 +52,6 @@ api:
 api_grpc:
 	go run $(GO_LD_FLAGS) . --grpc
 
-# Live reload
-api_dev:
-	go tool air
-
 worker:
 	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
 
