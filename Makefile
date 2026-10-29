@@ -20,7 +20,8 @@ POSTGRES_DB ?= openitinerary_batch_processing
 HELM_CHART := infra/helm/openitinerary-batch-processing
 HELM_VALUES := $(HELM_CHART)/values.yaml
 HELM_MINISTACK_VALUES := $(HELM_CHART)/values-ministack.yaml
-.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version k8_lint helm_lint helm_generate helm_generate_local
+.PHONY: build ci client_test diagram format format_check generate_oi_go_models install_proto_tools install_tools lint login_db proto_generate proto_lint test vuln api_grpc docker_compose_local_otel docker_compose_cloud docker_images_build_service docker_images_build_worker docker_images_publish_service docker_images_publish_worker version k8_lint helm_lint helm_generate helm_generate_local worker worker_mock_adapter
+
 
 build:
 	go build $(GO_LD_FLAGS) ./...
@@ -51,12 +52,10 @@ api:
 api_grpc:
 	go run $(GO_LD_FLAGS) . --grpc
 
-# Live reload
-api_dev:
-	go tool air
-
 worker:
-	# ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
+	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/adapt/segment" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
+
+worker_mock_adapter:
 	ADAPTER_API_URL="http://0.0.0.0:8000/api/v1/mock/segment-mock" go run $(GO_LD_FLAGS) ./cmd/worker/main.go
 
 $(TOOLS_BIN):
@@ -67,7 +66,6 @@ install_tools: install_proto_tools | $(TOOLS_BIN)
 	go install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install gorm.io/cli/gorm@$(GORM_CLI_VERSION)
-	go get -tool github.com/air-verse/air@latest
 
 install_proto_tools: | $(TOOLS_BIN)
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)

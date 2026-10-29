@@ -1,56 +1,130 @@
-# OpenItinerary Batch Processing
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/openitinerary-batch-processing-logo-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/openitinerary-batch-processing-logo.svg" />
+    <img src="assets/openitinerary-batch-processing-logo.svg" alt="OpenItinerary Batch Processing" width="560" />
+  </picture>
+</h1>
 
-[![build](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml) [![terraform](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml) [![protobuf](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml) [![publish containers](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml) [![k8 validate](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml/badge.svg)](https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml)
+<p align="center">
+  <a href="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml"><img src="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/build.yml/badge.svg" alt="Build status" /></a>
+  <a href="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml"><img src="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/terraform.yml/badge.svg" alt="Terraform status" /></a>
+  <a href="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml"><img src="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/protobuf.yml/badge.svg" alt="Protobuf status" /></a>
+  <a href="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml"><img src="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/publish-container.yml/badge.svg" alt="Container publishing status" /></a>
+  <a href="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml"><img src="https://github.com/kiran94/openitinerary-batch-processing/actions/workflows/k8_validate.yml/badge.svg" alt="Kubernetes validation status" /></a>
+  <a href="https://buf.build/openitinerary/openitinerary-batch-processing/docs/main"><img src="https://img.shields.io/badge/Buf%20Schema%20Registry-view%20schema-0C65EC" alt="View schema in the Buf Schema Registry" /></a>
+</p>
 
-> The OpenItinerary Batch Processing (OIBP) service provides an asynchronous solution to converting traditional travel documents into the [OpenItinerary Standard](http://github.com/kiran94/openitinerary).
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#api-reference">API Reference</a> ·
+  <a href="#observability">Observability</a> ·
+  <a href="#kubernetes">Kubernetes</a>
+</p>
 
-## Features
+OpenItinerary Batch Processing (OIBP) is a service for converting travel booking documents into the [OpenItinerary](https://github.com/kiran94/openitinerary) standard asynchronously.
 
-- Submit PDF, HTML, and RFC 822 email documents for asynchronous itinerary processing.
-- Receive a processing ticket and track its status through the API.
-- Convert submitted documents through the [OpenItinerary Adapter API](http://github.com/kiran94/openitinerary#adapter-api-configuration).
-- Retrieve completed itineraries through temporary download links.
-- Send completion notifications to configured email recipients.
-- Expose liveness and readiness endpoints for service operations.
-- Route terminally failed jobs to an SQS dead-letter queue.
+Applications can submit PDF, HTML, and email documents through HTTP or gRPC, receive a processing ticket, track its progress, and retrieve the resulting itinerary when processing completes. This moves document conversion out of the synchronous request path and provides the surrounding queueing, storage, worker, notification, and observability infrastructure needed to operate it reliably.
+
+OIBP is part of the [OpenItinerary ecosystem](https://github.com/kiran94/openitinerary). It uses the [OpenItinerary Adapter API](https://github.com/kiran94/openitinerary#adapter-api) for document conversion and returns data represented using the open OpenItinerary standard.
+
+## How it works
+
+1. A client submits a PDF, HTML, or email document through the HTTP or gRPC API.
+2. OIBP stores the document, creates a processing ticket, and queues the work.
+3. A worker retrieves the job and sends the document to the OpenItinerary Adapter API.
+4. The converted OpenItinerary data is stored and the ticket is updated with the outcome.
+5. The client can track the ticket, retrieve the completed itinerary through a temporary download link, and receive an email notification.
 
 ## Architecture
 
-![Architecture](./docs/io_batch_processing.svg)
+![OpenItinerary Batch Processing architecture](./docs/io_batch_processing.svg)
 
-*Solid arrows show application and data flow; dashed arrows show telemetry and trace-context propagation.*
+*Solid arrows represent application and data flow. Dashed arrows represent telemetry and trace-context propagation.*
 
-### Technical overview
+OIBP separates request handling from document conversion so that longer-running work can be processed independently and retried safely.
 
-- [Go](https://go.dev/) API (HTTP & [GRPC](https://grpc.io/)) and Worker services.
-- [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for input and result document storage.
-- [Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) for asynchronous job processing and dead-letter handling.
-- [PostgreSQL](https://www.postgresql.org/docs/) for ticket and job state.
-- [OpenItinerary Adapter API](https://github.com/kiran94/openitinerary) for document conversion.
-- [Amazon SES](https://docs.aws.amazon.com/ses/latest/dg/Welcome.html) for email notifications.
-- [OpenTelemetry](https://opentelemetry.io/docs/) for metrics, logs, and traces.
-- [Prometheus](https://prometheus.io/docs/introduction/overview/), [Loki](https://grafana.com/docs/loki/latest/), [Tempo](https://grafana.com/docs/tempo/latest/), and [Grafana](https://grafana.com/docs/grafana/latest/) for local observability; see [Observability](#observability).
-- [Docker Compose](https://docs.docker.com/compose/) for the local dependency stack.
-- [Kubernetes](https://kubernetes.io/docs/home/) for local & production deployment
-- [Terraform](https://developer.hashicorp.com/terraform/docs) for infrastructure as code.
-- [k6 load testing](./infra/k6/README.md) for performance verification.
+| Component | Responsibility |
+|---|---|
+| API | Accepts submissions and exposes ticket status and results through HTTP and gRPC |
+| PostgreSQL | Stores ticket and processing state |
+| Amazon S3 | Stores submitted documents and converted itineraries |
+| Amazon SQS | Queues processing jobs and routes terminal failures to a dead-letter queue |
+| Worker | Processes queued jobs and coordinates conversion, storage, and notification |
+| Adapter API | Converts PDF, HTML, and email documents into OpenItinerary data |
+| Amazon SES | Sends completion notifications |
+| OpenTelemetry | Connects metrics, logs, and traces across the API, worker, and Adapter API |
 
+The repository also includes Docker Compose development dependencies, Kubernetes and Helm deployment configuration, Terraform infrastructure, Grafana dashboards and alerts, and [k6 load tests](./infra/k6/README.md).
 
-## Service
+## Quick Start
 
-### HTTP
+OIBP runs locally while using AWS for document storage, job queueing, and email notifications.
 
-**Startup**
+> [!NOTE]
+> The [Kubernetes setup](#kubernetes) can instead run S3, SQS, and SES locally through [MiniStack](#ministack).
+
+### Prerequisites
+
+- Go and Make
+- Docker with Docker Compose
+- AWS credentials available through the standard AWS credential chain
+- An S3 bucket
+- An SQS FIFO queue
+- An SES configuration set and verified sender address
+
+Export the following variables in every terminal that runs an API or worker process:
+
+```bash
+export AWS_REGION="eu-west-2"
+export AWS_ACCOUNT_ID="123456789012"
+export SQS_QUEUE_NAME="openitinerary-batch-processing-job-queue.fifo"
+
+export OIBP_BUCKET="your-bucket"
+export SQS_QUEUE_URL="https://sqs.${AWS_REGION}.amazonaws.com/${AWS_ACCOUNT_ID}/${SQS_QUEUE_NAME}"
+export SES_NOTIFICATION_CONFIGURATION_SET_NAME="your-configuration-set"
+export SES_NOTIFICATION_ADDRESS_FROM="notifications@example.com"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+```
+
+Start PostgreSQL, the Adapter API, and the local observability stack:
+
+```bash
+export OPENAI_API_KEY="your-api-key" # required for the Adapter API
+make docker_compose_local_otel
+```
+
+In another terminal, start the API:
 
 ```bash
 make api
+
+# or
+make api_grpc
 ```
 
-**Submit**
+[Submit a document](#submit), then run a worker using the live Adapter API:
 
-The Submit endpoint is used to submit new work to the service.
+```bash
+make worker
+```
 
-The `file` and `notification_emails` multipart form fields are required. `notification_emails` must be a JSON array of email addresses.
+To exercise the processing workflow using the Adapter API's mock endpoint instead:
+
+```bash
+make worker_mock_adapter
+```
+
+`OIBP_LOG_LEVEL` defaults to `INFO`, `OIBP_TELEMETRY_ENABLED` defaults to `true`, and `OIBP_WORKER_TIMEOUT_SECONDS` defaults to `300`. Set these variables only when you need to override those defaults; for example, `OIBP_WORKER_TIMEOUT_SECONDS=180` shortens the local worker run to three minutes.
+
+## API Reference
+
+### HTTP
+
+#### Submit
+
+`POST /api/v1/submit` accepts a travel document and returns a processing ticket. The `file` and `notification_emails` multipart form fields are required. `notification_emails` must be a JSON array of email addresses.
 
 ```bash
 curl \
@@ -59,47 +133,47 @@ curl \
   http://localhost:8080/api/v1/submit
 ```
 
-The supported file content types are `application/pdf`, `text/html`, and `message/rfc822`.
+Supported content types are `application/pdf`, `text/html`, and `message/rfc822`.
 
-Copy the `id` from the Submit response into `TICKET_ID`:
+Use the `id` from the response as the ticket identifier:
 
 ```bash
 TICKET_ID="53e334b7-7519-4e97-87ba-65ecb67aafd7"
 ```
 
-**Status**
+#### Status
 
-The Status endpoint is used to track the current status of the job.
+`GET /api/v1/status/{id}` returns the current processing status for a ticket.
 
 ```bash
 curl "http://localhost:8080/api/v1/status/${TICKET_ID}"
 ```
 
-**Result**
+#### Result
 
-The Result endpoint returns `204 No Content` until the ticket has completed successfully. Once the work is completed, it will return back a [S3 Presigned URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html).
+`GET /api/v1/result/{id}` returns `204 No Content` while processing is incomplete. After successful conversion, it returns a temporary [S3 presigned URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html) for the OpenItinerary result.
 
 ```bash
 curl "http://localhost:8080/api/v1/result/${TICKET_ID}"
 ```
 
-### GRPC
+### gRPC
 
-**Startup**
+Run the gRPC service instead of the HTTP service with:
 
 ```bash
 make api_grpc
 ```
 
-*Since [GRPC Server Reflection](https://grpc.io/docs/guides/reflection/) is enabled, protos are not required in the following commands however they can be found within [proto](./proto/)*
+[gRPC Server Reflection](https://grpc.io/docs/guides/reflection/) is enabled, so `grpcurl` does not require local protobuf files. The service definitions are available in [proto](./proto/).
 
-**Submit**
+#### Submit
 
 ```bash
 go run ./cmd/grpc_client/main.go --filepath /path/to/file.pdf
 ```
 
-**Status**
+#### Status
 
 ```bash
 grpcurl \
@@ -109,7 +183,7 @@ grpcurl \
   openitinerary.batch.v1.OpenItineraryBatchProcessingService/Status
 ```
 
-**Result**
+#### Result
 
 ```bash
 grpcurl \
@@ -120,39 +194,42 @@ grpcurl \
 ```
 
 > [!NOTE]
-> Protobuf files have been deployed to [Buf](http://buf.build/openitinerary/openitinerary-batch-processing/docs/main)
+> The protobuf definitions are also published in the [Buf Schema Registry](https://buf.build/openitinerary/openitinerary-batch-processing/docs/main).
 
-See the [Service Health](#service-health) section for information on Health checks.
+See [Service Health](#service-health) for liveness and readiness information.
 
 ## Observability
 
-The Observability components can be viewed in the [Architecture diagram](#architecture). This application has a local Grafana stack (for development purposes) and Grafana Cloud for deployed instances.
+OIBP uses [OpenTelemetry](https://opentelemetry.io/docs/) to emit metrics, logs, and traces from the API, worker, and instrumented dependencies.
 
-Telemetry can be enabled via:
+For local development, the Docker Compose stack includes an OpenTelemetry Collector, Prometheus, Loki, Tempo, and Grafana:
 
 ```bash
-export OIBP_TELEMETRY_ENABLED=true
+make docker_compose_local_otel
 ```
 
-During development, you can either have your telemetry be pointed to the local Grafana instance (via docker compose) or to Grafana Cloud.
+Applications running outside Docker can send telemetry to the local collector with:
 
 ```bash
-# Telemetry will be pushed to
-# local Grafana, Loki, Tempo, Prometheus
-make docker_compose_local_otel
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+```
 
-# Telemetry will be pushed to Grafana Cloud
+Telemetry is enabled by default and can be disabled with:
+
+```bash
+export OIBP_TELEMETRY_ENABLED=false
+```
+
+The collector can also forward telemetry to Grafana Cloud. Configure the exporter and start the cloud profile with:
+
+```bash
+export GRAFANA_OTEL_EXPORTER_OTLP_ENDPOINT="your-endpoint"
+export GRAFANA_OTEL_EXPORTER_OTLP_AUTH="your-base64-encoded-credentials"
+
 make docker_compose_cloud
 ```
 
-In order to deploy telemetry to Grafana cloud you will need to export the following environment variables:
-
-```bash
-export GRAFANA_OTEL_EXPORTER_OTLP_ENDPOINT=""
-export GRAFANA_OTEL_EXPORTER_OTLP_AUTH=""
-```
-
-You can get these details from your Grafana stack. The `GRAFANA_OTEL_EXPORTER_OTLP_AUTH` must be generated from the details you get from Grafana:
+Generate `GRAFANA_OTEL_EXPORTER_OTLP_AUTH` from the instance ID and API key provided by Grafana Cloud:
 
 ```bash
 printf '%s' "INSTANCE_ID:API_KEY" | base64
@@ -160,7 +237,7 @@ printf '%s' "INSTANCE_ID:API_KEY" | base64
 
 ### Metrics
 
-We collect the following metrics from the API and Worker.
+OIBP emits the following standard and application-level metrics across the API and worker.
 
 | Metric | Type | Unit | Attributes |
 |---|---|---:|---|
@@ -180,7 +257,7 @@ We collect the following metrics from the API and Worker.
 
 ### Dashboards
 
-Dashboards have been created within [Grafana Dashboards](./infra/grafana/dashboards/). These are deployed to both the local and cloud Grafana instances.
+The dashboards in [infra/grafana/dashboards](./infra/grafana/dashboards/) cover the Adapter API, the batch-processing service, and the wider OpenItinerary system. They can be provisioned in both the local Grafana stack and Grafana Cloud.
 
 ### Alerts
 
@@ -193,81 +270,119 @@ Dashboards have been created within [Grafana Dashboards](./infra/grafana/dashboa
 | Terminal job failures | Failed terminal jobs | `>5%` for `10m` with completions |
 | Worker failures | Failed worker runs | `>20%` for `10m` with worker activity |
 
-The configuration for these alerts can be found in [Grafana Alerts](./terraform/grafana_alerting.tf), these are deployed to Grafana Cloud via Terraform.
+Alert configuration is defined in [Grafana Alerts](./terraform/grafana_alerting.tf) and deployed to Grafana Cloud through Terraform.
 
 ### Collector Internal Telemetry
 
-The collector lives on the application side. In the even that that downstream exporter services (e.g Grafana Cloud) become unavailable, then the collector will hold on to messages within a queue and retry. Eventually once the queue is full then new telemetry will be dropped.
+The collector buffers and retries telemetry when a downstream exporter such as Grafana Cloud is unavailable. If the sending queue reaches capacity before the exporter recovers, new telemetry may be dropped.
 
-For that scenario, [internal metrics](https://opentelemetry.io/docs/collector/internal-telemetry/#activate-internal-telemetry-in-the-collector) have been enabled in the [otel-collector-config-cloud.yaml](./infra/otel-collector-config-cloud.yaml) so we can monitor what is happening.
-
-With enabled we can do this:
+Internal collector metrics are enabled in [otel-collector-config-cloud.yaml](./infra/otel-collector-config-cloud.yaml) to make this behaviour observable. Inspect the key queue and export-failure metrics with:
 
 ```bash
- curl -s http://localhost:9006/metrics | rg 'otelcol_exporter_(queue|send_failed|enqueue_failed)'
+curl --silent http://localhost:9006/metrics \
+  | rg 'otelcol_exporter_(queue|send_failed|enqueue_failed)'
 ```
 
 ### Service Health
 
-This service provides the following endpoint for health check pruposes:
+OIBP exposes HTTP endpoints for liveness and readiness checks:
 
-* `/health/live`: returns `200` if the service is alive and accepting requests
-* `/health/ready` returns `200` if the services underlying services are available
+- `/health/live` returns `200 OK` while the service is alive and accepting requests.
+- `/health/ready` returns `200 OK` when the latest database readiness check succeeded, or `503 Service Unavailable` when it failed.
 
-The `/health/ready` result is based on a long-running background go routine which periodically checks if the underlying services (such as the db) is still available.
+Database readiness is checked periodically in the background rather than during every HTTP health request.
 
-The GRPC service implements the standard [GRPC Health Protos](https://grpc.io/docs/guides/health-checking/).
+The gRPC service implements the standard [gRPC health-checking protocol](https://grpc.io/docs/guides/health-checking/) and mirrors the same readiness state:
 
 ```bash
 grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
 ```
-## Kubernetes
 
-The Kubernetes deployment is defined by the Helm chart in [infra/helm/openitinerary-batch-processing](./infra/helm/openitinerary-batch-processing/).
+## Development
 
-### Local Setup
+Install the project development tools and run the complete Go validation suite:
 
 ```bash
-# Create a new profile for minikube to isolate this project
-export OIBP_KUBE_CONTEXT=oibp
-minikube start --profile "$OIBP_KUBE_CONTEXT" --driver=docker
-kubectl config use-context "$OIBP_KUBE_CONTEXT"
-
-# Verify
-kubectl config current-context
-kubectl cluster-info
-kubectl get nodes -o wide
-minikube profile list
-
-# Enable the metrics server (to enable `kubectl top pods`)
-minikube -p "$OIBP_KUBE_CONTEXT" addons enable metrics-server
-
-# Note that all the resources within this project are under the 'oibp' namespace
-# so you can update your context to look at that by default with this:
-kubectl config set-context --current --namespace=oibp
+make install_tools
+make ci
 ```
 
-**Load the Images into Minikube**
-
-If you are developing any of the images locally, then you may want to load a local build of an image into minikube
+Additional targets validate the protobuf definitions and Kubernetes configuration:
 
 ```bash
-# build the service into a local image
+make proto_lint
+make helm_lint
+make k8_lint
+```
+
+These additional targets require Buf, Helm, and Kubeconform. Continuous integration also verifies generated protobuf code, Terraform formatting and validation, and container builds.
+
+## Kubernetes
+
+The Helm chart in [infra/helm/openitinerary-batch-processing](./infra/helm/openitinerary-batch-processing/) deploys the API, worker, Adapter API, PostgreSQL, and OpenTelemetry Collector.
+
+The base values connect OIBP to AWS services. For local development, the MiniStack values add locally emulated S3, SQS, and SES services to the cluster.
+
+### Local cluster
+
+Prerequisites: Docker, Minikube, kubectl, and Helm.
+
+Create an isolated Minikube profile and configure the `oibp` namespace:
+
+```bash
+export OIBP_KUBE_CONTEXT="oibp"
+
+minikube start --profile "$OIBP_KUBE_CONTEXT" --driver docker
+
+kubectl config use-context "$OIBP_KUBE_CONTEXT"
+kubectl create namespace oibp
+kubectl config set-context --current --namespace oibp
+```
+
+Optionally enable resource metrics:
+
+```bash
+minikube --profile "$OIBP_KUBE_CONTEXT" addons enable metrics-server
+```
+
+Verify the cluster:
+
+```bash
+kubectl config current-context
+kubectl cluster-info
+kubectl get nodes --output wide
+```
+
+### Using local images
+
+The Helm chart uses the published GHCR images by default. When testing local API or worker changes, build the images and load them into Minikube:
+
+```bash
+IMAGE_TAG="$(make version)"
+
 make docker_images_build_service
-# or build the worker into a local image
 make docker_images_build_worker
 
-# Load the image into minikube and then reference in your deployment
-minikube --profile "$OIBP_KUBE_CONTEXT" image load "oibp:3ef2510-dirty"
+minikube --profile "$OIBP_KUBE_CONTEXT" image load "oibp:${IMAGE_TAG}"
+minikube --profile "$OIBP_KUBE_CONTEXT" image load "oibp-worker:${IMAGE_TAG}"
+```
 
-# Verify they are loaded
+Verify that Minikube can see them:
+
+```bash
 minikube --profile "$OIBP_KUBE_CONTEXT" image ls
 ```
 
+The subsequent Helm installation can override the API and worker image names and tags when these local builds are required.
 
 ### Secrets
 
-You need to create a file `./infra/k8s/secret.yaml` and apply it to the cluster. It should look like following, with your values populated:
+The Helm chart expects application, AWS, and OpenTelemetry credentials to be created outside the release. Create `infra/k8s/secret.yaml` and populate the values needed for your deployment. This path is already excluded by `.gitignore`.
+
+- `oibp-secret` configures PostgreSQL.
+- `oibp-secret-otel` configures the Grafana Cloud exporter when telemetry is enabled.
+- `oibp-secret-aws` contains credentials for real AWS services.
+- `oibp-secret-aws-ministack` contains non-production credentials used by the local MiniStack deployment.
 
 <details>
 
@@ -295,7 +410,6 @@ type: Opaque
 stringData:
   OTEL_EXPORTER_OTLP_ENDPOINT:
   OTEL_EXPORTER_OTLP_HEADERS:
-  GRAFANA_CLOUD_INSTANCE_ID:
 ---
 apiVersion: v1
 kind: Secret
@@ -322,82 +436,96 @@ stringData:
 
 </details>
 
-### Applying Configuration
+### Install the chart
+
+Apply the external secrets before installing the Helm release:
 
 ```bash
-# Create the namespace before applying external Secrets or installing the release.
-kubectl create namespace oibp
+kubectl apply --filename ./infra/k8s/secret.yaml
+```
 
-# Secrets remain external to the Helm release and must exist before workloads start.
-kubectl apply \
-  --filename ./infra/k8s/secret.yaml
+Install OIBP with locally emulated AWS services:
 
+```bash
 helm upgrade --install oibp \
   ./infra/helm/openitinerary-batch-processing \
   --namespace oibp \
   --values ./infra/helm/openitinerary-batch-processing/values.yaml \
   --values ./infra/helm/openitinerary-batch-processing/values-ministack.yaml \
+  --set telemetry.enabled=false \
   --wait \
   --timeout 5m
-
-# Verify
-helm status oibp \
-  --namespace oibp
-
-kubectl get pods,svc,deployments,pvc,endpointslices
 ```
 
-> [!NOTE]
-> Remove the `values-ministack.yaml` argument to use the real AWS configuration from `values.yaml`.
+To connect to real AWS services, omit `values-ministack.yaml`.
 
-### Service
+To export telemetry to Grafana Cloud, omit `--set telemetry.enabled=false` and populate `oibp-secret-otel`.
 
-You can access the internal `ClusterIP` services by forwarding teh port to your machine like this:
+If you loaded local images into Minikube, override `api.image`, `api.image_tag`, `worker.image`, and `worker.image_tag` during installation.
+
+Verify the release:
 
 ```bash
-kubectl port-forward services/oibp-service 8080:8080
+helm status oibp --namespace oibp
+kubectl get pods,services,deployments,persistentvolumeclaims,endpointslices
 ```
 
-### Worker Process
+### Access the API
 
-The deployed services will handle running worker processes automatically but you can fire one manually like this:
+Forward the API service to the local machine:
+
+```bash
+kubectl port-forward service/oibp-service 8080:8080
+```
+
+The HTTP API is then available at `http://localhost:8080`.
+
+### Run a worker manually
+
+The Helm chart schedules workers using a Kubernetes CronJob. To process work immediately, create an ad hoc job from it:
 
 ```bash
 OIBP_ADHOC_JOB="oibp-worker-adhoc-check-$(date +%H%M%S)"
 
-kubectl create job --from=cronjob/oibp-worker "$OIBP_ADHOC_JOB"
+kubectl create job \
+  --from cronjob/oibp-worker \
+  "$OIBP_ADHOC_JOB"
 
-kubectl logs "job/$OIBP_ADHOC_JOB" -f
+kubectl logs --follow "job/$OIBP_ADHOC_JOB"
 ```
 
-### Ministack
+### MiniStack
 
-During development, you may use [ministack](https://ministack.org/) to emulate your AWS services.
+[MiniStack](https://ministack.org/) provides local S3, SQS, and SES services inside the Kubernetes cluster.
 
-The base `values.yaml` disables MiniStack and configures real AWS endpoints. Applying `values-ministack.yaml` after the base values enables the in-cluster MiniStack Deployment and overrides the AWS endpoint, SQS queue URL, S3 path-style setting, and Secret name. The API and Worker then use `oibp-secret-aws-ministack` rather than the real AWS credentials.
+The base `values.yaml` connects to AWS. Applying `values-ministack.yaml` overrides the AWS endpoint, queue URL, S3 path-style setting, and Secret name for local development.
 
 > [!NOTE]
-> MiniStack state is disposable in this development environment. Disabling or uninstalling the Helm release can delete its chart-managed PVC and the locally emulated AWS data.
+> MiniStack state is disposable. Disabling or uninstalling the Helm release can remove its chart-managed volume and locally emulated AWS data.
 
-You can verify things are being populated in Ministack via this:
+Forward the MiniStack gateway in one terminal:
 
 ```bash
-# port forward the ministack gateway
 kubectl port-forward service/ministack 4566:4566
+```
 
-# perform your normal AWS commands with the AWS_ENDPOINT_URL env overridden
-AWS_ENDPOINT_URL="http://localhost:4566" aws s3 ls
+In another terminal, inspect the local services:
 
-# check queue status
-AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-url --queue-name openitinerary-batch-processing-job-queue.fifo | jq .
+```bash
+export AWS_ENDPOINT_URL="http://localhost:4566"
+export AWS_ACCESS_KEY_ID="test"
+export AWS_SECRET_ACCESS_KEY="test"
+export AWS_REGION="eu-west-2"
+export MINISTACK_QUEUE_URL="${AWS_ENDPOINT_URL}/000000000000/openitinerary-batch-processing-job-queue.fifo"
 
-AWS_ENDPOINT_URL="http://localhost:4566" aws sqs get-queue-attributes \
-    --no-cli-pager \
-    --queue-url "http://ministack:4566/000000000000/openitinerary-batch-processing-job-queue.fifo" \
-    --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
-    --query 'Attributes' \
-    --output table
+aws s3 ls
 
-# Check the SES messages
-curl --silent http://localhost:4566/_ministack/ses/messages | jq
+aws sqs get-queue-attributes \
+  --no-cli-pager \
+  --queue-url "$MINISTACK_QUEUE_URL" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
+  --query Attributes \
+  --output table
+
+curl --silent "${AWS_ENDPOINT_URL}/_ministack/ses/messages" | jq
 ```

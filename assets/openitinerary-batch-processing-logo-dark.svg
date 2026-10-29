@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 256" role="img" aria-labelledby="title description">
+  <title id="title">OpenItinerary Batch Processing</title>
+  <desc id="description">Dark-mode OpenItinerary route-and-braces icon with the OpenItinerary Batch Processing wordmark.</desc>
+  <style>
+    .wordmark {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 104px;
+      font-weight: 700;
+      letter-spacing: -4.5px;
+    }
+
+    .submark {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 6px;
+    }
+  </style>
+  <defs>
+    <mask id="waypoint-cutouts">
+      <rect width="256" height="256" fill="white" />
+      <circle cx="73" cy="194" r="6" fill="black" />
+      <circle cx="128" cy="139" r="6" fill="black" />
+      <circle cx="183" cy="62" r="6" fill="black" />
+    </mask>
+  </defs>
+
+  <g transform="translate(16 16) scale(.875)">
+    <path
+      d="M91 27H78C60 27 53 39 53 57V87C53 107 44 120 27 128C44 136 53 149 53 169V199C53 217 60 229 78 229H91"
+      fill="none"
+      stroke="#ffffff"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="18"
+    />
+    <path
+      d="M165 27H178C196 27 203 39 203 57V87C203 107 212 120 229 128C212 136 203 149 203 169V199C203 217 196 229 178 229H165"
+      fill="none"
+      stroke="#ffffff"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="18"
+    />
+    <g mask="url(#waypoint-cutouts)" fill="#0bb8c2">
+      <path
+        d="M73 194C73 163 94 141 128 139C163 137 183 107 183 62"
+        fill="none"
+        stroke="#0bb8c2"
+        stroke-linecap="round"
+        stroke-width="16"
+      />
+      <circle cx="73" cy="194" r="20" />
+      <circle cx="128" cy="139" r="20" />
+      <circle cx="183" cy="62" r="20" />
+    </g>
+  </g>
+
+  <text class="wordmark" x="256" y="132" fill="#ffffff">OpenItinerary</text>
+  <text class="submark" x="262" y="194" fill="#0bb8c2">BATCH PROCESSING</text>
+</svg>
