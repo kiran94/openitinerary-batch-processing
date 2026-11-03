@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const envVarName = "TEST_OIBP_LOGGING_LEVEL"
@@ -67,12 +68,12 @@ func TestGetPositiveIntEnvOrDefault(t *testing.T) {
 			actual, err := GetPositiveIntEnvOrDefault("TEST_POSITIVE_INT", tt.defaultValue)
 
 			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
+				require.EqualError(t, err, tt.expectedError)
 				assert.Zero(t, actual)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -100,12 +101,12 @@ func TestGetPositiveInt64EnvOrDefault(t *testing.T) {
 			actual, err := GetPositiveInt64EnvOrDefault("TEST_POSITIVE_INT64", tt.defaultValue)
 
 			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
+				require.EqualError(t, err, tt.expectedError)
 				assert.Zero(t, actual)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
