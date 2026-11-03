@@ -44,3 +44,69 @@ func TestGetEnvLoggingLevelOrDefault_EnvSet_Malformed(t *testing.T) {
 		GetEnvLoggingLevelOrDefault(envVarName, slog.LevelInfo)
 	})
 }
+
+func TestGetPositiveIntEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name          string
+		value         string
+		defaultValue  int
+		expected      int
+		expectedError string
+	}{
+		{name: "default", value: "", defaultValue: 10, expected: 10},
+		{name: "environment override", value: "20", defaultValue: 10, expected: 20},
+		{name: "malformed", value: "invalid", defaultValue: 10, expectedError: "TEST_POSITIVE_INT must be a positive integer"},
+		{name: "zero", value: "0", defaultValue: 10, expectedError: "TEST_POSITIVE_INT must be a positive integer"},
+		{name: "negative", value: "-1", defaultValue: 10, expectedError: "TEST_POSITIVE_INT must be a positive integer"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TEST_POSITIVE_INT", tt.value)
+
+			actual, err := GetPositiveIntEnvOrDefault("TEST_POSITIVE_INT", tt.defaultValue)
+
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+				assert.Zero(t, actual)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestGetPositiveInt64EnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name          string
+		value         string
+		defaultValue  int64
+		expected      int64
+		expectedError string
+	}{
+		{name: "default", value: "", defaultValue: 10, expected: 10},
+		{name: "environment override", value: "20", defaultValue: 10, expected: 20},
+		{name: "malformed", value: "invalid", defaultValue: 10, expectedError: "TEST_POSITIVE_INT64 must be a positive integer"},
+		{name: "zero", value: "0", defaultValue: 10, expectedError: "TEST_POSITIVE_INT64 must be a positive integer"},
+		{name: "negative", value: "-1", defaultValue: 10, expectedError: "TEST_POSITIVE_INT64 must be a positive integer"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TEST_POSITIVE_INT64", tt.value)
+
+			actual, err := GetPositiveInt64EnvOrDefault("TEST_POSITIVE_INT64", tt.defaultValue)
+
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+				assert.Zero(t, actual)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}

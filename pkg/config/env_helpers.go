@@ -38,32 +38,32 @@ func GetBoolOrDefault(name string, defaultValue bool) bool {
 	return parsed
 }
 
-func GetPositiveIntEnvOrDefault(envVarName string, defaultValue int) int {
+func GetPositiveIntEnvOrDefault(envVarName string, defaultValue int) (int, error) {
 	value := os.Getenv(envVarName)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 1 {
-		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
+		return 0, fmt.Errorf("%s must be a positive integer", envVarName)
 	}
 
-	return parsed
+	return parsed, nil
 }
 
-func GetPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) int64 {
+func GetPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) (int64, error) {
 	value := os.Getenv(envVarName)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || parsed < 1 {
-		panic(fmt.Sprintf("%s must be a positive integer", envVarName))
+		return 0, fmt.Errorf("%s must be a positive integer", envVarName)
 	}
 
-	return parsed
+	return parsed, nil
 }
 
 // GetEnvLoggingLevelOrDefault gets a slog level from the environment or defaults to the passed value if the env var is not set
