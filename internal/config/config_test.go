@@ -119,7 +119,7 @@ func TestApplicationConfigRejectsInvalidPositiveInteger(t *testing.T) {
 	t.Setenv("OIBP_S3_UPLOAD_CONCURRENCY", "0")
 	config := ApplicationConfig{}
 
-	assert.PanicsWithValue(t, "OIBP_S3_UPLOAD_CONCURRENCY must be a positive integer", func() {
+	assert.PanicsWithError(t, "OIBP_S3_UPLOAD_CONCURRENCY must be a positive integer", func() {
 		config.GetS3UploadConcurrency()
 	})
 }
@@ -215,7 +215,7 @@ func TestApplicationConfigGetNotificationEmailLimitRejectsInvalidValue(t *testin
 
 	config := ApplicationConfig{}
 
-	assert.PanicsWithValue(t, "OIBP_NOTIFICATION_EMAIL_LIMIT must be a positive integer", func() {
+	assert.PanicsWithError(t, "OIBP_NOTIFICATION_EMAIL_LIMIT must be a positive integer", func() {
 		config.GetNotificationEmailLimit()
 	})
 }
