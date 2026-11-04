@@ -77,7 +77,11 @@ func (ac ApplicationConfig) GetDatabaseConnection() string {
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
-	return env.GetEnvLoggingLevelOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo)
+	if v, err := env.GetEnvLoggingLevelOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetServerReadTimeout() time.Duration {
@@ -94,7 +98,6 @@ func (ac ApplicationConfig) GetServerIdleTimeout() time.Duration {
 
 func (ac ApplicationConfig) GetGrpcServerIdleTimeout() time.Duration {
 	return time.Second * 30
-
 }
 
 func (ac ApplicationConfig) GetGrpcServerMaxConnectionAge() time.Duration {
@@ -114,7 +117,11 @@ func (ac ApplicationConfig) GetMaximumBufferMultipartForm() int64 {
 }
 
 func (ac ApplicationConfig) GetMaximumAdapterResponseSizeBytes() int64 {
-	return env.GetPositiveInt64EnvOrDefault("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", 25<<20)
+	if v, err := env.GetPositiveInt64EnvOrDefault("OIBP_MAX_ADAPTER_RESPONSE_SIZE_BYTES", 25<<20); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetBucket() string {
@@ -126,11 +133,19 @@ func (ac ApplicationConfig) GetBucketPath() string {
 }
 
 func (ac ApplicationConfig) GetS3UploadConcurrency() int {
-	return env.GetPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1)
+	if v, err := env.GetPositiveIntEnvOrDefault("OIBP_S3_UPLOAD_CONCURRENCY", 1); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
-	v := env.GetPositiveIntEnvOrDefault("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", 3600)
+	var v int
+	v, err := env.GetPositiveIntEnvOrDefault("OIBP_S3_PRESIGNED_EXPIRE_SECONDS", 3600)
+	if err != nil {
+		panic(err)
+	}
 
 	// https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sigv4-query-string-auth.html
 	if v > 604800 {
@@ -141,7 +156,11 @@ func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
 }
 
 func (ac ApplicationConfig) GetS3UsePathStyle() bool {
-	return env.GetBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false)
+	if v, err := env.GetBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {
@@ -161,7 +180,11 @@ func (ac ApplicationConfig) GetQueuePollingTime() int32 {
 }
 
 func (ac ApplicationConfig) GetWorkerTimeoutSeconds() int {
-	return env.GetPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300)
+	if v, err := env.GetPositiveIntEnvOrDefault("OIBP_WORKER_TIMEOUT_SECONDS", 300); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetSESConfigurationSetName() string {
@@ -173,7 +196,11 @@ func (ac ApplicationConfig) GetSESAddressFrom() string {
 }
 
 func (ac ApplicationConfig) GetNotificationEmailLimit() int {
-	return env.GetPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5)
+	if v, err := env.GetPositiveIntEnvOrDefault("OIBP_NOTIFICATION_EMAIL_LIMIT", 5); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetOtelServiceName() string {
@@ -200,7 +227,11 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 }
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
-	return env.GetBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+	if v, err := env.GetBoolOrDefault("OIBP_TELEMETRY_ENABLED", true); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {
