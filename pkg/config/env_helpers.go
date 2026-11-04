@@ -24,18 +24,21 @@ func GetEnvOrPanic(name string) string {
 	}
 }
 
-func GetBoolOrDefault(name string, defaultValue bool) bool {
+// GetBoolOrDefault returns a native boolean type from the env var
+// if the env var is not set then the default will be returned
+// if the env var is set and the value is not understood as a boolean then an error is returned
+func GetBoolOrDefault(name string, defaultValue bool) (bool, error) {
 	v := os.Getenv(name)
 	if v == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.ParseBool(v)
 	if err != nil {
-		return defaultValue
+		return defaultValue, fmt.Errorf("could not convert env var '%v': %w", name, err)
 	}
 
-	return parsed
+	return parsed, nil
 }
 
 func GetPositiveIntEnvOrDefault(envVarName string, defaultValue int) (int, error) {
@@ -46,7 +49,7 @@ func GetPositiveIntEnvOrDefault(envVarName string, defaultValue int) (int, error
 
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 1 {
-		return 0, fmt.Errorf("%s must be a positive integer", envVarName)
+		return 0, &ErrValueMustBePositiveInt{name: envVarName}
 	}
 
 	return parsed, nil
@@ -60,21 +63,29 @@ func GetPositiveInt64EnvOrDefault(envVarName string, defaultValue int64) (int64,
 
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || parsed < 1 {
-		return 0, fmt.Errorf("%s must be a positive integer", envVarName)
+		return 0, &ErrValueMustBePositiveInt{name: envVarName}
 	}
 
 	return parsed, nil
 }
 
 // GetEnvLoggingLevelOrDefault gets a slog level from the environment or defaults to the passed value if the env var is not set
-// It will only panic if the env variable is actually set but is marlformed. This is so we notify the developer that there is a misconfiguration in the environment early.
-func GetEnvLoggingLevelOrDefault(envName string, defaultValue slog.Level) slog.Level {
+// it returns an error if the env var was set but that value cannot be parsed
+func GetEnvLoggingLevelOrDefault(envName string, defaultValue slog.Level) (slog.Level, error) {
 	raw := GetEnvOrDefault(envName, defaultValue.String())
 
 	var levelParsed slog.Level
 	if err := levelParsed.UnmarshalText([]byte(raw)); err != nil {
-		panic(err)
+		return defaultValue, err
 	}
 
-	return levelParsed
+	return levelParsed, nil
+}
+
+type ErrValueMustBePositiveInt struct {
+	name string
+}
+
+func (e ErrValueMustBePositiveInt) Error() string {
+	return fmt.Sprintf("%s must be a positive integer", e.name)
 }

@@ -77,7 +77,11 @@ func (ac ApplicationConfig) GetDatabaseConnection() string {
 }
 
 func (ac ApplicationConfig) GetLoggingLevel() slog.Level {
-	return env.GetEnvLoggingLevelOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo)
+	if v, err := env.GetEnvLoggingLevelOrDefault("OIBP_LOG_LEVEL", slog.LevelInfo); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetServerReadTimeout() time.Duration {
@@ -94,7 +98,6 @@ func (ac ApplicationConfig) GetServerIdleTimeout() time.Duration {
 
 func (ac ApplicationConfig) GetGrpcServerIdleTimeout() time.Duration {
 	return time.Second * 30
-
 }
 
 func (ac ApplicationConfig) GetGrpcServerMaxConnectionAge() time.Duration {
@@ -153,7 +156,11 @@ func (ac ApplicationConfig) GetS3PresignedExpirationSeconds() int {
 }
 
 func (ac ApplicationConfig) GetS3UsePathStyle() bool {
-	return env.GetBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false)
+	if v, err := env.GetBoolOrDefault("OIBP_S3_USE_PATH_STYLE", false); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetDocumentPath(bucket, bucketPath, jobId, fileType string) string {
@@ -220,7 +227,11 @@ func (ac ApplicationConfig) GetOtelServiceVersion() string {
 }
 
 func (ac ApplicationConfig) GetOtelEnabled() bool {
-	return env.GetBoolOrDefault("OIBP_TELEMETRY_ENABLED", true)
+	if v, err := env.GetBoolOrDefault("OIBP_TELEMETRY_ENABLED", true); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
 }
 
 func (ac ApplicationConfig) GetServiceReadinessPollingInterval() time.Duration {

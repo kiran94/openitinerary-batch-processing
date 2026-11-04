@@ -285,12 +285,13 @@ func TestApplicationConfigOtelEnabledEnvironmentOverride(t *testing.T) {
 	}
 }
 
-func TestApplicationConfigOtelEnabledInvalidValueUsesDefault(t *testing.T) {
+func TestApplicationConfigOtelEnabledInvalidValuePanics(t *testing.T) {
 	t.Setenv("OIBP_TELEMETRY_ENABLED", "not-a-bool")
 
 	config := ApplicationConfig{}
-
-	assert.True(t, config.GetOtelEnabled())
+	assert.Panics(t, func() {
+		config.GetOtelEnabled()
+	})
 }
 
 func TestGetLoggingLevelDefault(t *testing.T) {

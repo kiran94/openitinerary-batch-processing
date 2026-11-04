@@ -13,12 +13,13 @@ const envVarName = "TEST_OIBP_LOGGING_LEVEL"
 func TestGetEnvLoggingLevelOrDefault_EnvNotSet_ExpectDefault(t *testing.T) {
 	t.Setenv(envVarName, "")
 	defaultValue := slog.LevelInfo
-	level := GetEnvLoggingLevelOrDefault(envVarName, defaultValue)
+	level, err := GetEnvLoggingLevelOrDefault(envVarName, defaultValue)
 
+	require.NoError(t, err)
 	assert.Equal(t, slog.LevelInfo, level)
 }
 
-func TestGetEnvLoggingLevelOrDefault_EnvSet_ExpectDefault(t *testing.T) {
+func TestGetEnvLoggingLevelOrDefault_EnvSet_ExpectParsed(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected slog.Level
@@ -32,8 +33,9 @@ func TestGetEnvLoggingLevelOrDefault_EnvSet_ExpectDefault(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Setenv(envVarName, tt.input)
-			level := GetEnvLoggingLevelOrDefault(envVarName, slog.LevelInfo)
+			level, err := GetEnvLoggingLevelOrDefault(envVarName, slog.LevelInfo)
 
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, level)
 		})
 	}
@@ -41,9 +43,12 @@ func TestGetEnvLoggingLevelOrDefault_EnvSet_ExpectDefault(t *testing.T) {
 
 func TestGetEnvLoggingLevelOrDefault_EnvSet_Malformed(t *testing.T) {
 	t.Setenv(envVarName, "NOT_LOGGING_LEVEL")
-	assert.Panics(t, func() {
-		GetEnvLoggingLevelOrDefault(envVarName, slog.LevelInfo)
-	})
+	defaultValue := slog.LevelInfo
+
+	v, err := GetEnvLoggingLevelOrDefault(envVarName, defaultValue)
+
+	require.EqualError(t, err, "slog: level string \"NOT_LOGGING_LEVEL\": unknown name")
+	assert.Equal(t, defaultValue, v)
 }
 
 func TestGetPositiveIntEnvOrDefault(t *testing.T) {
@@ -110,4 +115,40 @@ func TestGetPositiveInt64EnvOrDefault(t *testing.T) {
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestGetBoolOrDefault(t *testing.T) {
+	tests := []struct {
+		name          string
+		envVarValue   string
+		defaultValue  bool
+		expectedValue bool
+	}{
+		{name: "env_var_not_set", envVarValue: "", defaultValue: false, expectedValue: false},
+		{name: "env_var_set", envVarValue: "true", defaultValue: false, expectedValue: true},
+		{name: "env_var_set", envVarValue: "false", defaultValue: true, expectedValue: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const envVarName = "BOOL_VAL"
+			t.Setenv(envVarName, tt.envVarValue)
+
+			v, err := GetBoolOrDefault(envVarName, tt.defaultValue)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedValue, v)
+		})
+	}
+}
+
+func TestGetBoolOrDefault_InvalidEnvVarSet(t *testing.T) {
+	const envVarName = "BOOL_VAL"
+	t.Setenv(envVarName, "INVALID")
+	defaultValue := false
+
+	v, err := GetBoolOrDefault(envVarName, defaultValue)
+
+	require.EqualError(t, err, "could not convert env var 'BOOL_VAL': strconv.ParseBool: parsing \"INVALID\": invalid syntax")
+	assert.Equal(t, v, defaultValue)
 }
